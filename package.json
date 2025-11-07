@@ -1,8 +1,8 @@
 {
-  "name": "zigx",
+  "name": "zx",
   "displayName": "ZX",
   "description": "ZX let's you write HTML within your Zig code.",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "publisher": "nurulhudaapon",
   "icon": "images/zx-icon.png",
   "repository": {
@@ -47,7 +47,11 @@
           "ZX",
           "Zig"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "./images/zx-icon-dark.svg",
+          "light": "./images/zx-icon-light.svg"
+        }
       }
     ],
     "grammars": [
@@ -65,7 +69,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build-base -- --minify",
-    "build-base": "esbuild --bundle --external:vscode src/extension.ts --outdir=out --platform=node --target=node20 --format=cjs",
+    "build-base": "esbuild --bundle --external:vscode --external:lodash-es --external:semver --external:libsodium-wrappers --external:vscode-languageclient --external:which src/extension.ts --outdir=out --platform=node --target=node20 --format=cjs --minify --legal-comments=none --drop:console",
     "build": "npm run build-base -- --sourcemap",
     "watch": "npm run build-base -- --sourcemap --watch",
     "test": "npm run compile && node ./node_modules/vscode/bin/test",

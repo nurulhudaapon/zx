@@ -1,6 +1,5 @@
 **
-!images/zx-icon.png
-!images/example.png
+!images/**
 !syntaxes/zigx.tmLanguage.json
 !syntaxes/zigx-injection.tmLanguage.json
 !language-configuration.json

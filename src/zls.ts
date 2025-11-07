@@ -176,7 +176,6 @@ async function getZLSPath(context: vscode.ExtensionContext): Promise<{ exe: stri
 
 function configurationMiddleware(params: ConfigurationParams): LSPAny[] | ResponseError {
     void validateAdditionalOptions();
-    console.log("[debug] ZLS requested configuration:", params);
     return params.items.map((param) => {
         if (!param.section) return null;
 
