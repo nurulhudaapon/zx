@@ -1,4 +1,6 @@
-node_modules
-*.vsix
-.env
 out
+node_modules
+client/server
+.vscode-test
+tsconfig.tsbuildinfo
+*.vsix

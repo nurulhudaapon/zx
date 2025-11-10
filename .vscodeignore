@@ -1,9 +1,11 @@
 **
 !images/**
-!syntaxes/zx.tmLanguage.json
-!syntaxes/zx-injection.tmLanguage.json
+!syntaxes/**
 !language-configuration.json
-!out/extension.js
+!out/*.js
+
+!node_modules/**/**
+
 !package.json
 !LICENSE
 !README.md
