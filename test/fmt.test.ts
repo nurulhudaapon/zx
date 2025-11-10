@@ -3,27 +3,27 @@ import { formatZx } from "../src/fmt";
 import { fmtCases } from "./data.test";
 import Bun from "bun";
 
-// Register virtual document providers
 const virtualHtmlDocumentContents = new Map<string, string>();
 
-describe("formatZx", () => {
+describe("fmt", () => {
     const cancellationTokenSource = new CancellationTokenSource();
     for (const fmtCase of fmtCases) {
         Object.keys(fmtCase).filter(key => key !== "ins").forEach(key => {
-            test(`formatZx - ${key.slice('out'.length)} - ${fmtCase.ins.length} inputs`, async () => {
-    
-                for (const inputText of fmtCase.ins) {
+
+            for (let inputIndex = 0; inputIndex < fmtCase.ins.length; inputIndex++) {
+                const inputText = fmtCase.ins[inputIndex];
+                test(`ZX Expr - ${key.slice('out'.length)} #${inputIndex}`, async () => {
                     const outputText = await formatZx(
                         inputText,
                         cancellationTokenSource.token,
                         "test.zig",
                         virtualHtmlDocumentContents,
                     );
-    
-                    await log(inputText, outputText);
+
                     expect(outputText).toEqual(fmtCase[key]);
-                }
-            });
+                    await log(inputText, outputText);
+                });
+            }
         });
 
     }
@@ -35,7 +35,7 @@ async function log(input: string, output: string) {
     const outputFile = Bun.file("test/logs/output.zig");
     await inputFile.write(input);
     await outputFile.write(output);
-    
+
     const logFile = Bun.file("test/logs/fmt.log");
     const existing = await logFile.exists() ? await logFile.text() : "";
     const newLog = `${existing}${input}
