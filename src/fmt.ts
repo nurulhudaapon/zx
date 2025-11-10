@@ -1280,6 +1280,21 @@ async function formatZigExprs(
 }
 
 /**
+ * Ensures that `zig fmt` has been JIT compiled by running `zig fmt --help`.
+ * This warms up the zig process to avoid the JIT compilation delay on the first format request.
+ */
+export function preCompileZigFmt(): void {
+  try {
+    childProcess.execFile("zig", ["fmt", "--help"], {
+      timeout: 60000, // 60 seconds (this is a very high value because 'zig fmt' is just in time compiled)
+    });
+  } catch (err) {
+    // Silently ignore errors - warming is best effort
+    // The actual format operation will handle errors appropriately
+  }
+}
+
+/**
  * Runs `zig fmt --stdin` on prepared text. Returns formatted text or original on failure.
  */
 export async function runZigFmt(

@@ -9,7 +9,7 @@ import {
 
 import { getZLSPath } from "./util";
 
-import { formatZx } from "./fmt";
+import { formatZx, preCompileZigFmt } from "./fmt";
 
 let client: LanguageClient;
 
@@ -22,6 +22,9 @@ export function activate(context: ExtensionContext) {
     );
     return;
   }
+
+  // Warm up zig fmt process to avoid JIT compilation delay on first format
+  preCompileZigFmt();
 
   const serverOptions: ServerOptions = {
     command: serverCommand,

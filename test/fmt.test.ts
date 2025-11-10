@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test";
-import { formatZx } from "../src/fmt";
+import { formatZx, preCompileZigFmt } from "../src/fmt";
 import { fmtCases } from "./data.test";
 import Bun from "bun";
 
@@ -7,6 +7,7 @@ const virtualHtmlDocumentContents = new Map<string, string>();
 
 describe("fmt", () => {
     const cancellationTokenSource = new CancellationTokenSource();
+    preCompileZigFmt();
     for (const fmtCase of fmtCases) {
         Object.keys(fmtCase).filter(key => key !== "ins").forEach(key => {
 
@@ -20,6 +21,7 @@ describe("fmt", () => {
                         virtualHtmlDocumentContents,
                     );
 
+                    // @ts-ignore
                     expect(outputText).toEqual(fmtCase[key]);
                     await log(inputText, outputText);
                 });
@@ -27,6 +29,7 @@ describe("fmt", () => {
         });
 
     }
+    cancellationTokenSource.cancel();
 });
 
 
@@ -47,14 +50,17 @@ ${output}
 }
 
 class CancellationTokenSource {
+    queue: (() => void)[] = [];
     token = {
         isCancellationRequested: false,
-        onCancellationRequested: (_callback: () => void) => {
-            // Mock implementation
+        onCancellationRequested: (callback: () => void) => {
+            this.queue.push(callback);
         },
     };
     cancel() {
         this.token.isCancellationRequested = true;
+        this.queue.forEach(callback => callback());
+        this.queue = [];
     }
     dispose() { }
 }
