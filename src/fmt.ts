@@ -1,10 +1,13 @@
 import * as childProcess from "child_process";
+import * as util from "util";
 import {
   getLanguageService,
   HTMLFormatConfiguration,
   TextDocument,
 } from "vscode-html-languageservice";
 const htmlLanguageService = getLanguageService();
+
+const execFile = util.promisify(childProcess.execFile);
 
 const enableZigExpression = true;
 
@@ -85,10 +88,7 @@ export async function formatZig(
   preparedZigText: string,
   token: CancellationToken,
 ): Promise<string> {
-  // Add semicolons to complete expressions to make valid Zig syntax before formatting
-  const textWithSemicolons = addSemicolonsToCompleteExpressions(preparedZigText);
-  // Format with zig fmt (semicolons will be kept as they're part of valid Zig statements)
-  return runZigFmt(textWithSemicolons, token);
+  return runZigFmt(preparedZigText, token);
 }
 
 /**
@@ -114,6 +114,8 @@ export async function formatHtml(
   // we must run prepareFmtDoc on each segment and format inner html, then format the zig.
   const formattedZigExpressions = new Map<string, string>();
 
+  const queueId = Math.random().toString(36).substring(2, 15);
+  
   for (const [zigKey, zigText] of zigExpressions.exprss.entries()) {
     if (!enableZigExpression) {
       // If formatting of embedded Zig expressions is not enabled, keep the
@@ -1301,53 +1303,35 @@ export async function runZigFmt(
   text: string,
   token: CancellationToken,
 ): Promise<string> {
-  return new Promise<string>((resolve) => {
-    try {
-      const child = childProcess.spawn("zig", ["fmt", "--stdin"], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      let stdout = "";
-      let stderr = "";
-
-      child.stdout.on("data", (chunk) => {
-        stdout += chunk.toString();
-      });
-      child.stderr.on("data", (chunk) => {
-        stderr += chunk.toString();
-      });
-
-      child.on("error", (err) => {
-        console.error("zig fmt spawn error:", err);
-        resolve(text);
-      });
-
-      child.on("close", (code) => {
-        if (code === 0) {
-          resolve(stdout);
-        } else {
-          console.warn("zig fmt exited with code", code, "stderr:", stderr);
-          resolve(text);
-        }
-      });
-
-      // Write input and end
-      child.stdin.end(text);
-
-      // Cancellation support
-      token.onCancellationRequested(() => {
-        try {
-          child.kill();
-        } catch (e) {
-          // ignore
-        }
-        resolve(text);
-      });
-    } catch (err) {
-      console.error("runZigFmtOnPrepared error:", err);
-      resolve(text);
-    }
+  const abortController = new AbortController();
+  token.onCancellationRequested(() => {
+    abortController.abort();
   });
+
+  const timestamp = Date.now();
+
+  try {
+    const promise = execFile("zig", ["fmt", "--stdin"], {
+      maxBuffer: 10 * 1024 * 1024, // 10MB
+      signal: abortController.signal,
+      timeout: 60000, // 60 seconds (this is a very high value because 'zig fmt' is just in time compiled)
+    });
+    promise.child.stdin?.end(text);
+
+    const { stdout } = await promise;
+
+    if (stdout.length === 0) return text;
+    return stdout;
+  } catch (err) {
+    if (token.isCancellationRequested) {
+      return text;
+    }
+    console.error("runZigFmt error:", err);
+    return text;
+  } finally {
+    const duration = Date.now() - timestamp;
+    console.debug(`runZigFmt took ${duration}ms`);
+  }
 }
 
 /**
