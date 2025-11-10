@@ -85,7 +85,10 @@ export async function formatZig(
   preparedZigText: string,
   token: CancellationToken,
 ): Promise<string> {
-  return runZigFmt(preparedZigText, token);
+  // Add semicolons to complete expressions to make valid Zig syntax before formatting
+  const textWithSemicolons = addSemicolonsToCompleteExpressions(preparedZigText);
+  // Format with zig fmt (semicolons will be kept as they're part of valid Zig statements)
+  return runZigFmt(textWithSemicolons, token);
 }
 
 /**
@@ -792,6 +795,195 @@ export function cleanupZigExprs(
 }
 
 /**
+ * Finds the end of a balanced parentheses expression starting at a given position.
+ * Returns the position after the closing parenthesis, or -1 if not found.
+ */
+function findBalancedParens(text: string, startPos: number): number {
+  let depth = 0;
+  let pos = startPos;
+  let inString = false;
+  let stringChar = '';
+
+  while (pos < text.length) {
+    const char = text[pos];
+    const prevChar = pos > 0 ? text[pos - 1] : '';
+
+    // Handle string literals
+    if (!inString && (char === '"' || char === "'")) {
+      inString = true;
+      stringChar = char;
+      pos++;
+      continue;
+    }
+
+    if (inString) {
+      if (char === stringChar && prevChar !== '\\') {
+        inString = false;
+      }
+      pos++;
+      continue;
+    }
+
+    // Handle parentheses
+    if (char === '(') {
+      depth++;
+    } else if (char === ')') {
+      depth--;
+      if (depth === 0) {
+        return pos + 1;
+      }
+    }
+
+    pos++;
+  }
+
+  return -1;
+}
+
+/**
+ * Adds semicolons after complete expression statements (if/for/switch/while) to make valid Zig syntax.
+ * This handles expressions like: if (condition) (value) else (value)
+ * and converts them to: if (condition) (value) else (value);
+ */
+function addSemicolonsToCompleteExpressions(text: string): string {
+  type ExpressionType = "if" | "for" | "switch" | "while";
+  
+  const expressionKeywords: ExpressionType[] = ["if", "for", "switch", "while"];
+  const matches: Array<{ start: number; end: number; type: ExpressionType }> = [];
+
+  // Find all expression keywords
+  for (const keyword of expressionKeywords) {
+    const regex = new RegExp(`\\b${keyword}\\s*\\(`, "g");
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const start = match.index;
+      const afterKeyword = match.index + match[0].length - 1; // Position of opening '('
+      
+      // Find the end of the condition parentheses
+      const conditionEnd = findBalancedParens(text, afterKeyword);
+      if (conditionEnd === -1) continue;
+
+      // Skip whitespace after condition
+      let pos = conditionEnd;
+      while (pos < text.length && /\s/.test(text[pos])) {
+        pos++;
+      }
+
+      // Check for optional capture variable |variable|
+      if (text[pos] === '|') {
+        pos++; // Skip opening |
+        const captureEnd = text.indexOf('|', pos);
+        if (captureEnd !== -1) {
+          pos = captureEnd + 1;
+          // Skip whitespace after capture variable
+          while (pos < text.length && /\s/.test(text[pos])) {
+            pos++;
+          }
+        }
+      }
+
+      // Find the body which is wrapped in parentheses
+      if (text[pos] === '(') {
+        const bodyEnd = findBalancedParens(text, pos);
+        if (bodyEnd === -1) continue;
+
+        let end = bodyEnd;
+
+        // For if expressions, check for else clause
+        if (keyword === "if") {
+          // Skip whitespace after body
+          let elsePos = bodyEnd;
+          while (elsePos < text.length && /\s/.test(text[elsePos])) {
+            elsePos++;
+          }
+
+          // Check for else
+          if (text.substring(elsePos, elsePos + 4) === "else") {
+            elsePos += 4;
+            // Skip whitespace after else
+            while (elsePos < text.length && /\s/.test(text[elsePos])) {
+              elsePos++;
+            }
+
+            // Find else body
+            if (text[elsePos] === '(') {
+              const elseBodyEnd = findBalancedParens(text, elsePos);
+              if (elseBodyEnd !== -1) {
+                end = elseBodyEnd;
+              }
+            }
+          }
+        }
+
+        matches.push({ start, end, type: keyword });
+      }
+    }
+  }
+
+  // Process matches from end to start to avoid position shifts
+  let result = text;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const { start, end, type } = matches[i];
+
+    // Check if this is already followed by a semicolon
+    const afterMatch = result.slice(end);
+    const trimmedAfter = afterMatch.trimStart();
+
+    // If already has semicolon, skip
+    if (trimmedAfter.startsWith(";")) {
+      continue;
+    }
+
+    // Skip if followed by opening brace (it's part of a block)
+    if (trimmedAfter.startsWith("{")) {
+      continue;
+    }
+
+    // Skip if followed by another expression keyword
+    if (/^\s*(if|for|while|switch)\s*\(/.test(trimmedAfter)) {
+      continue;
+    }
+
+    // Check if we're at the end of a line or followed by semicolon/newline/brace
+    // This indicates it's a complete statement
+    const isCompleteStatement =
+      trimmedAfter === "" ||
+      trimmedAfter.startsWith("\n") ||
+      trimmedAfter.startsWith(";") ||
+      trimmedAfter.startsWith("}");
+
+    // Check if this expression is inside braces (HTML expression context)
+    // by looking backwards for an opening brace before the expression
+    const beforeExpr = result.slice(0, start);
+    const lastOpenBrace = beforeExpr.lastIndexOf("{");
+    const lastCloseBrace = beforeExpr.lastIndexOf("}");
+    const isInsideBraces = lastOpenBrace > lastCloseBrace;
+
+    if (isCompleteStatement && !isInsideBraces) {
+      // Switch statements don't require semicolons
+      if (type === "switch") {
+        continue;
+      }
+
+      // Add semicolon after the complete expression
+      result = result.slice(0, end) + ";" + result.slice(end);
+    } else if (isCompleteStatement && isInsideBraces) {
+      // For expressions inside braces (HTML context), we still add semicolons
+      // temporarily to make valid Zig for formatting, but they'll be removed later
+      // Switch statements don't require semicolons
+      if (type === "switch") {
+        continue;
+      }
+
+      // Add semicolon after the complete expression (will be removed after formatting)
+      result = result.slice(0, end) + ";" + result.slice(end);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Adds semicolons after @html(n) patterns inside control flow statements to make valid Zig syntax.
  * This is needed because inside if/else/for/while blocks, expressions need semicolons.
  * Note: switch statements do NOT require semicolons, so they are excluded.
@@ -829,27 +1021,20 @@ function addSemicolonsToHtmlPlaceholders(text: string): string {
     // Find all control flow keywords before this position
     const controlFlowMatches: Array<{ keyword: string; index: number }> = [];
 
-    // Handle keywords with parentheses: if, for, while
-    for (const keyword of ["if", "for", "while"]) {
-      const regex = new RegExp(`\\b${keyword}\\s*\\(`, "g");
+    // Use switch case for different expression types
+    const expressionTypes: Array<{ keyword: string; regex: RegExp }> = [
+      { keyword: "if", regex: /\bif\s*\(/g },
+      { keyword: "for", regex: /\bfor\s*\(/g },
+      { keyword: "while", regex: /\bwhile\s*\(/g },
+      { keyword: "else", regex: /\belse\s*{/g },
+      { keyword: "switch", regex: /\bswitch\s*\(/g },
+    ];
+
+    for (const { keyword, regex } of expressionTypes) {
       let m;
       while ((m = regex.exec(beforeMatch)) !== null) {
         controlFlowMatches.push({ keyword, index: m.index });
       }
-    }
-
-    // Also check for 'else' (which doesn't have parentheses)
-    const elseRegex = /\belse\s*{/g;
-    let elseMatch;
-    while ((elseMatch = elseRegex.exec(beforeMatch)) !== null) {
-      controlFlowMatches.push({ keyword: "else", index: elseMatch.index });
-    }
-
-    // Check for switch statements (to exclude them)
-    const switchRegex = /\bswitch\s*\(/g;
-    let switchMatch;
-    while ((switchMatch = switchRegex.exec(beforeMatch)) !== null) {
-      controlFlowMatches.push({ keyword: "switch", index: switchMatch.index });
     }
 
     // Find the closest control flow keyword
@@ -926,6 +1111,100 @@ function removeSemicolonsFromHtmlPlaceholders(text: string): string {
 }
 
 /**
+ * Removes semicolons that were added after complete expression statements.
+ * This reverses the effect of addSemicolonsToCompleteExpressions.
+ */
+function removeSemicolonsFromCompleteExpressions(text: string): string {
+  type ExpressionType = "if" | "for" | "switch" | "while";
+  
+  const expressionKeywords: ExpressionType[] = ["if", "for", "switch", "while"];
+  const matches: Array<{ start: number; end: number; type: ExpressionType }> = [];
+
+  // Find all expression keywords (same logic as addSemicolonsToCompleteExpressions)
+  for (const keyword of expressionKeywords) {
+    const regex = new RegExp(`\\b${keyword}\\s*\\(`, "g");
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const start = match.index;
+      const afterKeyword = match.index + match[0].length - 1;
+      
+      const conditionEnd = findBalancedParens(text, afterKeyword);
+      if (conditionEnd === -1) continue;
+
+      let pos = conditionEnd;
+      while (pos < text.length && /\s/.test(text[pos])) {
+        pos++;
+      }
+
+      if (text[pos] === '|') {
+        pos++;
+        const captureEnd = text.indexOf('|', pos);
+        if (captureEnd !== -1) {
+          pos = captureEnd + 1;
+          while (pos < text.length && /\s/.test(text[pos])) {
+            pos++;
+          }
+        }
+      }
+
+      if (text[pos] === '(') {
+        const bodyEnd = findBalancedParens(text, pos);
+        if (bodyEnd === -1) continue;
+
+        let end = bodyEnd;
+
+        if (keyword === "if") {
+          let elsePos = bodyEnd;
+          while (elsePos < text.length && /\s/.test(text[elsePos])) {
+            elsePos++;
+          }
+
+          if (text.substring(elsePos, elsePos + 4) === "else") {
+            elsePos += 4;
+            while (elsePos < text.length && /\s/.test(text[elsePos])) {
+              elsePos++;
+            }
+
+            if (text[elsePos] === '(') {
+              const elseBodyEnd = findBalancedParens(text, elsePos);
+              if (elseBodyEnd !== -1) {
+                end = elseBodyEnd;
+              }
+            }
+          }
+        }
+
+        matches.push({ start, end, type: keyword });
+      }
+    }
+  }
+
+  // Remove semicolons from matches (process from end to start)
+  let result = text;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const { end, type } = matches[i];
+    
+    // Skip switch statements (they don't have semicolons)
+    if (type === "switch") {
+      continue;
+    }
+
+    // Check if there's a semicolon after the expression (with optional whitespace)
+    const afterMatch = result.slice(end);
+    const trimmedAfter = afterMatch.trimStart();
+    
+    if (trimmedAfter.startsWith(";")) {
+      // Find the actual position of the semicolon (accounting for whitespace)
+      const semicolonPos = end + (afterMatch.length - trimmedAfter.length);
+      // Remove the semicolon
+      result = result.slice(0, semicolonPos) + result.slice(semicolonPos + 1);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Formats a prepared Zig text segment (which may still contain @html(...) placeholders).
  * Tries ZLS (virtual URI), then falls back to `zig fmt --stdin`.
  */
@@ -933,8 +1212,10 @@ async function formatZigExprs(
   preparedZigText: string,
   token: CancellationToken,
 ): Promise<string> {
-  // Add semicolons after @html(n) patterns inside control flow statements to make valid Zig
-  const textWithSemicolons = addSemicolonsToHtmlPlaceholders(preparedZigText);
+  // Add semicolons after complete expressions and @html(n) patterns to make valid Zig
+  const textWithSemicolons = addSemicolonsToCompleteExpressions(
+    addSemicolonsToHtmlPlaceholders(preparedZigText)
+  );
 
   // Prefix to make the prepared segment a valid Zig snippet for the formatter.
   // Keep this in sync with the slice length used later when removing the prefix.
@@ -944,7 +1225,9 @@ async function formatZigExprs(
   const formattedEdits = await runZigFmt(validZigDoc, token);
   const withoutPrefix = formattedEdits.slice("test ".length);
   // Remove semicolons we added before formatting
-  return removeSemicolonsFromHtmlPlaceholders(withoutPrefix);
+  return removeSemicolonsFromCompleteExpressions(
+    removeSemicolonsFromHtmlPlaceholders(withoutPrefix)
+  );
 }
 
 /**

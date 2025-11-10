@@ -4,3 +4,4 @@ client/server
 .vscode-test
 tsconfig.tsbuildinfo
 *.vsix
+test/logs/*
