@@ -1,0 +1,138 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+    return (
+        <div @allocator={allocator} class="todo-container">
+          
+            <TodoApp @rendering={.csz} />
+
+            <style>
+                {[@embedFile("style.css"):s]}
+            </style>
+            <script src="/assets/main.js" />
+        </div>
+    );
+}
+
+const Todo = struct { id: u32, text: []const u8, completed: bool };
+var todos = std.ArrayList(Todo).empty;
+
+pub fn TodoApp(allocator: zx.Allocator) zx.Component {
+    initTodos(allocator);
+
+    return (
+        <div @allocator={allocator} class="todo-app">
+            <div class="todo-header">
+                <h1 class="todo-title">ZX + WASM</h1>
+                <p class="todo-subtitle">A demo todo app built with ZX Client Side Rendering</p>
+            </div>
+        
+            <form class="todo-input-section" onsubmit="event.preventDefault(); _zx.exports.example_wasm_addTodo(event);">
+                <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." />
+                <button class="todo-add-btn" type="submit">Add</button>
+            </form>
+        
+            <div class="todo-stats">
+                <div class="todo-stat">
+                    <span class="todo-stat-value">{[todos.items.len:d]}</span>
+                    <span class="todo-stat-label">Total</span>
+                </div>
+                <div class="todo-stat">
+                    <span class="todo-stat-value">{[countCompleted():d]}</span>
+                    <span class="todo-stat-label">Completed</span>
+                </div>
+                <div class="todo-stat">
+                    <span class="todo-stat-value">{[(todos.items.len - countCompleted()):d]}</span>
+                    <span class="todo-stat-label">Remaining</span>
+                </div>
+            </div>
+        
+            <ul class="todo-list">
+                {for (todos.items) |todo| (
+                    <TodoItem id={todo.id} text={todo.text} completed={todo.completed} />
+                )}
+            </ul>
+        </div>
+    );
+}
+
+const TodoItemProps = struct {
+    id: u32,
+    text: []const u8,
+    completed: bool,
+};
+fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
+    const item_class = if (props.completed) "todo-item todo-item-completed" else "todo-item";
+    const id = std.fmt.allocPrint(allocator, "{d}", .{props.id}) catch @panic("OOM");
+
+    return (
+        <li @allocator={allocator} 
+            class={item_class} key={id} data-completed={if (props.completed) "true" else "false"}
+            onclick={std.fmt.allocPrint(allocator, "_zx.exports.example_wasm_toggleTodo({d})", .{props.id}) catch @panic("OOM")}
+        >
+            <div class="todo-checkbox">
+                {if (props.completed) "✓" else ""}
+            </div>
+            <span class="todo-text">{props.text}</span>
+        </li>
+    );
+}
+
+const initial_todos = [_]Todo{
+    .{ .id = 1, .text = "Build a fast web app with ZX", .completed = true },
+    .{ .id = 3, .text = "Implement server-side rendering", .completed = true },
+    .{ .id = 4, .text = "Implement client-side rendering", .completed = false },
+};
+
+fn initTodos(allocator: zx.Allocator) void {
+    if (todos.items.len > 0) return;
+    todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
+}
+
+export fn example_wasm_addTodo() void {
+    if (builtin.os.tag != .freestanding) return;
+    const allocator = std.heap.wasm_allocator;
+    const document = zx.Client.bom.Document.init(allocator);
+    const js = zx.Client.js;
+    const input = document.getElementById("todo-input") catch return;
+
+    const text = input.ref.getAlloc(js.String, allocator, "value") catch return;
+    if (text.len == 0) return;
+
+    todos.append(allocator, .{ .id = todos.items.len + 1, .text = text, .completed = false }) catch @panic("OOM");
+    input.ref.set("value", js.string("")) catch return;
+
+    root.renderAll();
+}
+
+export fn example_wasm_toggleTodo(id: u32) void {
+    if (builtin.os.tag != .freestanding) return;
+    // const allocator = std.heap.wasm_allocator;
+    for (todos.items) |*todo| {
+        if (todo.id == id) {
+            todo.completed = !todo.completed;
+            root.renderAll();
+            return;
+        }
+    }
+}
+
+export fn example_wasm_clearTodos() void {
+    if (builtin.os.tag != .freestanding) return;
+    // const allocator = std.heap.wasm_allocator;
+    todos.clearRetainingCapacity();
+
+    root.renderAll();
+}
+
+fn countCompleted() u32 {
+    var count: u32 = 0;
+    for (todos.items) |todo| {
+        if (todo.completed) count += 1;
+    }
+    return count;
+}
+
+const zx = @import("zx");
+const std = @import("std");
+const builtin = @import("builtin");
+const root = @import("root");

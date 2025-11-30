@@ -54,9 +54,7 @@ pub fn renderAll(self: *Client) void {
     defer console.deinit();
 
     for (self.components) |component| {
-        self.render(component) catch |err| {
-            console.log(.{ js.string("Error rendering component: "), js.string(@errorName(err)) });
-        };
+        self.render(component) catch {};
     }
 }
 
@@ -71,7 +69,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
 
     // Root Container
     const container = document.getElementById(cmp.id) catch {
-        console.log(.{ js.string("Container not found for id: "), js.string(cmp.id) });
+        // console.warn(.{ js.string("Container not found for id: "), js.string(cmp.id) });
         return error.ContainerNotFound;
     };
     defer container.deinit();
@@ -126,7 +124,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
 
 const zx = @import("../root.zig");
 const std = @import("std");
-const js = @import("js");
+pub const js = @import("js");
 const builtin = @import("builtin");
 const zx_info = @import("zx_info");
 const vtree_mod = @import("vtree.zig");

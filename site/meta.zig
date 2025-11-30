@@ -16,7 +16,6 @@ pub const routes = [_]zx.App.Meta.Route{
     .{
         .path = "/examples",
         .page = @import(".zx/pages/examples/page.zig").Page,
-        .layout = @import(".zx/pages/examples/layout.zig").Layout,
     },
     .{
         .path = "/examples/form",
@@ -35,6 +34,10 @@ pub const routes = [_]zx.App.Meta.Route{
     .{
         .path = "/time",
         .page = @import(".zx/pages/time/page.zig").Page,
+    },
+    .{
+        .path = "/examples/wasm",
+        .page = @import(".zx/pages/examples/wasm/page.zig").Page,
     },
 };
 

@@ -14,6 +14,22 @@ pub const Console = struct {
     pub fn log(self: Console, args: anytype) void {
         self.ref.call(void, "log", args) catch @panic("Failed to call console.log");
     }
+
+    pub fn @"error"(self: Console, args: anytype) void {
+        self.ref.call(void, "error", args) catch @panic("Failed to call console.error");
+    }
+
+    pub fn warn(self: Console, args: anytype) void {
+        self.ref.call(void, "warn", args) catch @panic("Failed to call console.warn");
+    }
+
+    pub fn info(self: Console, args: anytype) void {
+        self.ref.call(void, "info", args) catch @panic("Failed to call console.info");
+    }
+
+    pub fn debug(self: Console, args: anytype) void {
+        self.ref.call(void, "debug", args) catch @panic("Failed to call console.debug");
+    }
 };
 
 pub const Event = struct {

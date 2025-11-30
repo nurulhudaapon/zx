@@ -9,9 +9,12 @@ mv zig-$(uname -m)-linux-${ZIG_VER}/ /opt/zig
 
 # Build the app
 WORKDIR /build
-COPY . .
+COPY src/ ./src
+COPY site/ ./site
+COPY build.zig.zon ./build.zig.zon
+COPY build.zig ./build.zig
 
-RUN /opt/zig/zig build -Dzx-docsite -Doptimize=ReleaseFast -Dcpu=baseline
+RUN /opt/zig/zig build -Dzx-docsite -Doptimize=ReleaseSmall -Dzx-wasm
 
 # Run the app
 FROM alpine:3.22.2
