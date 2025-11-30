@@ -1,64 +1,18 @@
-// Exploration of the DOM API, we may not need this if we can use the JS API directly
 pub const Console = struct {
-    object: js.Object,
+    ref: js.Object,
 
     pub fn init() Console {
         return .{
-            .object = js.global.get(js.Object, "console") catch @panic("Console not found"),
+            .ref = js.global.get(js.Object, "console") catch @panic("Console not found"),
         };
     }
 
     pub fn deinit(self: Console) void {
-        self.object.deinit();
+        self.ref.deinit();
     }
 
     pub fn log(self: Console, args: anytype) void {
-        self.object.call(void, "log", args) catch @panic("Failed to call console.log");
-    }
-};
-
-pub const Document = struct {
-    const HTMLElement = struct {
-        object: js.Object,
-        allocator: std.mem.Allocator,
-
-        pub fn init(allocator: std.mem.Allocator, object: js.Object) !HTMLElement {
-            return .{
-                .object = object,
-                .allocator = allocator,
-            };
-        }
-
-        pub fn deinit(self: HTMLElement) void {
-            self.object.deinit();
-        }
-
-        pub fn setInnerHTML(self: HTMLElement, html: []const u8) !void {
-            return try self.object.set("innerHTML", js.string(html));
-        }
-    };
-
-    object: js.Object,
-    allocator: std.mem.Allocator,
-
-    pub fn init(allocator: std.mem.Allocator) !Document {
-        const obj = try js.global.get(js.Object, "document");
-        return .{
-            .object = obj,
-            .allocator = allocator,
-        };
-    }
-
-    pub fn deinit(self: Document) void {
-        self.object.deinit();
-    }
-
-    pub fn getElementById(self: Document, id: []const u8) error{ElementNotFound}!HTMLElement {
-        const obj: js.Object = self.object.call(js.Object, "getElementById", .{js.string(id)}) catch {
-            return error.ElementNotFound;
-        };
-
-        return try HTMLElement.init(self.allocator, obj);
+        self.ref.call(void, "log", args) catch @panic("Failed to call console.log");
     }
 };
 
@@ -112,6 +66,8 @@ pub const Event = struct {
         };
     }
 };
+
+pub const Document = @import("bom/dom.zig").Document;
 
 const std = @import("std");
 const js = @import("js");

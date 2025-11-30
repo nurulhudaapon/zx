@@ -9,21 +9,36 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     );
 }
 
+var todos = std.ArrayList([]const u8).empty;
 export var count: u64 = 0;
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     return (
         <div @allocator={allocator}>
-            <button onclick="_zx.exports.incrementCount()">Increment</button>
+            <button onclick="_zx.exports.incrementCount(event)">Increment</button>
             <p>Count: {[count:d]}</p>
+        
+            <input type="text" id="hello-input" />
+        
+            <ul>
+                {for (todos.items) |todo| (<li>Todo {todo}</li>)}
+            </ul>
         </div>
     );
 }
 
 export fn incrementCount() void {
+    if (builtin.os.tag != .freestanding) return;
+
     count += 1;
+    const allocator = std.heap.wasm_allocator;
+
+    const text = std.fmt.allocPrint(allocator, "{d}", .{ count }) catch @panic("OOM");
+    todos.append(allocator, text) catch @panic("OOM");
 
     root.renderAll();
 }
 
 const root = @import("root");
 const zx = @import("zx");
+const std = @import("std");
+const builtin = @import("builtin");
