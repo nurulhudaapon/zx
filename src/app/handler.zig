@@ -204,16 +204,15 @@ pub const Handler = struct {
     }
 
     const DevSocketContext = struct {
+        const heartbeat_interval_ns = 30 * std.time.ns_per_s;
         fn handle(self: DevSocketContext, stream: std.net.Stream) void {
             _ = self;
             // Set retry interval to 100ms for fast reconnection when server restarts
             stream.writeAll("retry: 100\n\n") catch return;
 
             // Send periodic heartbeats to keep connection alive
-            const heartbeat_interval_ns = 30 * std.time.ns_per_s; // 30 seconds
             while (true) {
                 std.Thread.sleep(heartbeat_interval_ns);
-                // Send heartbeat as a comment (doesn't trigger events)
                 stream.writeAll(":heartbeat\n\n") catch return;
             }
         }
@@ -223,17 +222,27 @@ pub const Handler = struct {
         _ = self;
         _ = req;
 
-        // Add optional header to disable nginx buffering
         res.header("X-Accel-Buffering", "no");
 
-        // Start the event stream (automatically sets Content-Type, Cache-Control, Connection)
-        // When server restarts, connection drops and client will reconnect automatically
-        try res.startEventStream(DevSocketContext{}, DevSocketContext.handle);
+        // On windows there is a bug where the event stream is not working, so we just keep the connection alive
+        if (builtin.os.tag == .windows) {
+            res.content_type = .EVENTS;
+            res.headers.add("Cache-Control", "no-cache");
+            res.headers.add("Connection", "keep-alive");
+
+            // res.writer().writeAll("retry: 100\n\n") catch return;
+            // while (true) {
+            //     std.Thread.sleep(DevSocketContext.heartbeat_interval_ns);
+            //     res.writer().writeAll(":heartbeat\n\n") catch return;
+            // }
+        } else try res.startEventStream(DevSocketContext{}, DevSocketContext.handle);
     }
 };
 
 const std = @import("std");
+const builtin = @import("builtin");
 const zx = @import("../root.zig");
+
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const Printer = zx.Printer;

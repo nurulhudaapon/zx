@@ -62,11 +62,13 @@ fn dev(ctx: zli.CommandContext) !void {
         return;
     };
 
+    const runnable_program_path = try util.getRunnablePath(allocator, program_path);
+
     jsutil.buildjs(ctx, binpath, true, true) catch |err| {
         log.debug("Error building JavaScript! {any}", .{err});
     };
 
-    var runner = std.process.Child.init(&.{ program_path, "--cli-command", "dev" }, allocator);
+    var runner = std.process.Child.init(&.{ runnable_program_path, "--cli-command", "dev" }, allocator);
     try runner.spawn();
     defer _ = runner.kill() catch unreachable;
 
@@ -82,6 +84,13 @@ fn dev(ctx: zli.CommandContext) !void {
             try ctx.writer.print("{s}Restarting ZX App...{s}", .{ Colors.cyan, Colors.reset });
 
             _ = try runner.kill();
+            if (builtin.os.tag == .windows) {
+                // remove the tmp and copy the new zx.exe
+                _ = try util.getRunnablePath(allocator, program_path);
+
+                _ = try builder.kill();
+                try builder.spawn();
+            }
             try runner.spawn();
 
             std.debug.print("\n", .{});
@@ -115,6 +124,7 @@ fn dev(ctx: zli.CommandContext) !void {
 const std = @import("std");
 const zli = @import("zli");
 const zx = @import("zx");
+const builtin = @import("builtin");
 
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");

@@ -25,7 +25,7 @@ pub fn findprogram(allocator: std.mem.Allocator, binpath: []const u8) !zx.App.Se
             log.debug("Inspecting exe: {s}", .{full_path});
 
             var app_meta = inspectProgram(allocator, full_path) catch |err| switch (err) {
-                error.ProgramNotFound, error.ParseZon => continue,
+                error.ProgramNotFound, error.ParseZon, error.InvalidExe => continue,
                 else => return err,
             };
             // defer std.zon.parse.free(allocator, app_meta);
@@ -148,7 +148,27 @@ pub fn copydirs(
     }
 }
 
+pub fn getRunnablePath(allocator: std.mem.Allocator, program_path: []const u8) ![]const u8 {
+    if (builtin.os.tag == .windows) {
+        // Create .zig-cache/tmp/.zx directory if it doesn't exist
+        const cache_dir = ".zig-cache/tmp/.zx";
+        try std.fs.cwd().makePath(cache_dir);
+
+        const dest_dir = try std.fs.cwd().openDir(cache_dir, .{});
+        const bin_name = std.fs.path.basename(program_path);
+
+        // Copy the executable to the cache directory
+        try std.fs.cwd().copyFile(program_path, dest_dir, bin_name, .{});
+
+        const copied_program_path = try std.fs.path.join(allocator, &.{ cache_dir, bin_name });
+        return copied_program_path;
+    } else {
+        return program_path;
+    }
+}
+
 const std = @import("std");
 const zx = @import("zx");
+const builtin = @import("builtin");
 const tui = @import("../../tui/main.zig");
 const log = std.log.scoped(.cli);
