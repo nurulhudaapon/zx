@@ -1,2 +1,2 @@
 pub const Printer = @import("Printer.zig");
-pub const Colors = @import("Colors.zig");
+pub const Colors = @import("Colors.zig").Colors;

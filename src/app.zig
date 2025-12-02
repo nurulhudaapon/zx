@@ -210,12 +210,13 @@ pub const App = struct {
 };
 
 const std = @import("std");
+const builtin = @import("builtin");
 const zx = @import("root.zig");
-const Allocator = std.mem.Allocator;
-const Component = zx.Component;
-const Printer = zx.Printer;
-const Constant = @import("./constant.zig");
 const httpz = @import("httpz");
 const module_config = @import("zx_info");
-const log = std.log.scoped(.app);
+const Constant = @import("./constant.zig");
 const Handler = @import("./app/handler.zig").Handler;
+
+const Allocator = std.mem.Allocator;
+const Component = zx.Component;
+const log = std.log.scoped(.app);

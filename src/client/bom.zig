@@ -15,6 +15,10 @@ pub const Console = struct {
         self.ref.call(void, "log", args) catch @panic("Failed to call console.log");
     }
 
+    pub fn str(self: Console, data: []const u8) void {
+        self.ref.call(void, "log", .{js.string(data)}) catch @panic("Failed to call console.log");
+    }
+
     pub fn @"error"(self: Console, args: anytype) void {
         self.ref.call(void, "error", args) catch @panic("Failed to call console.error");
     }
@@ -70,6 +74,10 @@ pub const Event = struct {
         self.ref.deinit();
     }
 };
+
+pub fn eval(T: type, code: []const u8) !T {
+    return try js.global.call(T, "eval", .{js.string(code)});
+}
 
 pub const Document = @import("bom/dom.zig").Document;
 

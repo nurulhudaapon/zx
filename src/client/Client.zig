@@ -49,11 +49,11 @@ pub fn info(self: *Client) void {
 
     console.log(.{ js.string(format_str), js.string(title_css), js.string(version_css) });
 
-    const obj: js.Object = js.global.get(js.Object, "_zx") catch @panic("ZX not found");
-    const zx_events: js.Object = obj.get(js.Object, "events") catch @panic("Events not found");
-    const zx_exports: js.Object = obj.get(js.Object, "exports") catch @panic("");
-    console.table(.{ zx_events, zx_exports });
-    console.table(.{zx_exports});
+    // const obj: js.Object = js.global.get(js.Object, "_zx") catch @panic("ZX not found");
+    // const zx_events: js.Object = obj.get(js.Object, "events") catch @panic("Events not found");
+    // const zx_exports: js.Object = obj.get(js.Object, "exports") catch @panic("");
+    // console.table(.{ zx_events, zx_exports });
+    // console.table(.{zx_exports});
 }
 
 pub fn renderAll(self: *Client) void {
@@ -69,27 +69,19 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     const allocator = self.allocator;
 
     const document = Document.init(allocator);
-    defer document.deinit();
-
     const console = Console.init();
-    defer console.deinit();
 
     // Root Container
-    const container = document.getElementById(cmp.id) catch {
-        // console.warn(.{ js.string("Container not found for id: "), js.string(cmp.id) });
-        return error.ContainerNotFound;
-    };
-    defer container.deinit();
+    const container = document.getElementById(cmp.id) catch return error.ContainerNotFound;
 
     const Component = cmp.import(allocator);
     const existing_vtree = self.vtrees.getPtr(cmp.id);
+    const new_vtree = VDOMTree.init(allocator, Component);
 
-    const is_first_render = existing_vtree == null;
-    if (is_first_render) {
-        const vtree = VDOMTree.init(allocator, Component);
-
-        try container.appendChild(vtree.vtree.dom);
-        try self.vtrees.put(cmp.id, vtree);
+    // First render
+    if (existing_vtree == null) {
+        try container.appendChild(new_vtree.vtree.dom);
+        try self.vtrees.put(cmp.id, new_vtree);
         return;
     }
 
@@ -98,12 +90,10 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         const root_type_changed = !areComponentsSameType(old_vtree.vtree.component, Component);
 
         if (root_type_changed) {
+            defer old_vtree.deinit(allocator);
             const old_root_dom = old_vtree.vtree.dom;
 
-            const new_vtree = VDOMTree.init(allocator, Component);
-
             try container.replaceChild(new_vtree.vtree.dom, old_root_dom);
-            old_vtree.deinit(allocator);
             try self.vtrees.put(cmp.id, new_vtree);
             return;
         }
@@ -111,31 +101,42 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         // Diff and apply patches
         var patches = try old_vtree.diffWithComponent(allocator, Component);
 
-        var aw = std.io.Writer.Allocating.init(allocator);
-        defer aw.deinit();
-        Component.render(&aw.writer) catch @panic("OOM");
-        console.log(.{ js.string("VTree: "), js.string(aw.written()) });
-        aw.clearRetainingCapacity();
+        // Debug Info
+        {
+            var aw = std.io.Writer.Allocating.init(allocator);
+            defer aw.deinit();
+            // Component.render(&aw.writer) catch @panic("OOM");
+            // console.log(.{ js.string("VTree: "), js.string(aw.written()) });
 
-        for (patches.items) |patch| {
-            switch (patch.data) {
-                .UPDATE => |update_data| {
-                    var attr_iter = update_data.attributes.iterator();
-                    while (attr_iter.next()) |entry| {
-                        console.log(.{ js.string("UPDATE: "), js.string(entry.key_ptr.*), js.string(" -> "), js.string(entry.value_ptr.*) });
-                    }
+            const fmt_comp = std.fmt.allocPrint(allocator, "JSON.parse(`{f}`).children[1]", .{Component}) catch @panic("OOM");
+            console.log(.{try bom.eval(js.Object, fmt_comp)});
+            aw.clearRetainingCapacity();
 
-                    for (update_data.removed_attributes.items) |attr| {
-                        console.log(.{ js.string("REMOVED: "), js.string(attr) });
-                    }
-                },
-                else => {},
+            for (patches.items) |patch| {
+                switch (patch.data) {
+                    .UPDATE => |update_data| {
+                        var attr_iter = update_data.attributes.iterator();
+                        while (attr_iter.next()) |entry| {
+                            console.log(.{ js.string("UPDATE: "), js.string(entry.key_ptr.*), js.string(" -> "), js.string(entry.value_ptr.*) });
+                        }
+
+                        for (update_data.removed_attributes.items) |attr| {
+                            console.log(.{ js.string("REMOVED: "), js.string(attr) });
+                        }
+                    },
+                    else => {},
+                }
             }
+
+            var vtrees_iter = self.vtrees.iterator();
+            while (vtrees_iter.next()) |entry| {
+                console.log(.{ js.string("VTREE: "), js.string(entry.key_ptr.*) });
+            }
+
+            // patches.print(allocator, "patches: {s}", .{}) catch @panic("OOM");
+
+            // container.setAttribute("data-vtree", vtree_json_str);
         }
-
-        // patches.print(allocator, "patches: {s}", .{}) catch @panic("OOM");
-
-        // container.setAttribute("data-vtree", vtree_json_str);
 
         defer {
             for (patches.items) |*patch| {
@@ -152,7 +153,9 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
 
         try VDOMTree.applyPatches(allocator, patches);
 
-        old_vtree.vtree.component = Component;
+        // Update the VElement tree's components to match the new component
+        // This ensures that on the next render, the diff will compare against the updated state
+        // old_vtree.updateComponents(Component);
     }
 }
 

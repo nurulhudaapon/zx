@@ -89,7 +89,7 @@ fn init(ctx: zli.CommandContext) !void {
         }
     }
 
-    printer.footer("Now run {s}\n\n{s}zig build serve{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, tui.Colors.reset });
+    printer.footer("Now run {s}\n\n{s}zig build serve{s}", .{ tui.Printer.emoji("→"), colors.Fns.cyan("zig build serve"), colors.reset });
 }
 
 const TemplateFile = struct {
@@ -153,3 +153,4 @@ const templates = [_]TemplateFile{
 const std = @import("std");
 const zli = @import("zli");
 const tui = @import("../tui/main.zig");
+const colors = tui.Colors;

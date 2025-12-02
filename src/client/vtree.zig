@@ -171,9 +171,6 @@ vtree: VElement,
 /// Initialize a VDOMTree from a root component
 /// This creates the entire virtual DOM tree with actual DOM element references
 pub fn init(allocator: zx.Allocator, component: zx.Component) VDOMTree {
-    const console = Console.init();
-    defer console.deinit();
-
     const document = Document.init(allocator);
 
     const root_velement = VElement.createFromComponent(allocator, document, null, component) catch @panic("Error creating root VElement");
@@ -188,6 +185,8 @@ pub fn diff(
     parent: ?*VElement,
     patches: *std.ArrayList(Patch),
 ) anyerror!void {
+    // const console = Console.init();
+
     // Component
     if (!areComponentsSameType(old_velement.component, new_velement.component)) {
         if (parent) |p| {
@@ -210,6 +209,12 @@ pub fn diff(
         .element => |new_element| {
             switch (old_velement.component) {
                 .element => |old_element| {
+                    // console.str("diffAttributes");
+
+                    // if (new_element.attributes) |attrs|
+                    //     for (attrs) |attr|
+                    //         console.str(attr.name);
+
                     var attributes_to_update = std.StringHashMap([]const u8).init(allocator);
                     var attributes_to_remove = std.ArrayList([]const u8).empty;
 
@@ -278,6 +283,10 @@ pub fn diff(
         .text => |new_text| {
             switch (old_velement.component) {
                 .text => |old_text| {
+                    const console = Console.init();
+                    const log_text = std.fmt.allocPrint(allocator, "diffText: Old: {s}, New: {s}", .{ old_text, new_text }) catch @panic("OOM");
+                    defer allocator.free(log_text);
+                    console.str(log_text);
                     if (!std.mem.eql(u8, old_text, new_text)) {
                         switch (old_velement.dom) {
                             .text => |text_node| {
@@ -285,6 +294,8 @@ pub fn diff(
                             },
                             else => {},
                         }
+                        // Update the component to reflect the new text value
+                        old_velement.component = .{ .text = new_text };
                     }
                 },
                 else => {},
@@ -301,6 +312,8 @@ fn diffChildren(
     parent: *VElement,
     patches: *std.ArrayList(Patch),
 ) !void {
+    const console = Console.init();
+
     const old_children = old_velement.children.items;
     const new_children = if (new_velement.component == .element) blk: {
         const element = new_velement.component.element;
@@ -313,6 +326,9 @@ fn diffChildren(
 
     var old_index: usize = 0;
     var new_index: usize = 0;
+
+    if (old_velement.component.element.tag == .div)
+        console.str(std.fmt.allocPrint(allocator, "Child ({s}) Len: Old: {d}, New: {d} | Index: Old: {d}, New: {d}", .{ @tagName(old_velement.component.element.tag), old_children.len, new_children.len, old_index, new_index }) catch @panic("OOM"));
 
     while (old_index < old_children.len and new_index < new_children.len) {
         const old_child_velement = &old_velement.children.items[old_index];
@@ -397,6 +413,24 @@ fn createVElementFromComponent(allocator: zx.Allocator, component: zx.Component)
     return try VElement.createFromComponent(allocator, document, null, component);
 }
 
+/// Compare two HTMLNode values to check if they refer to the same DOM node
+/// Workaround for zig_js boolean return bug: use a function that returns a number
+fn areNodesEqual(node1: Document.HTMLNode, node2: Document.HTMLNode) bool {
+    const ref1 = switch (node1) {
+        .element => |elem| elem.ref,
+        .text => |text| text.ref,
+    };
+    const ref2 = switch (node2) {
+        .element => |elem| elem.ref,
+        .text => |text| text.ref,
+    };
+    // Use JavaScript's === operator via a helper function that returns a number
+    // to avoid the zig_js boolean return type bug
+    const compare_fn = js.global.call(js.Object, "eval", .{js.string("(function(a, b) { return a === b ? 1 : 0; })")}) catch return false;
+    const result = compare_fn.call(f64, "call", .{ js.global, ref1, ref2 }) catch return false;
+    return result == 1;
+}
+
 pub fn applyPatches(
     allocator: zx.Allocator,
     patches: std.ArrayList(Patch),
@@ -459,25 +493,14 @@ pub fn applyPatches(
                     .element => |parent_element| {
                         try parent_element.removeChild(velement.dom);
 
-                        // TODO: compare with generated id or use JS areNodesEqual
                         // Remove from parent's children list
-                        // const children = &parent.children;
-                        // for (children.items, 0..) |child, i| {
-                        //     switch (child.dom) {
-                        //         .element => |element| {
-                        //             if (element.ref == velement.dom.element.ref) {
-                        //                 _ = children.swapRemove(i);
-                        //                 break;
-                        //             }
-                        //         },
-                        //         .text => |text| {
-                        //             if (text.ref.ref == velement.dom.ref.ref) {
-                        //                 _ = children.swapRemove(i);
-                        //                 break;
-                        //             }
-                        //         },
-                        //     }
-                        // }
+                        const children = &parent.children;
+                        for (children.items, 0..) |child, i| {
+                            if (areNodesEqual(child.dom, velement.dom)) {
+                                _ = children.swapRemove(i);
+                                break;
+                            }
+                        }
 
                         velement.deinit(allocator);
                     },
@@ -496,15 +519,14 @@ pub fn applyPatches(
                     .element => |parent_element| {
                         try parent_element.replaceChild(new_velement.dom, old_velement.dom);
 
-                        // TODO: compare with generated id or use JS areNodesEqual
                         // Replace in parent's children list
-                        // const children = &parent.children;
-                        // for (children.items, 0..) |*child, i| {
-                        //     if (child.dom.ref.ref == old_velement.dom.ref.ref) {
-                        //         children.items[i] = new_velement;
-                        //         break;
-                        //     }
-                        // }
+                        const children = &parent.children;
+                        for (children.items, 0..) |*child, i| {
+                            if (areNodesEqual(child.dom, old_velement.dom)) {
+                                children.items[i] = new_velement;
+                                break;
+                            }
+                        }
 
                         old_velement.deinit(allocator);
                     },
@@ -541,6 +563,35 @@ pub fn getRootElement(self: *const VDOMTree) ?Document.HTMLElement {
         .element => |elem| elem,
         .text => null,
     };
+}
+
+/// Update the VElement tree's components to match a new component tree
+/// This is called after applying patches to keep the VElement tree in sync
+fn updateVElementComponent(velement: *VElement, new_component: zx.Component) void {
+    velement.component = new_component;
+
+    switch (new_component) {
+        .element => |element| {
+            if (element.children) |children| {
+                var child_idx: usize = 0;
+                for (children) |child_component| {
+                    if (child_idx < velement.children.items.len) {
+                        updateVElementComponent(&velement.children.items[child_idx], child_component);
+                        child_idx += 1;
+                    }
+                }
+            }
+        },
+        .text => {},
+        .component_fn => {},
+        .component_csr => {},
+    }
+}
+
+/// Update the VDOMTree's components to match a new component
+/// This should be called after applying patches to keep the tree in sync
+pub fn updateComponents(self: *VDOMTree, new_component: zx.Component) void {
+    updateVElementComponent(&self.vtree, new_component);
 }
 
 const zx = @import("../root.zig");

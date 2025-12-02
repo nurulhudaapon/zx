@@ -56,6 +56,70 @@ fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
     return result;
 }
 
+const ComponentSerializable = struct {
+    tag: ?ElementTag = null,
+    text: ?[]const u8 = null,
+    attributes: ?[]const Element.Attribute = null,
+    children: ?[]ComponentSerializable = null,
+
+    pub fn init(allocator: Allocator, component: Component) !ComponentSerializable {
+        return switch (component) {
+            .text => |text| .{ .text = text },
+            .element => |element| blk: {
+                const children_serializable = if (element.children) |children| blk2: {
+                    const serializable = try allocator.alloc(ComponentSerializable, children.len);
+                    for (children, 0..) |child, i| {
+                        serializable[i] = try ComponentSerializable.init(allocator, child);
+                    }
+                    break :blk2 serializable;
+                } else null;
+                break :blk .{
+                    .tag = element.tag,
+                    .attributes = element.attributes,
+                    .children = children_serializable,
+                };
+            },
+            .component_csr => |component_csr| .{
+                .tag = .div,
+                .attributes = &.{.{ .name = "id", .value = component_csr.id }},
+            },
+            .component_fn => |comp_fn| blk: {
+                // Resolve component_fn by calling it, then serialize the result
+                // This avoids serializing anyopaque fields
+                const resolved = comp_fn.call();
+                const serialized = try ComponentSerializable.init(allocator, resolved);
+                break :blk serialized;
+            },
+        };
+    }
+
+    pub fn initChildren(allocator: Allocator, children: []const Component) ![]ComponentSerializable {
+        const children_serializable = try allocator.alloc(ComponentSerializable, children.len);
+        for (children, 0..) |child, i| {
+            children_serializable[i] = try ComponentSerializable.init(allocator, child);
+        }
+        return children_serializable;
+    }
+
+    pub fn serialize(self: ComponentSerializable, writer: *std.Io.Writer) !void {
+
+        // try std.zon.stringify.serializeArbitraryDepth(
+        //     self,
+        //     .{
+        //         .whitespace = true,
+        //         .emit_default_optional_fields = false,
+        //     },
+        //     writer,
+        // );
+
+        try std.json.Stringify.value(
+            self,
+            .{ .whitespace = .indent_2 },
+            writer,
+        );
+    }
+};
+
 pub const Component = union(enum) {
     text: []const u8,
     element: Element,
@@ -255,7 +319,7 @@ pub const Component = union(enum) {
                         try writer.print(" {s}", .{attribute.name});
                         if (attribute.value) |value| {
                             try writer.writeAll("=\"");
-                            if (attribute.format) |_| {
+                            if (attribute.fmt_specifier) |_| {
                                 // Format field is present - value is already formatted, skip HTML escaping
                                 try writer.writeAll(value);
                             } else {
@@ -354,13 +418,25 @@ pub const Component = union(enum) {
             else => return error.NotAnElement,
         }
     }
+
+    pub fn format(
+        self: *const Component,
+        w: *std.Io.Writer,
+    ) error{WriteFailed}!void {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+
+        var serializable = ComponentSerializable.init(allocator, self.*) catch return error.WriteFailed;
+        try serializable.serialize(w);
+    }
 };
 
 pub const Element = struct {
     pub const Attribute = struct {
         name: []const u8,
         value: ?[]const u8 = null,
-        format: ?[]const u8 = null, // Format specifier for value (e.g., "{s}", "{d}")
+        fmt_specifier: ?[]const u8 = null, // Format specifier for value (e.g., "{s}", "{d}")
     };
 
     tag: ElementTag,
@@ -504,10 +580,10 @@ pub fn initWithAllocator(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
+pub const info = @import("zx_info");
 const routing = @import("routing.zig");
-
+pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
+
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
-pub const info = @import("zx_info");
-pub const Client = @import("client/Client.zig");
