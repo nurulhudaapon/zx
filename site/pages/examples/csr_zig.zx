@@ -4,10 +4,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
     return (
         <main @allocator={allocator}>
-            <CounterComponent @rendering={.csz} count={server_count} />
+            <ClientCounterComponent @rendering={.csz} count={server_count} />
         </main>
     );
 }
+
+pub const ClientCounterComponent = @import("./client_counter.zig").CounterComponent;
 
 var todos = std.ArrayList([]const u8).empty;
 export var count: u64 = 0;
@@ -35,7 +37,7 @@ export fn incrementCount() void {
     const text = std.fmt.allocPrint(allocator, "{d}", .{ count }) catch @panic("OOM");
     todos.append(allocator, text) catch @panic("OOM");
 
-    root.renderAll();
+    root.client.renderAll();
 }
 
 const root = @import("root");

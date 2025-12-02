@@ -1,0 +1,14 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <CounterComponent @rendering={.csz} />
+
+            <script src="/assets/main.js" />
+        </div>
+    );
+}
+
+const zx = @import("zx");
+const std = @import("std");
+
+pub const CounterComponent = @import("../../client_counter.zig").CounterComponent;

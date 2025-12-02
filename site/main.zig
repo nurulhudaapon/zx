@@ -18,7 +18,7 @@ pub fn main() !void {
 }
 
 pub var client = zx.Client.init(
-    std.heap.wasm_allocator,
+    if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator,
     .{ .components = &@import(".zx/components.zig").components },
 );
 

@@ -53,7 +53,7 @@ pub fn setup(b: *std.Build, zx_exe: *std.Build.Step.Compile, zx_mod: *std.Build.
         const wasm_exe = b.addExecutable(.{
             .name = "zx_wasm",
             .root_module = b.createModule(.{
-                .root_source_file = outdir.path(b, "main.wasm.zig"),
+                .root_source_file = b.path("site/main.zig"),
                 .target = wasm_target,
                 .optimize = options.root_module.optimize,
                 .imports = &.{
@@ -70,6 +70,12 @@ pub fn setup(b: *std.Build, zx_exe: *std.Build.Step.Compile, zx_mod: *std.Build.
             .{ .custom = "../site/.zx/assets" },
             "main.wasm",
         );
+
+        wasm_exe.root_module.addAnonymousImport("zx_components", .{
+            .root_source_file = outdir.path(b, "components.zig"),
+            // .imports = imports.items,
+        });
+
         b.default_step.dependOn(&wasm_install.step);
         wasm_exe.step.dependOn(&transpile_cmd.step);
         b.installArtifact(wasm_exe);
