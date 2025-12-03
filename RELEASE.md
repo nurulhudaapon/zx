@@ -12,8 +12,7 @@ powershell -c "irm ziex.dev/install.ps1 | iex"
 ```
 
 ## Changelog
-- [x] CLI
-    - [x] `bundle` Bundle the ZX executable with public/assets and exe
+- [x] feat: client side rendering (wip)
 
 ## Feature Checklist
 
