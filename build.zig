@@ -4,6 +4,7 @@ const std = @import("std");
 const buildlib = @import("src/build/main.zig");
 
 // --- Public API (setting up ZX Site) --- //
+/// Deprecated in favor of `zx.init(b, exe, options)`
 pub const setup = buildlib.setup;
 
 pub fn build(b: *std.Build) void {
@@ -65,17 +66,22 @@ pub fn build(b: *std.Build) void {
     {
         const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
 
-        if (is_zx_docsite) buildlib.docsite.setup(b, exe, mod, zx_wasm_mod, .{
-            .name = "zx_site",
-            .root_module = b.createModule(.{
-                .root_source_file = b.path("site/main.zig"),
-                .target = target,
-                .optimize = optimize,
-                .imports = &.{
-                    .{ .name = "zx", .module = mod },
-                },
-            }),
-        });
+        if (is_zx_docsite) {
+            const zx_docsite_exe = b.addExecutable(.{
+                .name = "zx_site",
+                .root_module = b.createModule(.{
+                    .root_source_file = b.path("site/main.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                }),
+            });
+
+            initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
+                .cli_path = null,
+                .site_outdir = "site/.zx",
+                .site_path = "site",
+            }) catch unreachable;
+        }
     }
 
     // --- Steps: Test --- //
@@ -154,4 +160,162 @@ pub fn build(b: *std.Build) void {
             release_step.dependOn(&install_release.step);
         }
     }
+}
+
+/// Options for initializing a ZX project
+pub const ZxInitOptions = struct {
+    const CliOptions = struct {
+        /// Path to the ZX CLI executable, if null then the ZX CLI will be used from system path (`zx`)
+        path: ?[]const u8 = null,
+    };
+
+    const SiteOptions = struct {
+        /// Path to the ZX site, by default it is `site`
+        path: []const u8,
+    };
+
+    // It is recommended to use the default options, but you can override them if you want to
+    site: ?SiteOptions = null,
+
+    /// Options for the ZX CLI, if null then the ZX CLI will be used from the soure of ZX dependency
+    cli: ?CliOptions = null,
+};
+
+const default_inner_opts: InitInnerOptions = .{
+    .site_path = "site",
+    .cli_path = "zx",
+    .site_outdir = null,
+};
+
+pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions) !void {
+    const target = exe.root_module.resolved_target;
+    const optimize = exe.root_module.optimize;
+    const zx_dep = b.dependencyFromBuildZig(@This(), .{ .target = target, .optimize = optimize });
+
+    const zx_module = zx_dep.module("zx");
+    const zx_wasm_module = zx_dep.module("zx_wasm");
+    const zx_exe = zx_dep.artifact("zx");
+
+    var opts = default_inner_opts;
+
+    if (options.site) |site_opts| {
+        opts.site_path = site_opts.path;
+    }
+
+    if (options.cli) |cli_opts| {
+        opts.cli_path = cli_opts.path;
+    }
+
+    return initInner(b, exe, zx_exe, zx_module, zx_wasm_module, opts);
+}
+
+const InitInnerOptions = struct {
+    site_path: []const u8,
+    cli_path: ?[]const u8,
+    site_outdir: ?[]const u8 = null,
+};
+
+fn initInner(
+    b: *std.Build,
+    exe: *std.Build.Step.Compile,
+    zx_exe: *std.Build.Step.Compile,
+    zx_module: *std.Build.Module,
+    zx_wasm_module: *std.Build.Module,
+    opts: InitInnerOptions,
+) !void {
+    // const target = exe.root_module.resolved_target;
+    const optimize = exe.root_module.optimize;
+
+    // --- ZX Transpilation ---
+    const site_root_path = opts.site_path;
+    const transpile_cmd = transpile_blk: {
+        if (opts.cli_path != null)
+            break :transpile_blk b.addSystemCommand(&.{opts.cli_path.?});
+
+        break :transpile_blk b.addRunArtifact(zx_exe);
+    };
+
+    transpile_cmd.addArgs(&.{ "transpile", b.pathJoin(&.{site_root_path}), "--outdir" });
+    const outdir = outdir_blk: {
+        if (opts.site_outdir != null) {
+            transpile_cmd.addArg(opts.site_outdir.?);
+            break :outdir_blk b.path(opts.site_outdir.?);
+        } else {
+            break :outdir_blk transpile_cmd.addOutputDirectoryArg(site_root_path);
+        }
+    };
+
+    transpile_cmd.expectExitCode(0);
+
+    // --- ZX File Cache Invalidator ---
+    const site_path = b.path(site_root_path).getPath3(b, &transpile_cmd.step);
+    var site_dir = try site_path.root_dir.handle.openDir(site_path.subPathOrDot(), .{ .iterate = true });
+    var itd = try site_dir.walk(transpile_cmd.step.owner.allocator);
+    defer itd.deinit();
+    while (itd.next() catch @panic("OOM")) |entry| {
+        switch (entry.kind) {
+            .directory => {},
+            .file => {
+                const entry_path = try site_path.join(transpile_cmd.step.owner.allocator, entry.path);
+                transpile_cmd.addFileInput(b.path(entry_path.sub_path));
+            },
+            else => continue,
+        }
+    }
+
+    // --- ZX Site Main Executable ---
+    exe.root_module.addImport("zx", zx_module);
+
+    var imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    var import_it = exe.root_module.import_table.iterator();
+    while (import_it.next()) |entry| {
+        try imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+    }
+
+    exe.root_module.addAnonymousImport("zx_meta", .{
+        .root_source_file = outdir.path(b, "meta.zig"),
+        .imports = imports.items,
+    });
+
+    exe.step.dependOn(&transpile_cmd.step);
+    b.installArtifact(exe);
+
+    // --- ZX WASM Main Executable ---
+    const wasm_exe = b.addExecutable(.{
+        .name = "zx_wasm",
+        .root_module = b.createModule(.{
+            .root_source_file = exe.root_module.root_source_file,
+            .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none }),
+            .optimize = optimize,
+        }),
+    });
+    wasm_exe.root_module.addImport("zx", zx_wasm_module);
+    wasm_exe.entry = .disabled;
+    wasm_exe.export_memory = true;
+    wasm_exe.rdynamic = true;
+
+    const wasm_install = b.addInstallFileWithDir(
+        wasm_exe.getEmittedBin(),
+        .{ .custom = b.pathJoin(&.{ "..", site_root_path, "assets" }) },
+        "main.wasm",
+    );
+
+    wasm_exe.root_module.addAnonymousImport("zx_components", .{
+        .root_source_file = outdir.path(b, "components.zig"),
+        .imports = &.{
+            .{ .name = "zx", .module = zx_wasm_module },
+        },
+    });
+
+    b.default_step.dependOn(&wasm_install.step);
+    wasm_exe.step.dependOn(&transpile_cmd.step);
+    b.installArtifact(wasm_exe);
+
+    // --- Steps: Serve ---
+    const serve_step = b.step("serve", "Run the Zx website");
+    const serve_cmd = b.addRunArtifact(exe);
+    serve_cmd.step.dependOn(&transpile_cmd.step);
+    serve_cmd.step.dependOn(b.getInstallStep());
+    serve_step.dependOn(&serve_cmd.step);
+    if (b.args) |args| serve_cmd.addArgs(args);
 }
