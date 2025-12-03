@@ -1,7 +1,7 @@
 const std = @import("std");
 const zx = @import("zx");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // --- Target and Optimize from `zig build` arguments ---
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     });
 
     // --- ZX Setup (sets up ZX, dependencies, executables and `serve` step) ---
-    zx.setup(b, .{
+    const site_exe = b.addExecutable(.{
         .name = "zx_site",
         .root_module = b.createModule(.{
             .root_source_file = b.path("site/main.zig"),
@@ -25,4 +25,5 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    try zx.init(b, site_exe, .{});
 }

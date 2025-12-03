@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const docsite = @import("doc.zig");
 pub const rustlib = @import("rust.zig");
+pub const initlib = @import("init.zig");
 
 pub fn setup(b: *std.Build, options: std.Build.ExecutableOptions) void {
     const target = options.root_module.resolved_target;

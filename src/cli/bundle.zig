@@ -81,9 +81,9 @@ fn bundle(ctx: zli.CommandContext) !void {
     log.debug("Copying bin from {s} to outdir {s}", .{ final_binpath, dest_binpath });
 
     // Delete the outdir if it exists
-    std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
-        else => {},
-    };
+    // std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
+    //     else => {},
+    // };
     std.fs.cwd().makePath(outdir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,

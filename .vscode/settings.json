@@ -2,7 +2,11 @@
     "zig.testArgs": [
         "build",
         "test",
-        "TEST_FILTER=${filter}"
     ],
-    "editor.formatOnSave": false
+    "editor.formatOnSave": false,
+    "zig.buildOnSaveArgs": [
+        "-Dzx-docsite"
+    ],
+    "zig.zls.completionLabelDetails": false,
+    "zig.zls.inlayHintsShowStructLiteralFieldType": false,
 }

@@ -285,6 +285,7 @@ const ZXElement = struct {
     allocator: std.mem.Allocator,
     builtin_allocator: ?[]const u8 = null, // Builtin @allocator attribute value (expression)
     builtin_rendering: ?[]const u8 = null, // Builtin @rendering attribute value (expression like .csr)
+    builtin_escaping: ?[]const u8 = null, // Builtin @escaping attribute value (expression like .raw)
 
     const Attribute = struct {
         name: []const u8,
@@ -320,7 +321,7 @@ const ZXElement = struct {
         while_loop_expr: struct { condition: []const u8, continue_expr: []const u8, body: *ZXElement }, // For {while (condition) : (continue_expr) (<JSX>)}
         switch_expr: struct { expr: []const u8, cases: std.ArrayList(SwitchCase) }, // For {switch (expr) { case => value, ... }}
         element: *ZXElement,
-        raw_svg_content: []const u8, // For SVG tags - raw unescaped content
+        raw_content: []const u8, // For SVG, script, and style tags - raw unescaped content
     };
 
     fn init(allocator: std.mem.Allocator, tag: []const u8) !*ZXElement {
@@ -343,7 +344,10 @@ const ZXElement = struct {
         if (self.builtin_rendering) |rendering_expr| {
             self.allocator.free(rendering_expr);
         }
-
+        // Free builtin_escaping if allocated
+        if (self.builtin_escaping) |escaping_expr| {
+            self.allocator.free(escaping_expr);
+        }
         for (self.children.items) |child| {
             if (child == .element) {
                 child.element.deinit();
@@ -428,9 +432,9 @@ const ZXElement = struct {
                     }
                 }
                 switch_expr.cases.deinit(self.allocator);
-            } else if (child == .raw_svg_content) {
+            } else if (child == .raw_content) {
                 // Free the allocated raw SVG content
-                self.allocator.free(child.raw_svg_content);
+                self.allocator.free(child.raw_content);
             }
         }
         self.children.deinit(self.allocator);
@@ -960,6 +964,11 @@ fn parseJsx(allocator: std.mem.Allocator, content: []const u8) error{ InvalidJsx
                     const expr_copy = try allocator.dupe(u8, expr);
                     elem.builtin_rendering = expr_copy;
                     continue; // Skip adding to regular attributes
+                } else if (std.mem.eql(u8, name, "escaping")) {
+                    // Store the expression for @wasm
+                    const expr_copy = try allocator.dupe(u8, expr);
+                    elem.builtin_escaping = expr_copy;
+                    continue; // Skip adding to regular attributes
                 }
             }
 
@@ -1044,10 +1053,11 @@ fn parseJsx(allocator: std.mem.Allocator, content: []const u8) error{ InvalidJsx
 
     const inner_content = content[inner_start..inner_end];
 
-    // Special handling for SVG tags: store raw content as unescaped text
-    if (std.mem.eql(u8, tag_name, "svg")) {
+    // Special handling for SVG, script, and style tags: store raw content as unescaped text
+    const is_raw_content_tag = std.mem.eql(u8, tag_name, "svg") or std.mem.eql(u8, elem.builtin_escaping orelse "", ".raw");
+    if (is_raw_content_tag) {
         const raw_content = try allocator.dupe(u8, inner_content);
-        try elem.children.append(allocator, .{ .raw_svg_content = raw_content });
+        try elem.children.append(allocator, .{ .raw_content = raw_content });
     } else {
         try parseJsxChildren(allocator, elem, inner_content);
     }
@@ -5016,7 +5026,7 @@ fn renderJsxAsTokensWithLoopContext(allocator: std.mem.Allocator, output: *Token
                         try output.addToken(.comma, ",");
                         try output.addToken(.invalid, "\n");
                     },
-                    .raw_svg_content => |raw_content| {
+                    .raw_content => |raw_content| {
                         // For SVG tags: use _zx.fmt("{s}", .{raw_content}) to output unescaped content
                         try output.addToken(.identifier, "_zx");
                         try output.addToken(.period, ".");
@@ -5508,7 +5518,7 @@ fn renderNestedElementAsCall(allocator: std.mem.Allocator, output: *TokenBuilder
                     try renderNestedElementAsCall(allocator, output, nested_elem, indent);
                     try output.addToken(.comma, ",");
                 },
-                .raw_svg_content => |raw_content| {
+                .raw_content => |raw_content| {
                     // For SVG tags: use _zx.fmt("{s}", .{raw_content}) to output unescaped content
                     try output.addToken(.identifier, "_zx");
                     try output.addToken(.period, ".");
@@ -5689,7 +5699,7 @@ fn renderElementAsStruct(allocator: std.mem.Allocator, output: *TokenBuilder, el
                     try output.addToken(.r_brace, "}");
                     try output.addToken(.comma, ",");
                 },
-                .raw_svg_content => |raw_content| {
+                .raw_content => |raw_content| {
                     // For SVG tags: use _zx.fmt("{s}", .{raw_content}) to output unescaped content
                     try output.addToken(.period, ".");
                     try output.addToken(.l_brace, "{");

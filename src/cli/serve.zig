@@ -6,7 +6,10 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(port_flag);
     try cmd.addFlag(flags.binpath_flag);
-    try cmd.addFlag(flags.build_args);
+
+    var build_args_flag = flags.build_args;
+    build_args_flag.default_value = .{ .String = "-Doptimize=ReleaseFast" };
+    try cmd.addFlag(build_args_flag);
 
     return cmd;
 }

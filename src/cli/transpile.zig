@@ -17,6 +17,13 @@ const outdir_flag = zli.Flag{
     .default_value = .{ .String = ".zx" },
 };
 
+const copy_only_flag = zli.Flag{
+    .name = "copy-only",
+    .description = "Copy only the files to the output directory",
+    .type = .Bool,
+    .default_value = .{ .Bool = false },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -24,6 +31,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     }, transpile);
 
     try cmd.addFlag(outdir_flag);
+    try cmd.addFlag(copy_only_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -35,10 +43,18 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 fn transpile(ctx: zli.CommandContext) !void {
     const outdir = ctx.flag("outdir", []const u8);
     const copy_dirs = [_][]const u8{ "assets", "public" };
+    const copy_only = ctx.flag("copy-only", bool);
 
     const path = ctx.getArg("path") orelse {
         try ctx.writer.print("Missing path arg\n", .{});
         return;
+    };
+
+    // std.debug.print("Copying only the files to the output directory: from {s} to {s} (copy_only: {any})\n", .{ path, outdir, copy_only });
+
+    if (copy_only) return copyOnly(ctx, path, outdir) catch |err| {
+        std.debug.print("Error: Could not copy path '{s} -> {s}': {}\n", .{ path, outdir, err });
+        return err;
     };
 
     // Check if path is a file and outdir is default
@@ -89,6 +105,15 @@ fn transpile(ctx: zli.CommandContext) !void {
 
     // Otherwise, proceed with normal transpileCommand
     try transpileCommand(ctx.allocator, path, outdir, &copy_dirs, false);
+}
+
+fn copyOnly(ctx: zli.CommandContext, source_path: []const u8, dest_dir: []const u8) !void {
+    const stat = std.fs.cwd().statFile(source_path) catch |err| switch (err) {
+        error.IsDir => return try copyDirectory(ctx.allocator, source_path, dest_dir),
+        else => return err,
+    };
+    if (stat.kind == .directory) try copyDirectory(ctx.allocator, source_path, dest_dir);
+    if (stat.kind == .file) try copyFileToDir(ctx.allocator, source_path, dest_dir);
 }
 
 // ============================================================================
@@ -319,6 +344,20 @@ fn getOutputDirRelativePath(allocator: std.mem.Allocator, dir_path: []const u8, 
 // ============================================================================
 // File Operations
 // ============================================================================
+
+fn copyFileToDir(
+    allocator: std.mem.Allocator,
+    source_file: []const u8,
+    dest_dir: []const u8,
+) !void {
+    const dest_file = try std.fs.path.join(allocator, &.{ dest_dir, std.fs.path.basename(source_file) });
+    defer allocator.free(dest_file);
+    std.fs.cwd().makePath(dest_dir) catch |err| switch (err) {
+        error.PathAlreadyExists => {},
+        else => return err,
+    };
+    try std.fs.cwd().copyFile(source_file, std.fs.cwd(), dest_file, .{});
+}
 
 /// Copy a directory recursively from source to destination
 fn copyDirectory(

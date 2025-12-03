@@ -49,9 +49,9 @@ fn @"export"(ctx: zli.CommandContext) !void {
     printer.header("{s} Building static ZX site!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
     // delete the outdir if it exists
-    std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
-        else => {},
-    };
+    // std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
+    //     else => {},
+    // };
 
     var aw = std.Io.Writer.Allocating.init(ctx.allocator);
     defer aw.deinit();
