@@ -1,9 +1,6 @@
 const std = @import("std");
 
 pub fn setup(b: *std.Build, zx_exe: *std.Build.Step.Compile, zx_mod: *std.Build.Module, zx_wasm_mod: ?*std.Build.Module, options: std.Build.ExecutableOptions) void {
-    var site_outdir = std.fs.cwd().openDir("site/.zx", .{}) catch null;
-    if (site_outdir == null) return;
-    site_outdir.?.close();
 
     // --- ZX Transpilation ---
     const transpile_cmd = b.addRunArtifact(zx_exe);
