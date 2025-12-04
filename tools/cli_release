@@ -1,0 +1,7 @@
+#!/bin/bash
+
+RELEASE_VERSION=v$(grep -E '^\s*\.version\s*=' build.zig.zon | sed -E 's/.*"([^"]+)".*/\1/')
+
+echo "Converting prerelease to full release: $RELEASE_VERSION"
+
+gh release edit $RELEASE_VERSION --draft=false --prerelease=false --latest

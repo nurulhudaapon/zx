@@ -137,7 +137,7 @@ pub fn build(b: *std.Build) !void {
                 .root_module = b.createModule(.{
                     .root_source_file = b.path("src/main.zig"),
                     .target = resolved_target,
-                    .optimize = .ReleaseFast,
+                    .optimize = .ReleaseSafe,
                     .imports = &.{
                         .{ .name = "zx", .module = mod },
                         .{ .name = "httpz", .module = httpz_dep.module("httpz") },

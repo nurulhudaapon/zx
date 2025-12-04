@@ -1,4 +1,0 @@
-#!/bin/bash
-
-zig build run -- transpile site --outdir site/.zx
-zig build serve -Dzx-docsite
