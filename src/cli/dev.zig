@@ -48,6 +48,13 @@ fn dev(ctx: zli.CommandContext) !void {
     }
 
     try build_args_array.append(allocator, "--watch");
+
+    // Add --summary all in silent mode to get detailed timing info
+    if (!show_progress) {
+        try build_args_array.append(allocator, "--summary");
+        try build_args_array.append(allocator, "all");
+    }
+
     var builder = std.process.Child.init(build_args_array.items, allocator);
 
     // Only pipe stderr if we're NOT showing progress (to suppress output)
@@ -112,8 +119,6 @@ fn dev(ctx: zli.CommandContext) !void {
             builder.stderr.?,
             program_path,
             initial_stat.mtime,
-            ctx.writer,
-            true, // show_rebuild_messages
         )
     else
         null;
@@ -153,6 +158,13 @@ fn dev(ctx: zli.CommandContext) !void {
 
         if (should_restart) {
             log.debug("Processing restart request...", .{});
+
+            // Get build duration from watcher (if available)
+            const build_duration_ms = if (build_watcher) |*watcher|
+                watcher.getBuildDurationMs()
+            else
+                0;
+
             var timer = try std.time.Timer.start();
 
             if (need_js_build) jsutil.buildjs(ctx, binpath, true, true) catch |err| {
@@ -190,9 +202,34 @@ fn dev(ctx: zli.CommandContext) !void {
             // Wait for the first line to be captured, then print it synchronously
             restart_output.waitForFirstLine();
 
-            // Elapsed time - overwrite the restart message with completion message using \r
-            const elapsed_time_ms = timer.lap() / std.time.ns_per_ms;
-            try ctx.writer.print("\r{s}Restarting ZX App... {s}done in {d:.0} ms {s}\x1b[K\n", .{ Colors.cyan, Colors.green, elapsed_time_ms, Colors.reset });
+            // Elapsed time - show combined build + restart time
+            const restart_time_ms = timer.lap() / std.time.ns_per_ms;
+
+            if (build_duration_ms > 0) {
+                // // VARIATION 1: All green, space before ms
+                // try ctx.writer.print("\r{s}Restarting ZX App... {s}done in [{d} + {d:.0}] ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, build_duration_ms, restart_time_ms, Colors.reset });
+
+                // // VARIATION 2: Gray brackets/+, green numbers, space before ms
+                // try ctx.writer.print("{s}Restarting ZX App... {s}done in {s}[{s}{d}{s} + {s}{d:.0}{s}]{s} ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, Colors.gray, Colors.green, build_duration_ms, Colors.gray, Colors.green, restart_time_ms, Colors.gray, Colors.green, Colors.reset });
+
+                // // VARIATION 3: All green, NO space before ms
+                // try ctx.writer.print("{s}Restarting ZX App... {s}done in [{d} + {d:.0}]ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, build_duration_ms, restart_time_ms, Colors.reset });
+
+                // // VARIATION 4: Gray entire timing, space before ms
+                // try ctx.writer.print("{s}Restarting ZX App... {s}done in {s}[{d} + {d:.0}] ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, Colors.gray, build_duration_ms, restart_time_ms, Colors.reset });
+
+                // // VARIATION 5: Restart cyan, build yellow, brackets gray, space before ms
+                // try ctx.writer.print("{s}Restarting ZX App... {s}done in {s}[{s}{d}{s} + {s}{d:.0}{s}]{s} ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, Colors.gray, Colors.yellow, build_duration_ms, Colors.gray, Colors.cyan, restart_time_ms, Colors.gray, Colors.green, Colors.reset });
+
+                // // VARIATION 6: Gray brackets/+, green numbers, NO space before ms
+                // try ctx.writer.print("{s}Restarting ZX App... {s}done in {s}[{s}{d}{s} + {s}{d:.0}{s}]{s}ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, Colors.gray, Colors.green, build_duration_ms, Colors.gray, Colors.green, restart_time_ms, Colors.gray, Colors.green, Colors.reset });
+
+                // VARIATION 7: Gray entire timing, NO space before ms
+                try ctx.writer.print("\r{s}Restarting ZX App... {s}done in {s}[{d} + {d:.0}]ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, Colors.gray, build_duration_ms, restart_time_ms, Colors.reset });
+            } else {
+                // Fallback: only show restart time
+                try ctx.writer.print("\r{s}Restarting ZX App... {s}done in {d:.0} ms{s}\x1b[K\n", .{ Colors.cyan, Colors.green, restart_time_ms, Colors.reset });
+            }
 
             printFirstLine(&restart_output);
 

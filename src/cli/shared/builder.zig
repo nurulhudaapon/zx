@@ -5,6 +5,66 @@ const log = std.log.scoped(.cli);
 
 const RESTART_COOLDOWN_NS = std.time.ns_per_ms * 10;
 
+pub const BuildStats = struct {
+    max_duration_ms: u64,
+
+    pub fn init() BuildStats {
+        return .{ .max_duration_ms = 0 };
+    }
+
+    /// Parse duration from string like "6s", "123ms", "45us", "1m"
+    fn parseDuration(text: []const u8) ?u64 {
+        if (text.len < 2) return null;
+
+        // Find where the number ends and unit begins
+        var num_end: usize = 0;
+        while (num_end < text.len) : (num_end += 1) {
+            const c = text[num_end];
+            if (!std.ascii.isDigit(c) and c != '.') break;
+        }
+
+        if (num_end == 0) return null;
+
+        const num_str = text[0..num_end];
+        const unit = text[num_end..];
+
+        const value = std.fmt.parseFloat(f64, num_str) catch return null;
+
+        // Convert to milliseconds
+        const ms = if (std.mem.eql(u8, unit, "s"))
+            value * 1000.0
+        else if (std.mem.eql(u8, unit, "ms"))
+            value
+        else if (std.mem.eql(u8, unit, "us"))
+            value / 1000.0
+        else if (std.mem.eql(u8, unit, "ns"))
+            value / 1_000_000.0
+        else if (std.mem.eql(u8, unit, "m"))
+            value * 60_000.0
+        else if (std.mem.eql(u8, unit, "h"))
+            value * 3_600_000.0
+        else
+            return null;
+
+        return @intFromFloat(ms);
+    }
+
+    /// Update stats by parsing a line from build summary
+    pub fn parseLine(self: *BuildStats, line: []const u8) void {
+        // Look for duration indicators: "6s", "123ms", etc.
+        // They appear after status words like "success", "cached", "failure"
+        var it = std.mem.tokenizeAny(u8, line, " \t");
+        while (it.next()) |token| {
+            if (parseDuration(token)) |duration_ms| {
+                if (duration_ms > self.max_duration_ms) {
+                    self.max_duration_ms = duration_ms;
+                    log.debug("Found build duration: {d}ms from '{s}'", .{ duration_ms, token });
+                }
+            }
+        }
+    }
+};
+
 pub const BuildWatcher = struct {
     allocator: std.mem.Allocator,
     builder_stderr: std.fs.File,
@@ -16,16 +76,13 @@ pub const BuildWatcher = struct {
     binary_path: []const u8,
     last_binary_mtime: i128,
     build_completed: bool,
-    writer: *std.Io.Writer,
-    show_rebuild_messages: bool, // Whether to print "Rebuilding..." messages
+    build_stats: BuildStats, // Parsed build statistics
 
     pub fn init(
         allocator: std.mem.Allocator,
         builder_stderr: std.fs.File,
         binary_path: []const u8,
         initial_mtime: i128,
-        writer: *std.Io.Writer,
-        show_rebuild_messages: bool,
     ) BuildWatcher {
         return .{
             .allocator = allocator,
@@ -38,9 +95,14 @@ pub const BuildWatcher = struct {
             .binary_path = binary_path,
             .last_binary_mtime = initial_mtime,
             .build_completed = false,
-            .writer = writer,
-            .show_rebuild_messages = show_rebuild_messages,
+            .build_stats = BuildStats.init(),
         };
+    }
+
+    pub fn getBuildDurationMs(self: *BuildWatcher) u64 {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.build_stats.max_duration_ms;
     }
 
     pub fn shouldRestart(self: *BuildWatcher) bool {
@@ -65,6 +127,8 @@ pub fn watchBuildOutput(watcher: *BuildWatcher) !void {
     var buf: [8192]u8 = undefined;
     var pattern_buf = std.ArrayList(u8).empty;
     defer pattern_buf.deinit(watcher.allocator);
+    var line_buf = std.ArrayList(u8).empty;
+    defer line_buf.deinit(watcher.allocator);
 
     log.debug("Build watcher thread started", .{});
 
@@ -76,17 +140,31 @@ pub fn watchBuildOutput(watcher: *BuildWatcher) !void {
         };
         if (bytes_read == 0) break;
 
-        // Print rebuild message when we first receive data (only if enabled)
+        // Reset build stats when new build starts
         watcher.mutex.lock();
-        const should_print_start = watcher.show_rebuild_messages and watcher.first_build_done and !watcher.build_completed;
-        watcher.mutex.unlock();
-
-        if (should_print_start) {
-            watcher.writer.print("{s}Rebuilding ZX App...{s}", .{ Colors.cyan, Colors.reset }) catch {};
+        const is_new_build = watcher.first_build_done and !watcher.build_completed;
+        if (is_new_build) {
+            watcher.build_stats = BuildStats.init();
             log.debug("Build started", .{});
         }
+        watcher.mutex.unlock();
 
-        // Accumulate to detect "Build Summary:"
+        // Process bytes line by line to parse build stats
+        for (buf[0..bytes_read]) |byte| {
+            if (byte == '\n') {
+                // Process complete line
+                if (line_buf.items.len > 0) {
+                    watcher.mutex.lock();
+                    watcher.build_stats.parseLine(line_buf.items);
+                    watcher.mutex.unlock();
+                }
+                line_buf.clearRetainingCapacity();
+            } else {
+                try line_buf.append(watcher.allocator, byte);
+            }
+        }
+
+        // Also accumulate to detect "Build Summary:"
         try pattern_buf.appendSlice(watcher.allocator, buf[0..bytes_read]);
 
         if (pattern_buf.items.len > 1024) {
@@ -111,7 +189,6 @@ pub fn watchBuildOutput(watcher: *BuildWatcher) !void {
 
             const binary_changed = stat.mtime != watcher.last_binary_mtime;
             const already_handled = watcher.build_completed;
-            const should_print = watcher.first_build_done;
 
             if (!already_handled and watcher.first_build_done) {
                 if (binary_changed and !watcher.restart_pending) {
@@ -133,11 +210,6 @@ pub fn watchBuildOutput(watcher: *BuildWatcher) !void {
             }
 
             watcher.mutex.unlock();
-
-            // Print completion message (only if enabled)
-            if (should_print and watcher.show_rebuild_messages) {
-                watcher.writer.print("\r{s}Rebuilding ZX App... {s}done{s}\x1b[K\n", .{ Colors.cyan, Colors.green, Colors.reset }) catch {};
-            }
 
             pattern_buf.clearRetainingCapacity();
         }
