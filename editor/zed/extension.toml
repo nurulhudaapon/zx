@@ -1,17 +1,18 @@
 id = "zx"
 name = "ZX"
-description = "Zig and ZX support."
-version = "0.0.1"
+description = "ZX support."
+version = "0.0.1-dev.278"
 schema_version = 1
 authors = ["Nurul Huda (Apon) <me@nurulhudaapon.com>"]
 repository = "https://github.com/nurulhudaapon/zx"
 
 [language_servers.zls]
 name = "zls"
-language = "Zig"
+language = "ZX"
 
-[grammars.zig]
-repository = "https://github.com/tree-sitter-grammars/tree-sitter-zig"
-commit = "6479aa13f32f701c383083d8b28360ebd682fb7d"
+[grammars.zx]
+repository = "https://github.com/nurulhudaapon/zx"
+path = "tree-sitter-zx"
+commit = "01bfafef131303af35df51c4009a716aa46fd362"
 
-[debug_locators.zig-locator]
+[debug_locators.zx-locator]

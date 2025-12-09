@@ -1,6 +1,6 @@
-name = "Zig"
-grammar = "zig"
-path_suffixes = ["zig", "zon", "zx"]
+name = "ZX"
+grammar = "zx"
+path_suffixes = ["zx"]
 line_comments = ["// ", "/// ", "//! "]
 autoclose_before = ";:.,=}])"
 brackets = [
