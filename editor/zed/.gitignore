@@ -1,0 +1,12 @@
+#
+# zed-zig
+#
+
+*.wasm
+/grammars
+
+#
+# Rust
+#
+
+/target

@@ -29,12 +29,12 @@
     }
   },
   "bindings": {
-    "c": true,
-    "go": true,
+    "c": false,
+    "go": false,
     "node": true,
-    "python": true,
+    "python": false,
     "rust": true,
-    "swift": true,
+    "swift": false,
     "zig": true
   }
 }
