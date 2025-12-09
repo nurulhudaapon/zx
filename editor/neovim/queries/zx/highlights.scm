@@ -1,81 +1,317 @@
-;; highlights.scm - Syntax highlighting for ZX files
-;; Inherits from Zig and adds ZX-specific highlighting
+; ZX
+(zx_tag_name) @tag
+(zx_attribute_name) @attribute
+[
+  "\""
+  "'"
+  (zx_attribute_value)
+] @string
+(comment) @comment
 
-;; ============================================================================
-;; IMPORTANT: This file works with tree-sitter-zig grammar
-;; The ZX grammar extends Zig, so Zig highlighting is automatically inherited
-;; We only need to define ZX-specific highlighting here
-;; ============================================================================
+"=" @punctuation.delimiter.html
 
-;; ============================================================================
-;; ZX-Specific Elements
-;; ============================================================================
+[
+  "<"
+  ">"
+  "</"
+  "/>"
+] @punctuation.bracket.html
 
-;; HTML/ZX Tags - Delimiters
-"<" @tag.delimiter
-">" @tag.delimiter
-"</" @tag.delimiter
-"/>" @tag.delimiter
-"<>" @tag.delimiter
-"</>" @tag.delimiter
-
-;; Tag names - distinguish components (PascalCase) from HTML tags
-(zx_tag_name) @tag.builtin
-  (#match? @tag.builtin "^[a-z][a-zA-Z0-9_]*$")
-
-(zx_tag_name) @type
-  (#match? @type "^[A-Z][a-zA-Z0-9_]*$")
-
-;; ============================================================================
-;; Attributes
-;; ============================================================================
-
-;; Builtin attributes (@allocator, @rendering, @onClick, etc.)
 (zx_builtin_name) @function.builtin
 
-;; Regular HTML attributes
-(zx_attribute_name) @property
 
-;; Common HTML attributes with special highlighting
-((zx_attribute_name) @keyword.special
-  (#match? @keyword.special "^(class|id|style|href|src|alt|title|type|name|value|placeholder|disabled|readonly|required|checked|selected)$"))
+; Variables
 
-;; Assignment in attributes
-(zx_attribute
-  "=" @operator)
+(identifier) @variable
 
-;; ============================================================================
-;; Attribute Values & Content
-;; ============================================================================
+; Parameters
 
-;; String literals in attributes
-(zx_string_literal) @string
+(parameter
+  name: (identifier) @variable.parameter)
 
-;; Expression blocks - just highlight the braces, content is handled by injection
-(zx_expression_block
-  "{" @punctuation.bracket
-  "}" @punctuation.bracket)
+; Types
 
-;; Text content inside HTML elements
-(zx_text) @none
+(parameter
+  type: (identifier) @type)
 
-;; ============================================================================
-;; Special ZX Features
-;; ============================================================================
+((identifier) @type
+  (#match? @type "^[A-Z_][a-zA-Z0-9_]*"))
 
-;; @jsImport declarations
-(zx_js_import
-  "const" @keyword
-  (identifier) @variable
-  "=" @operator
-  "@jsImport" @function.builtin
-  "(" @punctuation.bracket
-  (string) @string.special
-  ")" @punctuation.bracket
-  ";" @punctuation.delimiter)
+(variable_declaration
+  (identifier) @type
+  "="
+  [
+    (struct_declaration)
+    (enum_declaration)
+    (union_declaration)
+    (opaque_declaration)
+  ])
 
-;; ============================================================================
-;; Error Handling
-;; ============================================================================
+[
+  (builtin_type)
+  "anyframe"
+] @type.builtin
 
-(ERROR) @error
+; Constants
+
+((identifier) @constant
+  (#match? @constant "^[A-Z][A-Z_0-9]+$"))
+
+[
+  "null"
+  "unreachable"
+  "undefined"
+] @constant.builtin
+
+(field_expression
+  .
+  member: (identifier) @constant)
+
+(enum_declaration
+  (container_field
+    type: (identifier) @constant))
+
+; Labels
+
+(block_label (identifier) @label)
+
+(break_label (identifier) @label)
+
+; Fields
+
+(field_initializer
+  .
+  (identifier) @variable.member)
+
+(field_expression
+  (_)
+  member: (identifier) @property)
+
+(field_expression
+  (_)
+  member: (identifier) @type (#match? @type "^[A-Z_][a-zA-Z0-9_]*"))
+
+(container_field
+  name: (identifier) @property)
+
+(initializer_list
+  (assignment_expression
+      left: (field_expression
+              .
+              member: (identifier) @property)))
+
+; Functions
+
+(builtin_identifier) @function.builtin
+
+(call_expression
+  function: (identifier) @function.call)
+
+(call_expression
+  function: (field_expression
+    member: (identifier) @function.call))
+
+(function_declaration
+  name: (identifier) @function)
+
+; Modules
+
+(variable_declaration
+  (identifier) @module
+  (builtin_function
+    (builtin_identifier) @keyword.import
+    (#any-of? @keyword.import "@import" "@cImport")))
+
+; Builtins
+
+[
+  "c"
+  "..."
+] @variable.builtin
+
+((identifier) @variable.builtin
+  (#eq? @variable.builtin "_"))
+
+(calling_convention
+  (identifier) @variable.builtin)
+
+; Keywords
+
+[
+  "asm"
+  "defer"
+  "errdefer"
+  "test"
+  "error"
+  "const"
+  "var"
+] @keyword
+
+[
+  "struct"
+  "union"
+  "enum"
+  "opaque"
+] @keyword.type
+
+[
+  "async"
+  "await"
+  "suspend"
+  "nosuspend"
+  "resume"
+] @keyword.coroutine
+
+"fn" @keyword.function
+
+[
+  "and"
+  "or"
+  "orelse"
+] @keyword.operator
+
+"return" @keyword.return
+
+[
+  "if"
+  "else"
+  "switch"
+] @keyword.conditional
+
+[
+  "for"
+  "while"
+  "break"
+  "continue"
+] @keyword.repeat
+
+[
+  "usingnamespace"
+  "export"
+] @keyword.import
+
+[
+  "try"
+  "catch"
+] @keyword.exception
+
+[
+  "volatile"
+  "allowzero"
+  "noalias"
+  "addrspace"
+  "align"
+  "callconv"
+  "linksection"
+  "pub"
+  "inline"
+  "noinline"
+  "extern"
+  "comptime"
+  "packed"
+  "threadlocal"
+] @keyword.modifier
+
+; Operator
+
+[
+  "="
+  "*="
+  "*%="
+  "*|="
+  "/="
+  "%="
+  "+="
+  "+%="
+  "+|="
+  "-="
+  "-%="
+  "-|="
+  "<<="
+  "<<|="
+  ">>="
+  "&="
+  "^="
+  "|="
+  "!"
+  "~"
+  "-"
+  "-%"
+  "&"
+  "=="
+  "!="
+  ">"
+  ">="
+  "<="
+  "<"
+  "&"
+  "^"
+  "|"
+  "<<"
+  ">>"
+  "<<|"
+  "+"
+  "++"
+  "+%"
+  "-%"
+  "+|"
+  "-|"
+  "*"
+  "/"
+  "%"
+  "**"
+  "*%"
+  "*|"
+  "||"
+  ".*"
+  ".?"
+  "?"
+  ".."
+] @operator
+
+; Literals
+
+(character) @string
+
+([
+  (string)
+  (multiline_string)
+] @string
+  (#set! "priority" 95))
+
+(integer) @number
+
+(float) @number.float
+
+(boolean) @boolean
+
+(escape_sequence) @string.escape
+
+; Punctuation
+
+[
+  "["
+  "]"
+  "("
+  ")"
+  "{"
+  "}"
+] @punctuation.bracket
+
+[
+  ";"
+  "."
+  ","
+  ":"
+  "=>"
+  "->"
+] @punctuation.delimiter
+
+(payload "|" @punctuation.bracket)
+
+; Comments
+
+(comment) @comment
+
+((comment) @comment.documentation
+  (#match? @comment.documentation "^//(/|!)"))

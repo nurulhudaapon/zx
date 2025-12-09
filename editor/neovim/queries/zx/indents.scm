@@ -1,14 +1,17 @@
-;; indents.scm - Simplified indentation for ZX files
-
 [
-  (zx_element)
-  (zx_fragment)
+  (block)
+  (switch_expression)
+  (initializer_list)
 ] @indent.begin
 
-(zx_element
-  "</" @indent.dedent)
+(block
+  "}" @indent.end)
 
-(zx_fragment
-  "</>" @indent.dedent)
+(_ "[" "]" @end) @indent
+(_ "{" "}" @end) @indent
+(_ "(" ")" @end) @indent
 
-
+[
+  (comment)
+  (multiline_string)
+] @indent.ignore
