@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) !void {
         while (args.next()) |a| {
             if (std.mem.eql(u8, a, "test")) {
                 const ts_dep = b.lazyDependency("tree_sitter", .{}) orelse continue;
-                tests.root_module.addImport("tree-sitter", ts_dep.module("tree-sitter"));
+                tests.root_module.addImport("tree-sitter", ts_dep.module("tree_sitter"));
                 break;
             }
         }
