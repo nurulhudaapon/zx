@@ -5,11 +5,12 @@ return {
     dependencies = {
         "nvim-treesitter/nvim-treesitter",
         "neovim/nvim-lspconfig",
+        "nvim-tree/nvim-web-devicons",  -- for file icons
     },
-    ft = "zx",
-    init = function()
-        vim.filetype.add({ extension = { zx = "zx" } })
-    end,
+    -- Load on startup instead of lazy-loading on filetype
+    -- This ensures LSP and icons are ready immediately
+    lazy = false,
+    priority = 50,  -- Load after lspconfig but early
     config = function()
         vim.opt.runtimepath:prepend("/Users/nurulhudaapon/Projects/nurulhudaapon/zx/editor/neovim")
         vim.cmd("runtime! plugin/zx.lua")

@@ -128,8 +128,13 @@ const zx = @import("zx");
     - [x] Auto Format
 
 * Neovim
-    - [ ] Syntax Highlighting
-    - [ ] LSP Support
+    - [x] Syntax Highlighting
+    - [x] LSP Support (Full for Zig, partial for ZX)
+    - [ ] Auto Format
+
+* Zed
+    - [x] Syntax Highlighting
+    - [x] LSP Support (Full for Zig, partial for ZX)
     - [ ] Auto Format
 
 ## Similar Projects
