@@ -70,7 +70,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // Layout example
     var aw_layout: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_layout = @embedFile("../../../pages/examples/layout.zx");
+    const zx_example_layout = @embedFile("../../../pages/layout.zx");
     const zig_example_layout = @embedFile("../examples/layout.zig");
     const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
     const html_page_layout = @import("../examples/layout.zig").Layout(layoutctx, html_page_routing);

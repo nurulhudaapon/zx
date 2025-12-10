@@ -4,7 +4,7 @@ A Zig library for building web applications with JSX-like syntax. Write declarat
 
 ZX combines the power and performance of Zig with the expressiveness of JSX, enabling you to build fast, type-safe web applications. ZX is significantly faster than frameworks like Next.js at SSR.
 
-**[Full Documentation →](https://ziex.dev)**
+**[Full Documentation →](https://ziex.dev/docs)**
 
 ## Installation
 

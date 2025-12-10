@@ -13,12 +13,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <p>User count: {[request_info.users.items.len:d]}</p>
             <div>
                 {for (request_info.filtered_users.items) |user| (
-                    <form method="post">
+                    <form method="get">
                         {[user.id:d]}: {user.name} - <button name="delete" value={std.fmt.allocPrint(allocator, "{d}", .{user.id}) catch @panic("OOM")}>Delete</button>
                     </form>
                 )}
             </div>
-            <form method="post"><button type="submit" name="reset" value="true">Reset</button></form>
+            <form method="get"><button type="submit" name="reset" value="true">Reset</button></form>
         </div>
     );
 }

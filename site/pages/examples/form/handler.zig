@@ -15,25 +15,25 @@ const RequestInfo = struct {
 };
 
 pub fn handleRequest(ctx: zx.PageContext) RequestInfo {
-    const fd = ctx.request.formData() catch @panic("OOM");
+    // const fd = ctx.request.formData() catch @panic("OOM");
     const qs = ctx.request.query() catch @panic("OOM");
 
-    const is_reset = fd.get("reset") != null;
-    const is_delete = fd.get("delete") != null;
-    const is_add = fd.get("name") != null;
+    const is_reset = qs.get("reset") != null;
+    const is_delete = qs.get("delete") != null;
+    const is_add = qs.get("name") != null;
 
     if (is_reset) {
         handleReset(ctx.allocator);
     }
 
     if (is_delete) {
-        if (fd.get("delete")) |delete_id| {
+        if (qs.get("delete")) |delete_id| {
             handleDeleteUser(delete_id);
         }
     }
 
     if (is_add) {
-        if (fd.get("name")) |name| {
+        if (qs.get("name")) |name| {
             handleAddUser(ctx.allocator, name);
         }
     }
@@ -42,7 +42,7 @@ pub fn handleRequest(ctx: zx.PageContext) RequestInfo {
     const filtered_users = filterUsers(ctx.arena, search_opt);
 
     if (is_delete or is_add or is_reset) {
-        ctx.response.header("Location", "/example/form");
+        ctx.response.header("Location", "/examples/form");
         ctx.response.setStatus(.found);
     }
 
