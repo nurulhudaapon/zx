@@ -122,17 +122,17 @@ const zx = @import("zx");
 
 #### Editor Support
 
-* [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[Cursor](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
+* [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
     - [x] Syntax Highlighting
     - [x] LSP Support
     - [x] Auto Format
 
-* Neovim
+* [Neovim](/editors/neovim/)
     - [x] Syntax Highlighting
     - [x] LSP Support (Full for Zig, partial for ZX)
     - [ ] Auto Format
 
-* Zed
+* [Zed](/editors/zed/)
     - [x] Syntax Highlighting
     - [x] LSP Support (Full for Zig, partial for ZX)
     - [ ] Auto Format
