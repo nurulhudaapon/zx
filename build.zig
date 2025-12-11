@@ -91,6 +91,19 @@ pub fn build(b: *std.Build) !void {
                     .@"export" = "export",
                     .bundle = "bundle",
                 },
+                .plugins = &.{
+                    .{
+                        .name = "tailwindcss",
+                        .steps = &.{
+                            .{
+                                .command = .{
+                                    .type = .after_transpile,
+                                    .args = &.{ "site/node_modules/.bin/tailwindcss", "-i", "site/styles.css", "-o", "{outdir}/assets/styles.css" },
+                                },
+                            },
+                        },
+                    },
+                },
             });
         }
     }
