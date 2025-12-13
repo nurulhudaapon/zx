@@ -47,6 +47,16 @@ pub fn main() !void {
         .sub_path = "src/overview.zx.map.json",
         .data = source_map_json,
     });
+
+    const rendered_zx_zx = try tree.renderAlloc(allocator, .zx);
+    defer allocator.free(rendered_zx_zx);
+    std.debug.print("Rendered ZX: {s}\n", .{rendered_zx_zx});
+
+    try std.fs.cwd().writeFile(.{
+        .sub_path = "src/overview.fmt.zx",
+        .data = rendered_zx_zx,
+    });
+
     // ----
 
     try root.execute(.{});

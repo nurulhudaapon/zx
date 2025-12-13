@@ -46,7 +46,7 @@ return _zx.zx(
                                     },
                                 );
                             }
-                            break :blk __zx_children;
+                            break :blk _zx.zx(.fragment, .{ .children = __zx_children });
                         },
                     },
                 },
@@ -60,8 +60,80 @@ return _zx.zx(
                             for (users, 0..) |user, _zx_i| {
                                 __zx_children[_zx_i] = _zx.lazy(Profile, .{ .name = user.name,  .age = user.age,  .role = user.role });
                             }
-                            break :blk __zx_children;
+                            break :blk _zx.zx(.fragment, .{ .children = __zx_children });
                         },
+                    },
+                },
+            ),
+            _zx.zx(
+                .section,
+                .{
+                    .children = &.{
+                        _zx.zx(
+                            .div,
+                            .{
+                                .children = &.{
+                                    _zx.zx(
+                                        .div,
+                                        .{
+                                            .children = &.{
+                                                _zx.zx(
+                                                    .div,
+                                                    .{
+                                                        .children = &.{
+                                                            _zx.zx(
+                                                                .div,
+                                                                .{
+                                                                    .children = &.{
+                                                                        _zx.zx(
+                                                                            .h1,
+                                                                            .{
+                                                                                .attributes = &.{
+                                                                                    .{ .name = "title", .value = "Hello, ZX Dev!" },
+                                                                                    .{ .name = "class", .value = "text-2xl font-bold" },
+                                                                                    .{ .name = "style", .value = "color: red;" },
+                                                                                },
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        _zx.zx(
+                                                                            .p,
+                                                                            .{
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        _zx.zx(
+                                                                            .p,
+                                                                            .{
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        _zx.zx(
+                                                                            .p,
+                                                                            .{
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                    },
+                                                                },
+                                                            ),
+                                                        },
+                                                    },
+                                                ),
+                                            },
+                                        },
+                                    ),
+                                },
+                            },
+                        ),
                     },
                 },
             ),

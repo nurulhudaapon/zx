@@ -4,19 +4,66 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
 
     return (
         <main @allocator={allocator}>
-            <section>
-                {if (is_loading) (<h1>Loading...</h1>) else (<h1>Loaded</h1>)}
+                                    <section>
+                        {if        
+                        
+                        
+                        
+                        
+                        
+                        
+                          (is_loading)
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                           (<h1>Loading...</h1>) else (<h1>Loaded</h1>)}
+                     </section>
+        
+                      <section>
+                         {for      (chars) |char| (<span>{[char:c]}</span>)}
             </section>
         
             <section>
-                {for (chars) |char| (<span>{[char:c]}</span>)}
-            </section>
-        
-            <section>
-                {for (users) |user| (
-                    <Profile name={user.name} age={user.age} role={user.role} />
+                {for       (users) |user| (
+                           <Profile name={user.name} age={user.age} role={user.role}/>
                 )}
-            </section>
+                         </section>
+
+
+                        <section>
+                            <div>
+                                 <div>
+                                 <div>
+                                 <div>
+                                
+
+<h1 title="Hello, ZX Dev!" class="text-2xl font-bold"       
+
+
+
+style="color: red;"
+
+>
+    Hello, ZX Dev!
+</h1>
+<p>
+    Hello, ZX Dev!
+</p>
+<p>
+    Hello, ZX Dev!
+</p>
+<p>
+    Hello, ZX Dev!
+</p>
+                            </div>
+                            </div>
+                            </div>
+                            </div>
+                        </section>
         </main>
     );
 }
