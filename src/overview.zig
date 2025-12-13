@@ -67,7 +67,7 @@ return _zx.zx(
             ),
         },
     },
-);;
+);
 }
 
 fn Profile(allocator: zx.Allocator, user: User) zx.Component {
@@ -113,7 +113,7 @@ return _zx.zx(
             },
         },
     },
-);;
+);
 }
 
 const UserRole = enum { admin, member };

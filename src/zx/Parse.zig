@@ -1,14 +1,25 @@
 pub const Ast = @This();
 
 const NodeKind = enum {
+    /// (<..>..</..>)
     zx_block,
+    /// <tag attr1={val1} />
     zx_element,
+    /// <tag attr1={val1} />
     zx_self_closing_element,
+    /// <>..</>
     zx_fragment,
+    /// <div>
     zx_start_tag,
+    /// </div>
     zx_end_tag,
+    /// <|div|>
     zx_tag_name,
+    /// attrexpr={val1}
+    /// attrstr="test"
+    /// attrbool
     zx_attribute,
+    /// @attr
     zx_builtin_attribute,
     zx_regular_attribute,
     zx_builtin_name,
@@ -19,6 +30,7 @@ const NodeKind = enum {
     zx_child,
     zx_text,
     zx_js_import,
+
     identifier,
     string,
     variable_declaration,
@@ -53,7 +65,7 @@ pub fn deinit(self: *Ast, _: std.mem.Allocator) void {
 
 pub const RenderResult = struct {
     output: []const u8,
-    source_map: ?SourceMap = null,
+    source_map: ?sourcemap.SourceMap = null,
 
     pub fn deinit(self: *RenderResult, allocator: std.mem.Allocator) void {
         allocator.free(self.output);
@@ -134,7 +146,7 @@ fn renderNode(self: *Ast, node: ts.Node, w: *std.io.Writer) !void {
 const TranspileContext = struct {
     output: std.array_list.Managed(u8),
     source: []const u8,
-    mappings: std.array_list.Managed(SourceMapMapping),
+    sourcemap_builder: sourcemap.Builder,
     current_line: i32 = 0,
     current_column: i32 = 0,
     track_mappings: bool,
@@ -144,14 +156,14 @@ const TranspileContext = struct {
         return .{
             .output = std.array_list.Managed(u8).init(allocator),
             .source = source,
-            .mappings = std.array_list.Managed(SourceMapMapping).init(allocator),
+            .sourcemap_builder = sourcemap.Builder.init(allocator),
             .track_mappings = track_mappings,
         };
     }
 
     fn deinit(self: *TranspileContext) void {
         self.output.deinit();
-        self.mappings.deinit();
+        self.sourcemap_builder.deinit();
     }
 
     fn write(self: *TranspileContext, bytes: []const u8) !void {
@@ -161,7 +173,7 @@ const TranspileContext = struct {
 
     fn writeWithMapping(self: *TranspileContext, bytes: []const u8, source_line: i32, source_column: i32) !void {
         if (self.track_mappings and bytes.len > 0) {
-            try self.mappings.append(.{
+            try self.sourcemap_builder.addMapping(.{
                 .generated_line = self.current_line,
                 .generated_column = self.current_column,
                 .source_line = source_line,
@@ -195,95 +207,10 @@ const TranspileContext = struct {
         }
     }
 
-    fn finalizeSourceMap(self: *TranspileContext) !SourceMap {
-        var mappings_str = std.array_list.Managed(u8).init(self.output.allocator);
-        errdefer mappings_str.deinit();
-
-        var prev_gen_line: i32 = 0;
-        var prev_gen_col: i32 = 0;
-        var prev_src_line: i32 = 0;
-        var prev_src_col: i32 = 0;
-
-        for (self.mappings.items, 0..) |mapping, idx| {
-            // Add semicolons for line breaks
-            while (prev_gen_line < mapping.generated_line) {
-                try mappings_str.append(';');
-                prev_gen_line += 1;
-                prev_gen_col = 0;
-            }
-
-            // Add comma between mappings on same line
-            if (idx > 0 and mapping.generated_line == prev_gen_line) {
-                try mappings_str.append(',');
-            }
-
-            // Encode VLQ values
-            try encodeVLQ(&mappings_str, mapping.generated_column - prev_gen_col);
-            try encodeVLQ(&mappings_str, 0); // source index (always 0)
-            try encodeVLQ(&mappings_str, mapping.source_line - prev_src_line);
-            try encodeVLQ(&mappings_str, mapping.source_column - prev_src_col);
-
-            prev_gen_col = mapping.generated_column;
-            prev_src_line = mapping.source_line;
-            prev_src_col = mapping.source_column;
-        }
-
-        return SourceMap{
-            .mappings = try mappings_str.toOwnedSlice(),
-        };
+    fn finalizeSourceMap(self: *TranspileContext) !sourcemap.SourceMap {
+        return try self.sourcemap_builder.build();
     }
 };
-
-const SourceMapMapping = struct {
-    generated_line: i32,
-    generated_column: i32,
-    source_line: i32,
-    source_column: i32,
-};
-
-pub const SourceMap = struct {
-    mappings: []const u8,
-
-    pub fn deinit(self: *SourceMap, allocator: std.mem.Allocator) void {
-        allocator.free(self.mappings);
-    }
-
-    pub fn toJSON(self: SourceMap, allocator: std.mem.Allocator, source_file: []const u8) ![]const u8 {
-        var json = std.array_list.Managed(u8).init(allocator);
-        errdefer json.deinit();
-
-        const writer = json.writer();
-        try writer.writeAll("{\"version\":3,\"sources\":[\"");
-        try writer.writeAll(source_file);
-        try writer.writeAll("\"],\"mappings\":\"");
-        try writer.writeAll(self.mappings);
-        try writer.writeAll("\"}");
-
-        return json.toOwnedSlice();
-    }
-};
-
-fn encodeVLQ(list: *std.array_list.Managed(u8), value: i32) !void {
-    const base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-    var vlq: u32 = if (value < 0)
-        @as(u32, @intCast((-value) << 1)) | 1
-    else
-        @as(u32, @intCast(value << 1));
-
-    while (true) {
-        var digit: u32 = vlq & 31;
-        vlq >>= 5;
-
-        if (vlq > 0) {
-            digit |= 32; // continuation bit
-        }
-
-        try list.append(base64_chars[@intCast(digit)]);
-
-        if (vlq == 0) break;
-    }
-}
 
 fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     const node_type = node.kind();
@@ -399,7 +326,7 @@ fn transpileReturnZx(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
                     try ctx.writeWithMappingFromByte("return", node.startByte(), self);
                     try ctx.write(" ");
                     try self.transpileZxElement(child, ctx, true);
-                    try ctx.write(";");
+                    // try ctx.write(";");
                     return;
                 },
                 else => {},
@@ -1268,3 +1195,4 @@ fn getLineColumn(self: *const Ast, byte_offset: u32) struct { line: i32, column:
 const std = @import("std");
 const ts = @import("tree_sitter");
 const ts_zx = @import("tree_sitter_zx");
+const sourcemap = @import("sourcemap.zig");
