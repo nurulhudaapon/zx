@@ -31,6 +31,12 @@ const NodeKind = enum {
     zx_text,
     zx_js_import,
 
+    // Zig Related Nodes
+    builtin_function,
+    builtin_identifier,
+    arguments,
+    string_content,
+
     identifier,
     string,
     variable_declaration,
@@ -48,7 +54,7 @@ allocator: std.mem.Allocator,
 pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Ast {
     const parser = ts.Parser.create();
     const lang = ts.Language.fromRaw(ts_zx.language());
-    parser.setLanguage(lang) catch @panic("Failed to set language");
+    parser.setLanguage(lang) catch return error.LoadingLang;
     const tree = parser.parseString(source, null) orelse return error.ParseError;
 
     return Ast{
@@ -60,7 +66,6 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Ast {
 
 pub fn deinit(self: *Ast, _: std.mem.Allocator) void {
     self.tree.destroy();
-    // self.allocator.free(self.source);
 }
 
 pub const RenderResult = struct {
@@ -246,6 +251,11 @@ fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfM
                     return;
                 }
             },
+            .builtin_function => {
+                const had_output = try self.transpileBuiltinFunction(node, ctx);
+                if (had_output)
+                    return;
+            },
             else => {},
         }
     }
@@ -281,6 +291,88 @@ fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfM
         const text = self.source[current_pos..end_byte];
         try ctx.writeWithMappingFromByte(text, current_pos, self);
     }
+}
+
+// @import("component.zx") --> @import("component.zig")
+fn transpileBuiltinFunction(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool {
+    var had_output = false;
+    var builtin_identifier: ?[]const u8 = null;
+    var import_string: ?[]const u8 = null;
+    var import_string_start: u32 = 0;
+
+    const child_count = node.childCount();
+    var i: u32 = 0;
+
+    // First pass: collect builtin identifier and import string
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_type = child.kind();
+        const child_kind = NodeKind.fromString(child_type) orelse continue;
+
+        switch (child_kind) {
+            .builtin_identifier => {
+                builtin_identifier = try self.getNodeText(child);
+            },
+            .arguments => {
+                // Look for string inside arguments
+                const args_child_count = child.childCount();
+                var j: u32 = 0;
+                while (j < args_child_count) : (j += 1) {
+                    const arg_child = child.child(j) orelse continue;
+                    const arg_child_kind = NodeKind.fromString(arg_child.kind());
+
+                    if (arg_child_kind == .string) {
+                        import_string_start = arg_child.startByte();
+                        // Get the string with quotes
+                        const full_string = try self.getNodeText(arg_child);
+
+                        // Look for string_content inside
+                        const string_child_count = arg_child.childCount();
+                        var k: u32 = 0;
+                        while (k < string_child_count) : (k += 1) {
+                            const str_child = arg_child.child(k) orelse continue;
+                            const str_child_kind = NodeKind.fromString(str_child.kind());
+
+                            if (str_child_kind == .string_content) {
+                                import_string = try self.getNodeText(str_child);
+                                break;
+                            }
+                        }
+
+                        // If no string_content found, use full_string but strip quotes
+                        if (import_string == null and full_string.len >= 2) {
+                            import_string = full_string[1 .. full_string.len - 1];
+                        }
+                        break;
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
+    // Check if this is @import with a .zx file
+    if (builtin_identifier) |ident| {
+        if (std.mem.eql(u8, ident, "@import")) {
+            if (import_string) |import_path| {
+                // Check if it ends with .zx
+                if (std.mem.endsWith(u8, import_path, ".zx")) {
+                    // Write @import with transformed path
+                    try ctx.writeWithMappingFromByte("@import", node.startByte(), self);
+                    try ctx.write("(\"");
+
+                    // Write path with .zig instead of .zx
+                    const base_path = import_path[0 .. import_path.len - 3]; // Remove ".zx"
+                    try ctx.write(base_path);
+                    try ctx.write(".zig\")");
+
+                    had_output = true;
+                }
+            }
+        }
+    }
+
+    return had_output;
 }
 
 fn transpileReturnZx(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
@@ -326,7 +418,6 @@ fn transpileReturnZx(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
                     try ctx.writeWithMappingFromByte("return", node.startByte(), self);
                     try ctx.write(" ");
                     try self.transpileZxElement(child, ctx, true);
-                    // try ctx.write(";");
                     return;
                 },
                 else => {},
@@ -887,6 +978,9 @@ fn transpileIfExpression(self: *Ast, node: ts.Node, ctx: *TranspileContext) !voi
                 try ctx.writeWithMappingFromByte(try self.getNodeText(else_n), else_n.startByte(), self);
                 try ctx.write(")");
             }
+        } else {
+            // Add dummy else block with fragment when no else clause exists
+            try ctx.write(" else _zx.zx(.fragment, .{})");
         }
     }
 }
@@ -956,9 +1050,9 @@ fn transpileForExpression(self: *Ast, node: ts.Node, ctx: *TranspileContext) !vo
         try ctx.write("}\n");
 
         try ctx.writeIndent();
-        try ctx.write("break :blk __zx_children;\n");
-        ctx.indent_level -= 1;
+        try ctx.write("break :blk _zx.zx(.fragment, .{ .children = __zx_children });\n");
 
+        ctx.indent_level -= 1;
         try ctx.writeIndent();
         try ctx.write("}");
     }
