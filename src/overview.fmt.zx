@@ -26,7 +26,7 @@ fn Profile(allocator: zx.Allocator, user: User) zx.Component {
     <p>
         {{[user.age:d]}}
     </p>
-    {switch (switch) {
+    {switch (user.role) {
         .admin => 
             (<p>
                 Admin

@@ -13,9 +13,8 @@ pub const FormatContext = struct {
     fn writeIndent(self: *FormatContext, w: *std.io.Writer) !void {
         const spaces = self.indent_level * 4;
         var i: u32 = 0;
-        while (i < spaces) : (i += 1) {
-            try w.writeAll(" ");
-        }
+        while (i < spaces) : (i += 1) try w.writeAll(" ");
+
         self.last_was_newline = false;
     }
 };
@@ -939,8 +938,10 @@ fn renderSwitch(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
-    // switch_expression: 'switch' '(' expr ')' '{' switch_case... '}'
-    var switch_expr: ?[]const u8 = null;
+    // switch_expression structure:
+    //   field_expression (the switch expression)
+    //   switch_case... (the cases)
+    var switch_expr_node: ?ts.Node = null;
     var cases = std.ArrayList(struct { pattern: []const u8, value: ts.Node }){};
     defer cases.deinit(self.allocator);
 
@@ -951,54 +952,66 @@ fn renderSwitch(
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
-        // Find the switch expression (first non-switch_case child)
         if (child_kind) |kind| {
-            switch (kind) {
-                .switch_case => {
-                    // Parse switch case: pattern '=>' value
-                    var pattern_node: ?ts.Node = null;
-                    var value_node: ?ts.Node = null;
-                    var seen_arrow = false;
+            if (kind == .switch_case) {
+                // Parse switch case: field_expression (pattern) and zx_block (value)
+                var pattern_node: ?ts.Node = null;
+                var value_node: ?ts.Node = null;
 
-                    const case_child_count = child.childCount();
-                    var j: u32 = 0;
-                    while (j < case_child_count) : (j += 1) {
-                        const case_child = child.child(j) orelse continue;
-                        const case_child_type = case_child.kind();
+                const case_child_count = child.childCount();
+                var j: u32 = 0;
+                while (j < case_child_count) : (j += 1) {
+                    const case_child = child.child(j) orelse continue;
+                    const case_child_kind = NodeKind.fromNode(case_child);
 
-                        if (std.mem.eql(u8, case_child_type, "=>")) {
-                            seen_arrow = true;
-                        } else if (!seen_arrow and pattern_node == null) {
-                            pattern_node = case_child;
-                        } else if (seen_arrow and value_node == null) {
+                    if (case_child_kind) |ck| {
+                        if (ck == .zx_block) {
                             value_node = case_child;
+                        } else if (pattern_node == null) {
+                            // First non-zx_block child is the pattern (field_expression)
+                            pattern_node = case_child;
                         }
+                    } else if (pattern_node == null) {
+                        // Unrecognized node (likely field_expression) - treat as pattern
+                        pattern_node = case_child;
                     }
+                }
 
-                    if (pattern_node) |p| {
-                        const pattern_text = try self.getNodeText(p);
+                if (pattern_node) |p| {
+                    const pattern_text = try self.getNodeText(p);
+                    if (value_node) |v| {
                         try cases.append(self.allocator, .{
                             .pattern = pattern_text,
-                            .value = value_node orelse continue,
+                            .value = v,
                         });
                     }
-                },
-                else => {
-                    if (switch_expr == null) {
-                        switch_expr = try self.getNodeText(child);
-                    }
-                },
+                }
+            } else {
+                // Skip leaf nodes (tokens) - real expressions have children
+                if (child.childCount() == 0) {
+                    continue;
+                }
+                if (switch_expr_node == null) {
+                    // First non-switch_case, non-token child is the switch expression
+                    switch_expr_node = child;
+                }
             }
         } else {
-            if (switch_expr == null) {
-                switch_expr = try self.getNodeText(child);
+            // Skip leaf nodes (tokens) - real expressions have children
+            if (child.childCount() == 0) {
+                continue;
+            }
+            if (switch_expr_node == null) {
+                // First unrecognized, non-token child is likely the switch expression
+                switch_expr_node = child;
             }
         }
     }
 
-    if (switch_expr != null) {
+    if (switch_expr_node) |expr_node| {
+        const switch_expr = try self.getNodeText(expr_node);
         try w.writeAll("switch (");
-        try w.writeAll(switch_expr.?);
+        try w.writeAll(switch_expr);
         try w.writeAll(") {");
 
         // Render cases
