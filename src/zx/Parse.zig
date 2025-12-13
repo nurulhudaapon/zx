@@ -50,8 +50,13 @@ pub const NodeKind = enum {
     payload,
     array_type,
 
-    pub fn fromString(s: []const u8) ?NodeKind {
+    fn fromString(s: []const u8) ?NodeKind {
         return std.meta.stringToEnum(NodeKind, s);
+    }
+
+    pub fn fromNode(node: ts.Node) ?NodeKind {
+        const kind = fromString(node.kind());
+        return kind;
     }
 };
 

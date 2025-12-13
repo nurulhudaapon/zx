@@ -34,8 +34,7 @@ pub fn renderNodeWithContext(
     const start_byte = node.startByte();
     const end_byte = node.endByte();
     const child_count = node.childCount();
-    const node_type = node.kind();
-    const node_kind = NodeKind.fromString(node_type);
+    const node_kind = NodeKind.fromNode(node);
 
     // Track if we're entering a zx_block
     const was_in_zx_block = ctx.in_zx_block;
@@ -163,7 +162,7 @@ fn renderChild(
     var has_meaningful_content = false;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromString(child.kind());
+        const child_kind = NodeKind.fromNode(child);
 
         if (child_kind == .zx_text) {
             const text = try self.getNodeText(child);
@@ -224,7 +223,7 @@ fn renderElement(
     // Render all children in order
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromString(child.kind());
+        const child_kind = NodeKind.fromNode(child);
 
         if (child_kind == .zx_start_tag) {
             try renderNodeWithContext(self, child, w, ctx);
@@ -291,7 +290,7 @@ fn renderStartTag(
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromString(child.kind());
+        const child_kind = NodeKind.fromNode(child);
 
         if (child_kind == .zx_attribute) {
             try renderAttr(self, child, w, ctx);
@@ -325,7 +324,7 @@ fn renderSelfClosing(
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromString(child.kind());
+        const child_kind = NodeKind.fromNode(child);
 
         if (child_kind == .zx_attribute) {
             try renderAttr(self, child, w, ctx);
@@ -343,7 +342,7 @@ fn renderAttr(self: *Ast, node: ts.Node, w: *std.io.Writer, ctx: *FormatContext)
     if (child_count == 0) return;
 
     const attr_node = node.child(0) orelse return;
-    const attr_kind = NodeKind.fromString(attr_node.kind());
+    const attr_kind = NodeKind.fromNode(attr_node);
 
     if (attr_kind) |kind| {
         switch (kind) {
@@ -426,7 +425,7 @@ fn renderAttrValue(
     ctx: *FormatContext,
 ) !void {
     // zx_attribute_value is a choice: it IS either zx_expression_block or zx_string_literal
-    const node_kind = NodeKind.fromString(node.kind());
+    const node_kind = NodeKind.fromNode(node);
 
     if (node_kind) |kind| {
         switch (kind) {
@@ -517,8 +516,7 @@ fn renderExprBlock(
     // Check for control flow expressions
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_type = child.kind();
-        const child_kind = NodeKind.fromString(child_type);
+        const child_kind = NodeKind.fromNode(child);
 
         // Check for control flow expressions
         if (child_kind) |kind| {
@@ -551,10 +549,9 @@ fn renderExprBlock(
         i = 0;
         while (i < child_count) : (i += 1) {
             const child = node.child(i) orelse continue;
-            const child_type = child.kind();
 
             // Check if it's a zx_block
-            const child_kind = NodeKind.fromString(child_type);
+            const child_kind = NodeKind.fromNode(child);
             if (child_kind == .zx_block) {
                 try renderBlock(self, child, w, ctx);
             } else {
@@ -613,7 +610,6 @@ fn renderIf(
 
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_type = child.kind();
 
         // Check if this is the condition field
         const field_name = node.fieldNameForChild(i);
@@ -625,7 +621,7 @@ fn renderIf(
         }
 
         // Check for zx_block nodes (then and else branches)
-        const child_kind = NodeKind.fromString(child_type);
+        const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_block) {
             if (zx_block_count == 0) {
                 then_node = child;
@@ -655,7 +651,7 @@ fn renderIf(
         try w.writeAll(" ");
 
         // Handle then branch
-        const then_kind = NodeKind.fromString(then_node.?.kind());
+        const then_kind = NodeKind.fromNode(then_node.?);
         var then_was_multiline = false;
         if (then_kind == .zx_block) {
             // Extract inner element and write parentheses ourselves
@@ -665,8 +661,7 @@ fn renderIf(
             var j: u32 = 0;
             while (j < then_block_child_count) : (j += 1) {
                 const then_block_child = then_block.child(j) orelse continue;
-                const then_block_child_type = then_block_child.kind();
-                const then_block_child_kind = NodeKind.fromString(then_block_child_type);
+                const then_block_child_kind = NodeKind.fromNode(then_block_child);
                 if (then_block_child_kind) |kind| {
                     switch (kind) {
                         .zx_element, .zx_self_closing_element, .zx_fragment => {
@@ -743,7 +738,7 @@ fn renderIf(
                 try w.writeAll(" else");
             }
 
-            const else_kind = NodeKind.fromString(else_n.kind());
+            const else_kind = NodeKind.fromNode(else_n);
             if (else_kind == .zx_block) {
                 // Extract inner element and write parentheses ourselves
                 const else_block = else_n;
@@ -752,8 +747,7 @@ fn renderIf(
                 var j: u32 = 0;
                 while (j < else_block_child_count) : (j += 1) {
                     const else_block_child = else_block.child(j) orelse continue;
-                    const else_block_child_type = else_block_child.kind();
-                    const else_block_child_kind = NodeKind.fromString(else_block_child_type);
+                    const else_block_child_kind = NodeKind.fromNode(else_block_child);
                     if (else_block_child_kind) |kind| {
                         switch (kind) {
                             .zx_element, .zx_self_closing_element, .zx_fragment => {
@@ -836,8 +830,7 @@ fn renderFor(
 
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_type = child.kind();
-        const child_kind = NodeKind.fromString(child_type);
+        const child_kind = NodeKind.fromNode(child);
 
         if (child_kind) |kind| {
             switch (kind) {
@@ -878,8 +871,7 @@ fn renderFor(
             var j: u32 = 0;
             while (j < body_child_count) : (j += 1) {
                 const body_child = body.child(j) orelse continue;
-                const body_child_type = body_child.kind();
-                const body_child_kind = NodeKind.fromString(body_child_type);
+                const body_child_kind = NodeKind.fromNode(body_child);
                 if (body_child_kind) |kind| {
                     switch (kind) {
                         .zx_element, .zx_self_closing_element, .zx_fragment => {
@@ -957,8 +949,7 @@ fn renderSwitch(
 
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_type = child.kind();
-        const child_kind = NodeKind.fromString(child_type);
+        const child_kind = NodeKind.fromNode(child);
 
         // Find the switch expression (first non-switch_case child)
         if (child_kind) |kind| {
@@ -1022,7 +1013,7 @@ fn renderSwitch(
             try w.writeAll(case.pattern);
             try w.writeAll(" => ");
 
-            const value_kind = NodeKind.fromString(case.value.kind());
+            const value_kind = NodeKind.fromNode(case.value);
             if (value_kind == .zx_block) {
                 // Force newline and indentation for zx_block in expression
                 try w.writeAll("\n");
@@ -1076,7 +1067,7 @@ fn getTagName(self: *Ast, end_tag_node: ts.Node) ![]const u8 {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = end_tag_node.child(i) orelse continue;
-        const child_kind = NodeKind.fromString(child.kind());
+        const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_tag_name) {
             return try self.getNodeText(child);
         }
