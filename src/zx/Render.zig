@@ -614,6 +614,8 @@ fn renderEndTag(
 }
 
 /// Render text content
+/// Collapses multiple consecutive whitespace to a single space while
+/// preserving leading/trailing single spaces (for inline text with expressions)
 fn renderText(
     self: *Ast,
     node: ts.Node,
@@ -625,8 +627,22 @@ fn renderText(
 
     const text = self.source[start_byte..end_byte];
     const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-    if (trimmed.len > 0) {
-        try w.writeAll(trimmed);
+    if (trimmed.len == 0) return;
+
+    const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
+    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
+
+    // Write leading space if there was leading whitespace
+    if (has_leading_ws) {
+        try w.writeAll(" ");
+    }
+
+    // Write the trimmed content (no internal whitespace normalization for now)
+    try w.writeAll(trimmed);
+
+    // Write trailing space if there was trailing whitespace
+    if (has_trailing_ws) {
+        try w.writeAll(" ");
     }
 }
 
