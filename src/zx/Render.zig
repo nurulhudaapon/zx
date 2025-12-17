@@ -889,13 +889,7 @@ fn renderWhileExpression(
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const field_name = node.fieldNameForChild(i);
-        if (field_name) |name| {
-            if (std.mem.eql(u8, name, "condition")) {
-                condition_node = child;
-                continue;
-            }
-        }
+        condition_node = node.childByFieldName("condition");
 
         const child_kind = NodeKind.fromNode(child);
         if (child_kind) |ck| {
