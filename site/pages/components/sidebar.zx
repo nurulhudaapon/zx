@@ -13,11 +13,9 @@ pub const SidebarProps = struct {
 pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
 
     const js_version = std.fmt.allocPrint(allocator, "/assets/docs.js?v={s}", .{zx.info.version_string}) catch unreachable;
-    const css_version = std.fmt.allocPrint(allocator, "/assets/docs.css?v={s}", .{zx.info.version_string}) catch unreachable;
 
     return (
         <div  @allocator={allocator}>
-            <link rel="stylesheet" href={css_version}>
             <header class="top-bar">
                 <div class="top-bar-content">
                     <div class="top-bar-left">

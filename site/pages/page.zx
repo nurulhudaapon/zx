@@ -25,7 +25,6 @@ const hero_stats = [_]HeroStat{
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
-    const css_version = std.fmt.allocPrint(allocator, "/assets/home.css?v={s}", .{zx.info.version_string}) catch unreachable;
     const current_year = blk: {
         const timestamp = std.time.timestamp();
         const seconds_per_year = 365.25 * 24 * 60 * 60;
@@ -39,7 +38,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <div @allocator={allocator}>
-            <link rel="stylesheet" href={css_version}>
             <nav class="nav">
                 <div class="nav-content">
                     <a href="/" class="nav-logo">ZX</a>
