@@ -2,6 +2,8 @@ const std = @import("std");
 const zli = @import("zli");
 const log = std.log.scoped(.cli);
 const zx = @import("zx");
+const tui = @import("../tui/main.zig");
+const colors = tui.Colors;
 
 const stdio_flag = zli.Flag{
     .name = "stdio",
@@ -21,21 +23,21 @@ const ts_flag = zli.Flag{
     .name = "ts",
     .description = "Use tree-sitter to format the code",
     .type = .Bool,
-    .default_value = .{ .Bool = false },
+    .default_value = .{ .Bool = true },
 };
 
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "fmt",
-        .description = "Format a .zx file or directory.",
+        .description = "Format .zx files or directories.",
     }, fmt);
 
     try cmd.addFlag(stdio_flag);
     try cmd.addFlag(stdout_flag);
     try cmd.addFlag(ts_flag);
     try cmd.addPositionalArg(.{
-        .name = "path",
-        .description = "Path to .zx file or directory",
+        .name = "paths",
+        .description = "Paths to .zx files or directories",
         .required = false,
         .variadic = true,
     });
@@ -54,34 +56,40 @@ fn fmt(ctx: zli.CommandContext) !void {
 
     const paths = ctx.positional_args;
     if (paths.len == 0) {
-        try ctx.writer.print("no path was given\n", .{});
+        try ctx.writer.print("{s}No paths were given.{s}\n", .{ colors.yellow, colors.reset });
+        try ctx.writer.print("\nUsage:\n\n", .{});
+        try ctx.writer.print("  {s}zx fmt{s} {s}{s}site/pages/page.zx{s}  {s}# Format a single file{s}\n\n", .{
+            colors.cyan,
+            colors.reset,
+            colors.bold,
+            colors.gray,
+            colors.reset,
+            colors.gray,
+            colors.reset,
+        });
+        try ctx.writer.print("  {s}zx fmt{s} {s}{s}site/pages{s}  {s}# Format all .zx files in a directory{s}\n\n", .{
+            colors.cyan,
+            colors.reset,
+            colors.bold,
+            colors.gray,
+            colors.reset,
+            colors.gray,
+            colors.reset,
+        });
         return;
     }
 
     for (paths) |path| {
-        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch {
-            // If openning as directory fails, asume it is a file
-            // FIXME: should probably handle things in a better way (eg: non-existing paths)
-            try formatFile(
-                ctx.allocator,
-                ctx.writer,
-                std.fs.cwd(),
-                path,
-                path,
-                use_stdout,
-                use_ts,
-            );
-            continue;
+        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
+            error.NotDir => {
+                try formatFile(ctx.allocator, ctx.writer, std.fs.cwd(), path, path, use_stdout, use_ts);
+                continue;
+            },
+            else => continue,
         };
-        defer dir.close();
 
-        try formatDir(
-            ctx.allocator,
-            ctx.writer,
-            path,
-            use_stdout,
-            use_ts,
-        );
+        defer dir.close();
+        try formatDir(ctx.allocator, ctx.writer, path, use_stdout, use_ts);
     }
 }
 
