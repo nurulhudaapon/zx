@@ -22,7 +22,7 @@ if [ -z "$CURRENT_VERSION" ]; then
     exit 1
 fi
 
-# Extract the dev number (e.g., extract 10 from "0.0.1-dev.10")
+# Extract the dev number (e.g., extract 10 from "0.1.0-dev.10")
 DEV_NUMBER=$(echo "$CURRENT_VERSION" | grep -oE 'dev\.([0-9]+)' | grep -oE '[0-9]+')
 
 if [ -z "$DEV_NUMBER" ]; then
@@ -48,8 +48,33 @@ rm -f "$BUILD_ZON_PATH.bak"
 echo "Version incremented: $CURRENT_VERSION -> $NEW_VERSION"
 echo "Updated $BUILD_ZON_FILE"
 
-# Stage the updated file for commit
+# Update packages/ziex/package.json version
+ZIEX_PACKAGE_JSON="$PROJECT_ROOT/packages/ziex/package.json"
+if [ -f "$ZIEX_PACKAGE_JSON" ]; then
+    sed -i.bak "s/$ESCAPED_CURRENT_VERSION/$ESCAPED_NEW_VERSION/" "$ZIEX_PACKAGE_JSON"
+    rm -f "$ZIEX_PACKAGE_JSON.bak"
+    echo "Updated packages/ziex/package.json"
+fi
+
+# Update editors/zed/extension.toml version (replace any dev version)
+ZED_EXTENSION_TOML="$PROJECT_ROOT/editors/zed/extension.toml"
+if [ -f "$ZED_EXTENSION_TOML" ]; then
+    sed -i.bak -E "s/(version = \")0\\.1\\.0-dev\\.[0-9]+\"/\\1$NEW_VERSION\"/" "$ZED_EXTENSION_TOML"
+    rm -f "$ZED_EXTENSION_TOML.bak"
+    echo "Updated editors/zed/extension.toml"
+fi
+
+# Stage the updated files for commit
 git add "$BUILD_ZON_PATH"
+git add "$ZIEX_PACKAGE_JSON" 2>/dev/null || true
+git add "$ZED_EXTENSION_TOML" 2>/dev/null || true
+
+# Update tree-sitter-zx version (ignore errors)
+TREE_SITTER_DIR="$PROJECT_ROOT/tree-sitter-zx"
+if [ -d "$TREE_SITTER_DIR" ]; then
+    (cd "$TREE_SITTER_DIR" && tree-sitter version "$NEW_VERSION") 2>/dev/null || true
+    git add "$TREE_SITTER_DIR" 2>/dev/null || true
+fi
 
 exit 0
 
