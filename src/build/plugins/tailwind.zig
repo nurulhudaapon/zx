@@ -22,9 +22,6 @@ pub fn tailwind(options: TailwindPluginOptions) ZxInitOptions.PluginOptions {
     };
 }
 
-const TailwindPluginOptions = struct {
-    inputs: ?[]const []const u8 = null,
-    outputs: ?[]const []const u8 = null,
-};
+const TailwindPluginOptions = struct {};
 
-const ZxInitOptions = @import("../init/ZxInitOptions.zig").ZxInitOptions;
+const ZxInitOptions = @import("../init/ZxInitOptions.zig");
