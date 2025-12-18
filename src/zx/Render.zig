@@ -985,7 +985,7 @@ fn renderSwitchExpression(
                     const case_child_kind = NodeKind.fromNode(case_child);
 
                     if (case_child_kind) |cck| {
-                        if (cck == .zx_block or cck == .parenthesized_expression) {
+                        if (cck == .zx_block or cck == .parenthesized_expression or cck == .for_expression or cck == .while_expression or cck == .switch_expression or cck == .if_expression) {
                             value_node = case_child;
                         } else if (pattern_node == null and case_child.childCount() > 0) {
                             pattern_node = case_child;
@@ -1033,6 +1033,9 @@ fn renderSwitchExpression(
                 },
                 .parenthesized_expression => {
                     try w.writeAll(try self.getNodeText(case.value));
+                },
+                .for_expression, .while_expression, .switch_expression, .if_expression => {
+                    try renderExpressionBlock(self, case.value, w, ctx);
                 },
                 else => {},
             }
