@@ -29,7 +29,11 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
+    const tree_sitter_dep = b.lazyDependency("tree_sitter", .{ .target = target, .optimize = optimize }).?;
+    const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
     mod.addImport("httpz", httpz_dep.module("httpz"));
+    mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
     mod.addOptions("zx_info", options);
 
     // --- ZX WASM Module --- //
@@ -54,6 +58,8 @@ pub fn build(b: *std.Build) !void {
             .imports = &.{
                 .{ .name = "zx", .module = mod },
                 .{ .name = "zli", .module = zli_dep.module("zli") },
+                .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
+                .{ .name = "tree_sitter_zx", .module = tree_sitter_zx_dep.module("tree_sitter_zx") },
             },
         }),
     });
@@ -71,9 +77,6 @@ pub fn build(b: *std.Build) !void {
     {
         const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
         if (is_zx_docsite) {
-            const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
-            const tree_sitter_dep = b.lazyDependency("tree_sitter", .{ .target = target, .optimize = optimize }).?;
-
             const zx_docsite_exe = b.addExecutable(.{
                 .name = "zx_site",
                 .root_module = b.createModule(.{
