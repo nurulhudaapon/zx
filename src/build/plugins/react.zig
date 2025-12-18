@@ -46,4 +46,4 @@ const ReactPluginOptions = struct {
     package_json_path: ?[]const u8 = null,
 };
 
-const ZxInitOptions = @import("../init/ZxInitOptions.zig").ZxInitOptions;
+const ZxInitOptions = @import("../init/ZxInitOptions.zig");

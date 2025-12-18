@@ -4,6 +4,8 @@ const std = @import("std");
 const buildlib = @import("src/build/main.zig");
 
 // --- Public API (setting up ZX Site) --- //
+/// Options for initializing
+pub const ZxInitOptions = buildlib.initlib.ZxInitOptions;
 /// Initialize a ZX project (sets up ZX, dependencies, executables, wasm executable and `serve` step)
 pub const init = buildlib.initlib.init;
 
@@ -90,8 +92,8 @@ pub fn build(b: *std.Build) !void {
 
             try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
                 .cli_path = null,
-                .site_outdir = "site/.zx",
-                .site_path = "site",
+                .site_outdir = b.path("site/.zx"),
+                .site_path = b.path("site"),
                 .experimental_enabled_csr = true,
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
                 .plugins = &.{plugins.react(.{})},

@@ -1,14 +1,6 @@
 const std = @import("std");
-pub const ZxInitOptions = @import("init/ZxInitOptions.zig").ZxInitOptions;
-
-const default_inner_opts: InitInnerOptions = .{
-    .site_path = "site",
-    .cli_path = null,
-    .site_outdir = null,
-    .steps = .{
-        .serve = "serve",
-    },
-};
+const LazyPath = std.Build.LazyPath;
+pub const ZxInitOptions = @import("init/ZxInitOptions.zig");
 
 pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions) !void {
     const target = exe.root_module.resolved_target;
@@ -20,7 +12,14 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     const zx_wasm_module = zx_dep.module("zx_wasm");
     const zx_exe = zx_dep.artifact("zx");
 
-    var opts = default_inner_opts;
+    var opts: InitInnerOptions = .{
+        .site_path = b.path("site"),
+        .cli_path = null,
+        .site_outdir = null,
+        .steps = .default,
+        .plugins = &.{},
+        .experimental_enabled_csr = false,
+    };
 
     if (options.site) |site_opts| {
         opts.site_path = site_opts.path;
@@ -44,34 +43,35 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
 }
 
 const InitInnerOptions = struct {
-    site_path: []const u8,
-    cli_path: ?[]const u8,
-    site_outdir: ?[]const u8 = null,
-    steps: ZxInitOptions.CliOptions.Steps = .{
-        .serve = "serve",
-    },
-    plugins: []const ZxInitOptions.PluginOptions = &.{},
-
-    experimental_enabled_csr: bool = false,
+    site_path: LazyPath,
+    cli_path: ?LazyPath,
+    site_outdir: ?LazyPath,
+    steps: ZxInitOptions.CliOptions.Steps,
+    plugins: []const ZxInitOptions.PluginOptions,
+    experimental_enabled_csr: bool,
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
-    const transpile_cmd = transpile_blk: {
-        if (opts.cli_path != null) break :transpile_blk b.addSystemCommand(&.{opts.cli_path.?});
-        break :transpile_blk b.addRunArtifact(zx_exe);
-    };
-    return transpile_cmd;
+    if (opts.cli_path) |cli_path| {
+        const run = b.addSystemCommand(&.{});
+        run.addFileArg(cli_path);
+        return run;
+    }
+
+    return b.addRunArtifact(zx_exe);
 }
-fn getTranspileOutdir(b: *std.Build, transpile_cmd: *std.Build.Step.Run, opts: InitInnerOptions) std.Build.LazyPath {
-    return outdir_blk: {
-        if (opts.site_outdir != null) {
-            transpile_cmd.addArg(opts.site_outdir.?);
-            break :outdir_blk b.path(opts.site_outdir.?);
-        } else {
-            break :outdir_blk transpile_cmd.addOutputDirectoryArg(opts.site_path);
-        }
-    };
+
+fn getTranspileOutdir(transpile_cmd: *std.Build.Step.Run, opts: InitInnerOptions) std.Build.LazyPath {
+    if (opts.site_outdir) |site_outdir| {
+        transpile_cmd.addDirectoryArg(site_outdir);
+        return site_outdir;
+    }
+
+    // if user didn't provide a path, they don't want to keep transpiled output
+    // put it somewhere in cache folder, name doesn't really matter (??)
+    return transpile_cmd.addOutputDirectoryArg(".transpiled");
 }
+
 pub fn initInner(
     b: *std.Build,
     exe: *std.Build.Step.Compile,
@@ -85,12 +85,14 @@ pub fn initInner(
 
     // --- ZX Transpilation ---
     const transpile_cmd = getZxRun(b, zx_exe, opts);
-    transpile_cmd.addArgs(&.{ "transpile", b.pathJoin(&.{opts.site_path}), "--outdir" });
-    const transpile_outdir = getTranspileOutdir(b, transpile_cmd, opts);
+    transpile_cmd.addArg("transpile");
+    transpile_cmd.addDirectoryArg(opts.site_path);
+    transpile_cmd.addArg("--outdir");
+    const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
     transpile_cmd.expectExitCode(0);
 
     // --- ZX File Cache Invalidator ---
-    const site_path = b.path(opts.site_path).getPath3(b, &transpile_cmd.step);
+    const site_path = opts.site_path.getPath3(b, &transpile_cmd.step);
     var site_dir = try site_path.root_dir.handle.openDir(site_path.subPathOrDot(), .{ .iterate = true });
     var itd = try site_dir.walk(transpile_cmd.step.owner.allocator);
     defer itd.deinit();

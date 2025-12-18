@@ -5,7 +5,7 @@
 ///
 /// ## Usage Example
 /// ```zig
-/// const zx_options = zx.ZxInitOptions{
+/// const zx_options: zx.ZxInitOptions = .{
 ///     .site = .{ .path = "site" },
 ///     .cli = .{
 ///         .path = null, // Use ZX from dependency
@@ -17,7 +17,8 @@
 /// };
 /// try zx.init(b, exe, zx_options);
 /// ```
-pub const ZxInitOptions = @This();
+const std = @import("std");
+const LazyPath = std.Build.LazyPath;
 
 /// Configuration for the ZX CLI executable and build steps.
 pub const CliOptions = struct {
@@ -34,6 +35,8 @@ pub const CliOptions = struct {
         @"export": ?[]const u8 = null,
         /// Step name for bundling the website (default: null/disabled)
         bundle: ?[]const u8 = null,
+
+        pub const default: Steps = .{ .serve = "serve" };
     };
 
     /// Path to the ZX CLI executable.
@@ -41,7 +44,7 @@ pub const CliOptions = struct {
     /// - If `null`: Uses the ZX CLI from the ZX dependency source (recommended)
     /// - If set to `"zx"`: Uses the ZX CLI from the system PATH
     /// - Otherwise: Uses the specified path to a ZX CLI executable
-    path: ?[]const u8 = null,
+    path: ?LazyPath = null,
 
     /// Configuration for which build steps to create.
     ///
@@ -57,7 +60,7 @@ const SiteOptions = struct {
     ///
     /// This directory should contain your `.zx` template files, layouts,
     /// and other site assets. Defaults to "site" if not specified in ZxInitOptions.
-    path: []const u8,
+    path: LazyPath,
 };
 
 /// Experimental features that may change in future versions.
