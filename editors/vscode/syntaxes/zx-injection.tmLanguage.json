@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "zx-injection",
+  "scopeName": "zx.injection",
+  "injectionSelector": "L:source.zig",
+  "patterns": [
+    {
+      "include": "source.zx#zx"
+    }
+  ]
+}
