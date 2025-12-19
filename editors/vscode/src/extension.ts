@@ -2,7 +2,6 @@ import * as childProcess from "child_process";
 import * as util from "util";
 import * as vscode from "vscode";
 import { ExtensionContext, window, workspace } from "vscode";
-
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -10,102 +9,182 @@ import {
 } from "vscode-languageclient/node";
 
 import { getZLSPath } from "./util/util";
-
 import { registerHtmlAutoCompletion } from "./util/html";
+import {
+  registerZxFileProviders,
+  disposeZxFileProviders,
+  createUriConverters,
+  ZX_VIRTUAL_SCHEME,
+  transformZxImportsToZig,
+  getOffsetMap,
+  adjustSemanticTokens,
+  getOriginalZxPath,
+  isTranspiledPath,
+} from "./util/file";
 
 let client: LanguageClient;
-
 const execFile = util.promisify(childProcess.execFile);
+
+function remapLocationsToZx(
+  result: vscode.Definition | vscode.LocationLink[] | null | undefined,
+  workspaceRoot: string
+): vscode.Definition | vscode.LocationLink[] | null | undefined {
+  if (!result) return result;
+
+  const remapUri = (uri: vscode.Uri): vscode.Uri => {
+    if (isTranspiledPath(uri.fsPath, workspaceRoot)) {
+      const originalPath = getOriginalZxPath(uri.fsPath, workspaceRoot);
+      if (originalPath) return vscode.Uri.file(originalPath);
+    }
+    return uri;
+  };
+
+  const remapLocation = (loc: vscode.Location): vscode.Location =>
+    new vscode.Location(remapUri(loc.uri), loc.range);
+
+  const remapLocationLink = (link: vscode.LocationLink): vscode.LocationLink => ({
+    ...link,
+    targetUri: remapUri(link.targetUri),
+  });
+
+  if (Array.isArray(result)) {
+    return result.map((item) => {
+      if ("targetUri" in item) return remapLocationLink(item as vscode.LocationLink);
+      if ("uri" in item) return remapLocation(item as vscode.Location);
+      return item;
+    });
+  } else if ("uri" in result) {
+    return remapLocation(result as vscode.Location);
+  }
+
+  return result;
+}
 
 export function activate(context: ExtensionContext) {
   const serverCommand = getZLSPath(context);
 
   if (!serverCommand) {
-    window.showErrorMessage(
-      "Failed to start ZX Language Server: ZLS not found",
-    );
+    window.showErrorMessage("Failed to start ZX Language Server: ZLS not found");
     return;
   }
 
-  const serverOptions: ServerOptions = {
-    command: serverCommand,
-  };
+  const serverOptions: ServerOptions = { command: serverCommand };
+  const outputChannel = window.createOutputChannel("ZX Language Server", { log: true });
+  const workspaceRoot = workspace.workspaceFolders?.[0]?.uri.fsPath || "";
 
-  const outputChannel = window.createOutputChannel("ZX Language Server", {
-    log: true,
-  });
-
-  // Options to control the language client
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: "file", language: "zx" }],
+    documentSelector: [
+      { scheme: "file", language: "zx" },
+      { scheme: "file", language: "zig" },
+      { scheme: ZX_VIRTUAL_SCHEME, language: "zig" },
+    ],
     traceOutputChannel: outputChannel,
     outputChannel,
+    uriConverters: createUriConverters(workspaceRoot),
     middleware: {
       async provideDocumentFormattingEdits(document, _options, token, _next) {
         return formatWithZxCli(document, token);
       },
-      async provideHover(uri, position, token, next) {
-        const hover = await next(uri, position, token);
-        console.log(hover);
 
-        return hover;
+      async provideHover(uri, position, token, next) {
+        return next(uri, position, token);
       },
-      handleDiagnostics(uri, diagnostics, next) {
-        const filteredDiagnostics = diagnostics.map((diag) => {
-          // Filter out diagnostics with code "ZigE0424" (unused variable)
-          if (
-            diag.severity === vscode.DiagnosticSeverity.Error &&
-            diag.message === "expected expression, found '<'"
-          ) {
-            return null;
-            diag.severity = vscode.DiagnosticSeverity.Hint;
-            diag.message =
-              "ZX syntax: minimal LSP support will be available for now";
+
+      async provideDefinition(document, position, token, next) {
+        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+      },
+
+      async provideTypeDefinition(document, position, token, next) {
+        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+      },
+
+      async provideDeclaration(document, position, token, next) {
+        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+      },
+
+      async provideImplementation(document, position, token, next) {
+        return remapLocationsToZx(await next(document, position, token), workspaceRoot);
+      },
+
+      async provideReferences(document, position, context, token, next) {
+        const result = await next(document, position, context, token);
+        if (!result) return result;
+        return result.map((loc) => {
+          if (isTranspiledPath(loc.uri.fsPath, workspaceRoot)) {
+            const originalPath = getOriginalZxPath(loc.uri.fsPath, workspaceRoot);
+            if (originalPath) return new vscode.Location(vscode.Uri.file(originalPath), loc.range);
           }
-          return diag;
-        }).filter(Boolean);
-        next(uri, filteredDiagnostics);
+          return loc;
+        });
+      },
+
+      handleDiagnostics(uri, diagnostics, next) {
+        const filtered = diagnostics.filter(
+          (d) => !(d.severity === vscode.DiagnosticSeverity.Error && d.message === "expected expression, found '<'")
+        );
+        next(uri, filtered);
+      },
+
+      didOpen: async (document, next) => {
+        if (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx")) {
+          const originalText = document.getText();
+          const transformedText = transformZxImportsToZig(originalText);
+          getOffsetMap(document.uri.toString(), originalText);
+
+          if (transformedText !== originalText) {
+            return next({ ...document, getText: () => transformedText } as any);
+          }
+        }
+        return next(document);
+      },
+
+      didChange: async (event, next) => {
+        const document = event.document;
+        if (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx")) {
+          const originalText = document.getText();
+          const transformedText = transformZxImportsToZig(originalText);
+          getOffsetMap(document.uri.toString(), originalText);
+
+          if (transformedText !== originalText) {
+            return next({
+              ...event,
+              document: { ...document, getText: () => transformedText },
+              contentChanges: event.contentChanges.map((c) => ({ ...c, text: transformZxImportsToZig(c.text) })),
+            } as any);
+          }
+        }
+        return next(event);
+      },
+
+      provideDocumentSemanticTokens: async (document, token, next) => {
+        const result = await next(document, token);
+
+        if (result && (document.languageId === "zx" || document.uri.fsPath.endsWith(".zx"))) {
+          const originalText = document.getText();
+          if (originalText.includes('.zx"')) {
+            const offsetMap = getOffsetMap(document.uri.toString(), originalText);
+            if ("data" in result && result.data) {
+              const adjustedData = adjustSemanticTokens(Array.from(result.data), offsetMap);
+              return new vscode.SemanticTokens(new Uint32Array(adjustedData), result.resultId);
+            }
+          }
+        }
+
+        return result;
       },
     },
   };
 
-  client = new LanguageClient(
-    "zx-language-server",
-    "ZX Language Server",
-    serverOptions,
-    clientOptions,
-  );
-
-  // Start the client. This will also launch the server
+  client = new LanguageClient("zx-language-server", "ZX Language Server", serverOptions, clientOptions);
   client.start();
 
-  // Register command to toggle embedded Zig expression formatting
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "zx.toggleZigExpressionFormatting",
-      async () => {
-        const config = workspace.getConfiguration("zx");
-        const current = config.get<boolean>("format.enableZigExpression", true);
-        const newValue = !current;
-        await config.update(
-          "format.enableZigExpression",
-          newValue,
-          vscode.ConfigurationTarget.Global,
-        );
-        vscode.window.showInformationMessage(
-          `ZX: embedded Zig expression formatting is now ${newValue ? "enabled" : "disabled"
-          }`,
-        );
-      },
-    ),
-  );
-  // Register HTML autocomplete + tag-complete for `.zx` files
   registerHtmlAutoCompletion(context, "zx");
+  registerZxFileProviders(context);
 }
 
 async function formatWithZxCli(
   document: vscode.TextDocument,
-  token: vscode.CancellationToken,
+  token: vscode.CancellationToken
 ): Promise<vscode.TextEdit[] | null> {
   const abortController = new AbortController();
   token.onCancellationRequested(() => abortController.abort());
@@ -122,42 +201,27 @@ async function formatWithZxCli(
     promise.child.stdin?.end(originalText);
 
     const { stdout } = await promise;
+    if (!stdout || stdout === originalText) return null;
+
     const lastLineId = document.lineCount - 1;
-    const wholeDocument = new vscode.Range(
-      0,
-      0,
-      lastLineId,
-      document.lineAt(lastLineId).text.length,
-    );
-
-    if (!stdout || stdout === originalText) {
-      return null;
-    }
-
+    const wholeDocument = new vscode.Range(0, 0, lastLineId, document.lineAt(lastLineId).text.length);
     return [new vscode.TextEdit(wholeDocument, stdout)];
   } catch (error: any) {
-    if (token.isCancellationRequested) {
-      return null;
-    }
+    if (token.isCancellationRequested) return null;
 
-    const message =
-      error?.stderr?.toString()?.trim() || error?.message || String(error);
-    const isNotFound =
-      message.includes("not found") ||
-      message.includes("ENOENT") ||
-      error.code === "ENOENT";
+    const message = error?.stderr?.toString()?.trim() || error?.message || String(error);
+    const isNotFound = message.includes("not found") || message.includes("ENOENT") || error.code === "ENOENT";
 
     if (isNotFound) {
-      const os = process.platform;
       const installCommand =
-        os === "win32"
+        process.platform === "win32"
           ? 'powershell -c "irm ziex.dev/install.ps1 | iex"'
           : "curl -fsSL https://ziex.dev/install | bash";
 
       const selection = await window.showErrorMessage(
         "ZX CLI not found. Please install it to use code formatting.",
         "Install Now",
-        "Copy Installation Script",
+        "Copy Installation Script"
       );
 
       if (selection === "Copy Installation Script") {
@@ -176,9 +240,7 @@ async function formatWithZxCli(
   }
 }
 
-export function deactivate(): Thenable<void> | undefined {
-  if (!client) {
-    return undefined;
-  }
-  return client.stop();
+export async function deactivate(): Promise<void> {
+  await disposeZxFileProviders();
+  if (client) await client.stop();
 }
