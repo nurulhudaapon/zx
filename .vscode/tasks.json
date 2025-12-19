@@ -9,6 +9,7 @@
         "panel": "dedicated",
         "reveal": "never"
       },
+      "path": "editors/vscode",
       "problemMatcher": ["$tsc"]
     },
     {
@@ -23,6 +24,7 @@
         "panel": "dedicated",
         "reveal": "never"
       },
+      "path": "editors/vscode",
       "problemMatcher": ["$tsc-watch"]
     }
   ]
