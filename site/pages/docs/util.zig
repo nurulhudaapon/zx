@@ -153,7 +153,7 @@ const zx = @import("zx");
 const std = @import("std");
 const builtin = @import("builtin");
 const ts = @import("tree_sitter");
-const hl_query = @embedFile("../highlights.scm");
+const hl_query = @embedFile("./highlights.scm");
 const ts_zx = @import("tree_sitter_zx");
 
 // Cache for tree-sitter objects to avoid recreating them on every call
