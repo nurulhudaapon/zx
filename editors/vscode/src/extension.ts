@@ -9,9 +9,9 @@ import {
   ServerOptions,
 } from "vscode-languageclient/node";
 
-import { getZLSPath } from "./util";
+import { getZLSPath } from "./util/util";
 
-import { registerHtmlAutoCompletion } from "./complete/html";
+import { registerHtmlAutoCompletion } from "./util/html";
 
 let client: LanguageClient;
 
@@ -57,12 +57,13 @@ export function activate(context: ExtensionContext) {
             diag.severity === vscode.DiagnosticSeverity.Error &&
             diag.message === "expected expression, found '<'"
           ) {
+            return null;
             diag.severity = vscode.DiagnosticSeverity.Hint;
             diag.message =
               "ZX syntax: minimal LSP support will be available for now";
           }
           return diag;
-        });
+        }).filter(Boolean);
         next(uri, filteredDiagnostics);
       },
     },
