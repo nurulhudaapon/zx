@@ -307,6 +307,16 @@ pub const Component = union(enum) {
                     }
                 }
 
+                // <><div>...</div></> => <div>...</div>
+                if (elem.tag == .fragment) {
+                    if (elem.children) |children| {
+                        for (children) |child| {
+                            try child.internalRender(writer, slots);
+                        }
+                    }
+                    return;
+                }
+
                 // Otherwise, render normally
                 // Opening tag
                 try writer.print("<{s}", .{@tagName(elem.tag)});

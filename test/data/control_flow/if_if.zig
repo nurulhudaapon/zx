@@ -11,7 +11,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .fragment,
                     .{
                         .children = &.{
-                            if (is_premium) _zx.zx(
+                            (if (is_premium) _zx.zx(
                                 .p,
                                 .{
                                     .children = &.{
@@ -25,14 +25,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                         _zx.txt("Welcome, User!"),
                                     },
                                 },
-                            ),
+                            )),
                         },
                     },
                 ) else _zx.zx(
                     .p,
                     .{
                         .children = &.{
-                            _zx.txt("Welcome, User!"),
+                            _zx.txt("Please log in to continue."),
                         },
                     },
                 ),

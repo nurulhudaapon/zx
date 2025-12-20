@@ -70,7 +70,7 @@ test "for_block" {
 }
 // Switch
 test "switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/switch");
     try test_render(@import("./../data/control_flow/switch.zig").Page);
 }
@@ -81,22 +81,22 @@ test "switch_block" {
 }
 // Nested Control Flow (2-level nesting)
 test "if_if" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/if_if");
     try test_render(@import("./../data/control_flow/if_if.zig").Page);
 }
 test "if_for" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/if_for");
     try test_render(@import("./../data/control_flow/if_for.zig").Page);
 }
 test "if_switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/if_switch");
     try test_render(@import("./../data/control_flow/if_switch.zig").Page);
 }
 test "for_if" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/for_if");
     try test_render(@import("./../data/control_flow/for_if.zig").Page);
 }
@@ -106,7 +106,7 @@ test "for_for" {
     try test_render(@import("./../data/control_flow/for_for.zig").Page);
 }
 test "for_switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/for_switch");
     try test_render(@import("./../data/control_flow/for_switch.zig").Page);
 }
@@ -127,24 +127,24 @@ test "switch_switch" {
 }
 // While
 test "while" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/while");
     try test_render(@import("./../data/control_flow/while.zig").Page);
 }
 
 test "while_block" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/while_block");
     try test_render(@import("./../data/control_flow/while_block.zig").Page);
 }
 
 test "expression_text" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("expression/text");
     try test_render(@import("./../data/expression/text.zig").Page);
 }
 test "expression_format" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("expression/format");
     try test_render(@import("./../data/expression/format.zig").Page);
 }
@@ -160,7 +160,7 @@ test "component_basic" {
     try test_render(@import("./../data/component/basic.zig").Page);
 }
 test "component_multiple" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("component/multiple");
     try test_render(@import("./../data/component/multiple.zig").Page);
 }
