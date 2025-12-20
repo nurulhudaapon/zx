@@ -59,16 +59,13 @@ test "switch_block" {
 }
 // Nested Control Flow (2-level nesting)
 test "if_if" {
-    return error.Todo;
-    // try test_fmt("control_flow/if_if", false);
+    try test_fmt("control_flow/if_if", false);
 }
 test "if_for" {
-    return error.Todo;
-    // try test_fmt("control_flow/if_for", false);
+    try test_fmt("control_flow/if_for", false);
 }
 test "if_switch" {
-    return error.Todo;
-    // try test_fmt("control_flow/if_switch", false);
+    try test_fmt("control_flow/if_switch", false);
 }
 test "for_if" {
     return error.Todo;
@@ -81,8 +78,7 @@ test "for_switch" {
     try test_fmt("control_flow/for_switch", false);
 }
 test "switch_if" {
-    return error.Todo;
-    // try test_fmt("control_flow/switch_if");
+    try test_fmt("control_flow/switch_if", false);
 }
 test "switch_for" {
     return error.Todo;
@@ -98,8 +94,7 @@ test "while" {
 }
 
 test "while_block" {
-    return error.Todo;
-    // try test_fmt("control_flow/while_block");
+    try test_fmt("control_flow/while_block", false);
 }
 
 test "expression_text" {
@@ -109,25 +104,20 @@ test "expression_format" {
     try test_fmt("expression/format", false);
 }
 test "expression_component" {
-    return error.Todo;
-    // try test_fmt("expression/component");
+    try test_fmt("expression/component", false);
 }
 
 test "component_basic" {
-    // return error.Todo;
     try test_fmt("component/basic", false);
 }
 test "component_multiple" {
-    // return error.Todo;
     try test_fmt("component/multiple", false);
 }
 test "component_csr_react" {
-    return error.Todo;
-    // try test_fmt("component/csr_react");
+    try test_fmt("component/csr_react", false);
 }
 test "component_csr_react_multiple" {
-    return error.Todo;
-    // try test_fmt("component/csr_react_multiple");
+    try test_fmt("component/csr_react_multiple", false);
 }
 
 test "performance" {
