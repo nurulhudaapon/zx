@@ -192,7 +192,7 @@ pub fn initInner(
 
     // --- Steps: Serve --- //
     {
-        const serve_step = b.step("serve", "Run the Zx website");
+        const serve_step = b.step(opts.steps.serve, "Run the Zx website");
         const serve_cmd = b.addRunArtifact(exe);
         serve_cmd.step.dependOn(b.getInstallStep());
         serve_cmd.step.dependOn(&transpile_cmd.step);
