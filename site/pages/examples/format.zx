@@ -5,9 +5,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
     return (
         <section @allocator={allocator}>
-            <p>Count: {[count:d]}</p>
+            <p>Count: {count}</p>
             <p>Hex: 0x{[hex_value:x]}</p>
-            <p>Percentage: {[percentage:d]}%</p>
+            <p>Percentage: {percentage}%</p>
         </section>
     );
 }

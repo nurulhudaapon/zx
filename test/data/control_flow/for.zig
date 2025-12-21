@@ -41,7 +41,7 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
                                 .children = &.{
                                     _zx.expr(user.name),
                                     _zx.txt(" - "),
-                                    _zx.fmt("{d}", .{user.age}),
+                                    _zx.expr(user.age),
                                 },
                             },
                         );
@@ -89,7 +89,7 @@ fn UserComponent(allocator: zx.Allocator, props: User) zx.Component {
             .children = &.{
                 _zx.expr(props.name),
                 _zx.txt(" - "),
-                _zx.fmt("{d}", .{props.age}),
+                _zx.expr(props.age),
             },
         },
     );

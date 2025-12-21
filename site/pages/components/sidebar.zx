@@ -8,14 +8,11 @@ pub const SidebarProps = struct {
     children: zx.Component,
 };
 
-
-
 pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
-
     const js_version = std.fmt.allocPrint(allocator, "/assets/docs.js?v={s}", .{zx.info.version_string}) catch unreachable;
 
     return (
-        <div  @allocator={allocator}>
+        <div @allocator={allocator}>
             <header class="top-bar">
                 <div class="top-bar-content">
                     <div class="top-bar-left">
@@ -35,21 +32,15 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     </div>
                 </div>
             </header>
-        
             <div class="container">
-        
                 <nav class="sidebar">
                     <ul class="nav-menu">
-                        {for (props.links) |link| (
-                            <li><a href={link.href}>{link.text}</a></li>
-                        )}
+                        {for (props.links) |link| (<li><a href={link.href}>{link.text}</a></li>)}
                     </ul>
                 </nav>
-
                 <main class="content">
-                    {(props.children)}
+                    {props.children}
                 </main>
-
                 <aside class="right-sidebar" id="on-this-page">
                     <div class="right-sidebar-content">
                         <h3 class="right-sidebar-title">ON THIS PAGE</h3>
@@ -57,7 +48,6 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     </div>
                 </aside>
             </div>
-
             <script async type="module" src={js_version}></script>
         </div>
     );

@@ -37,15 +37,15 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
         
             <div class="todo-stats">
                 <div class="todo-stat">
-                    <span class="todo-stat-value">{[todos.items.len:d]}</span>
+                    <span class="todo-stat-value">{todos.items.len}</span>
                     <span class="todo-stat-label">Total</span>
                 </div>
                 <div class="todo-stat">
-                    <span class="todo-stat-value">{[countCompleted():d]}</span>
+                    <span class="todo-stat-value">{countCompleted()}</span>
                     <span class="todo-stat-label">Completed</span>
                 </div>
                 <div class="todo-stat">
-                    <span class="todo-stat-value">{[(todos.items.len - countCompleted()):d]}</span>
+                    <span class="todo-stat-value">{(todos.items.len - countCompleted())}</span>
                     <span class="todo-stat-label">Remaining</span>
                 </div>
             </div>

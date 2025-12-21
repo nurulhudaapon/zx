@@ -19,7 +19,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                         .{
                                             .children = &.{
                                                 _zx.txt("Even: "),
-                                                _zx.fmt("{d}", .{i}),
+                                                _zx.expr(i),
                                             },
                                         },
                                     ) else _zx.ele(
@@ -27,7 +27,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                         .{
                                             .children = &.{
                                                 _zx.txt("Odd: "),
-                                                _zx.fmt("{d}", .{i}),
+                                                _zx.expr(i),
                                             },
                                         },
                                     ),

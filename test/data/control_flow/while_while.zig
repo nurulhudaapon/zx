@@ -22,7 +22,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                 .p,
                                                 .{
                                                     .children = &.{
-                                                        _zx.fmt("{d}", .{i * 10 + j}),
+                                                        _zx.expr(i * 10 + j),
                                                     },
                                                 },
                                             )) catch unreachable;

@@ -7,7 +7,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <div @allocator={allocator}>
             <h1>Time:</h1> 
             <p>
-                {[time:d]}
+                {time}
             </p>
         </div>
     );

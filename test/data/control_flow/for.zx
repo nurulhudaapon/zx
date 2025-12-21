@@ -10,7 +10,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 pub fn StructCapture(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
-            {for (users) |user| (<p>{user.name} - {[user.age:d]}</p>)}
+            {for (users) |user| (<p>{user.name} - {user.age}</p>)}
         </main>
     );
 }
@@ -32,7 +32,7 @@ const users = [_]User{
 };
 
 fn UserComponent(allocator: zx.Allocator, props: User) zx.Component {
-    return (<p @allocator={allocator}>{props.name} - {[props.age:d]}</p>);
+    return (<p @allocator={allocator}>{props.name} - {props.age}</p>);
 }
 
 const zx = @import("zx");

@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         <main @allocator={allocator}>
             {switch (mode) {
                 .single => (<p>Single</p>),
-                .repeat => (while (i < 3) : (i += 1) (<p>{[i:d]}</p>)),
+                .repeat => (while (i < 3) : (i += 1) (<p>{i}</p>)),
             }}
         </main>
     );

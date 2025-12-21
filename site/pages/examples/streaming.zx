@@ -84,7 +84,7 @@ fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
 
     return (
             <span @allocator={allocator}>
-                {props.label} #{[props.index:d]} - Complete
+                {props.label} #{props.index} - Complete
             </span>
     );
 }

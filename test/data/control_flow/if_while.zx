@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         <main @allocator={allocator}>
             {if (show_list) (
                 <div>
-                    {while (i < 3) : (i +=1) (<p>{[i:d]}</p>)}
+                    {while (i < 3) : (i +=1) (<p>{i}</p>)}
                 </div>
             ) else (<p>List hidden</p>)}
         </main>

@@ -17,7 +17,7 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     return (
         <div @allocator={allocator}>
             <button onclick="_zx.exports.incrementCount(event)">Increment</button>
-            <p>Count: {[count:d]}</p>
+            <p>Count: {count}</p>
         
             <input type="text" id="hello-input" />
         

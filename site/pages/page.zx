@@ -125,7 +125,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </div>
             </section>
             <footer class="footer">
-                <p>© {[current_year:d]} ZX Framework. Built with Zig.</p>
+                <p>© {current_year} ZX Framework. Built with Zig.</p>
             </footer>
         </div>
     );
@@ -136,7 +136,7 @@ fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {
     const IconComponent = props.icon_fn(allocator);
     return (
         <div @allocator={allocator} class="feature-card">
-            <div class="feature-icon">{(IconComponent)}</div>
+            <div class="feature-icon">{IconComponent}</div>
             <h3 class="feature-title">{props.title}</h3>
             <p class="feature-description">{props.description}</p>
         </div>
