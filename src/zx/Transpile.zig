@@ -25,9 +25,9 @@ pub const ClientComponentMetadata = struct {
     path: []const u8,
     id: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator, name: []const u8, path: []const u8, component_type: Type) !ClientComponentMetadata {
-        const generated_id = generateComponentId(name, path);
-        const owned_id = try allocator.dupe(u8, &generated_id);
+    pub fn init(allocator: std.mem.Allocator, name: []const u8, path: []const u8, component_type: Type, index: ?usize) !ClientComponentMetadata {
+        const generated = generateComponentIdInner(name, path, index);
+        const owned_id = try allocator.dupe(u8, generated.buf[0..generated.len]);
 
         const owned_path = try allocator.dupe(u8, path);
         return .{
@@ -38,15 +38,17 @@ pub const ClientComponentMetadata = struct {
         };
     }
 
-    /// Generate a unique component ID based on name and path
-    fn generateComponentId(name: []const u8, path: []const u8) [35]u8 {
+    /// Generate a unique component ID based on name and path, with optional index postfix
+    /// Format: zx-<md5hash>-<index> or zx-<md5hash> if index is null
+    fn generateComponentIdInner(name: []const u8, path: []const u8, index: ?usize) struct { buf: [56]u8, len: usize } {
         var hasher = std.crypto.hash.Md5.init(.{});
         hasher.update(name);
         hasher.update(path);
         var digest: [16]u8 = undefined;
         hasher.final(&digest);
 
-        var result: [35]u8 = undefined;
+        // Buffer: "zx-" (3) + 32 hex chars + "-" (1) + max 20 digits = 56
+        var result: [56]u8 = undefined;
         const prefix = "zx-";
         @memcpy(result[0..3], prefix);
 
@@ -56,7 +58,17 @@ pub const ClientComponentMetadata = struct {
             result[3 + i * 2 + 1] = hex_chars[byte & 0x0f];
         }
 
-        return result;
+        var len: usize = 35; // "zx-" + 32 hex chars
+
+        // Append index as postfix if provided
+        if (index) |idx| {
+            result[len] = '-';
+            len += 1;
+            const idx_str = std.fmt.bufPrint(result[len..], "{d}", .{idx}) catch unreachable;
+            len += idx_str.len;
+        }
+
+        return .{ .buf = result, .len = len };
     }
 };
 
@@ -864,9 +876,10 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
             }
         }
 
-        // Add to client components list
+        // Add to client components list (use current list length as stable index)
         const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "csz");
-        const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type);
+        const component_index = ctx.client_components.items.len;
+        const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type, component_index);
         try ctx.client_components.append(ctx.allocator, client_cmp);
 
         // Write _zx.client(.{ .name = "Name", .path = "path", .id = "id" }, .{ props })

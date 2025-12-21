@@ -2759,7 +2759,7 @@ fn renderJsxAsTokensWithLoopContext(allocator: std.mem.Allocator, output: *Token
             const final_path = component_path.?;
             const owned_name = try allocator.dupe(u8, elem.tag);
             const owned_path = try allocator.dupe(u8, final_path);
-            const metadata = try ClientComponentMetadata.init(allocator, owned_name, owned_path, component_type);
+            const metadata = try ClientComponentMetadata.init(allocator, owned_name, owned_path, component_type, null);
             try client_components.append(allocator, metadata);
 
             // Use _zx.client() instead of _zx.lazy()
@@ -4957,7 +4957,7 @@ fn renderJsxAsTokensWithLoopContext(allocator: std.mem.Allocator, output: *Token
                                 const final_path = component_path.?;
                                 const owned_name = try allocator.dupe(u8, child_elem.tag);
                                 const owned_path = try allocator.dupe(u8, final_path);
-                                const metadata = try ClientComponentMetadata.init(allocator, owned_name, owned_path, component_type);
+                                const metadata = try ClientComponentMetadata.init(allocator, owned_name, owned_path, component_type, null);
                                 try client_components.append(allocator, metadata);
 
                                 // Use _zx.client() instead of _zx.lazy()
