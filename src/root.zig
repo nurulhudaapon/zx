@@ -4,9 +4,211 @@
 const std = @import("std");
 
 pub const Ast = @import("zx/Ast.zig");
+pub const Parse = @import("zx/Parse.zig");
 pub const Allocator = std.mem.Allocator;
 
-const ElementTag = enum { aside, fragment, polyline, iframe, slot, svg, path, img, html, base, head, link, meta, script, style, title, address, article, body, h1, h6, footer, header, h2, h3, h4, h5, hgroup, nav, section, dd, dl, dt, div, figcaption, figure, hr, li, ol, ul, menu, main, p, pre, a, abbr, b, bdi, bdo, br, cite, code, data, time, dfn, em, i, kbd, mark, q, blockquote, rp, ruby, rt, rtc, rb, s, del, ins, samp, small, span, strong, sub, sup, u, @"var", wbr, area, map, audio, source, track, video, embed, object, param, canvas, noscript, caption, table, col, colgroup, tbody, tr, thead, tfoot, td, th, button, datalist, option, fieldset, label, form, input, keygen, legend, meter, optgroup, select, output, progress, textarea, details, dialog, menuitem, summary, content, element, shadow, template, acronym, applet, basefont, font, big, blink, center, command, dir, frame, frameset, isindex, listing, marquee, noembed, plaintext, spacer, strike, tt, xmp };
+// HTML Tags
+const ElementTag = enum {
+    aside,
+    fragment,
+    iframe,
+    slot,
+    img,
+    html,
+    base,
+    head,
+    link,
+    meta,
+    script,
+    style,
+    title,
+    address,
+    article,
+    body,
+    h1,
+    h6,
+    footer,
+    header,
+    h2,
+    h3,
+    h4,
+    h5,
+    hgroup,
+    nav,
+    section,
+    dd,
+    dl,
+    dt,
+    div,
+    figcaption,
+    figure,
+    hr,
+    li,
+    ol,
+    ul,
+    menu,
+    main,
+    p,
+    pre,
+    a,
+    abbr,
+    b,
+    bdi,
+    bdo,
+    br,
+    cite,
+    code,
+    data,
+    time,
+    dfn,
+    em,
+    i,
+    kbd,
+    mark,
+    q,
+    blockquote,
+    rp,
+    ruby,
+    rt,
+    rtc,
+    rb,
+    s,
+    del,
+    ins,
+    samp,
+    small,
+    span,
+    strong,
+    sub,
+    sup,
+    u,
+    @"var",
+    wbr,
+    area,
+    map,
+    audio,
+    source,
+    track,
+    video,
+    embed,
+    object,
+    param,
+    canvas,
+    noscript,
+    caption,
+    table,
+    col,
+    colgroup,
+    tbody,
+    tr,
+    thead,
+    tfoot,
+    td,
+    th,
+    button,
+    datalist,
+    option,
+    fieldset,
+    label,
+    form,
+    input,
+    keygen,
+    legend,
+    meter,
+    optgroup,
+    select,
+    output,
+    progress,
+    textarea,
+    details,
+    dialog,
+    menuitem,
+    summary,
+    content,
+    element,
+    shadow,
+    template,
+    acronym,
+    applet,
+    basefont,
+    font,
+    big,
+    blink,
+    center,
+    command,
+    dir,
+    frame,
+    frameset,
+    isindex,
+    listing,
+    marquee,
+    noembed,
+    plaintext,
+    spacer,
+    strike,
+    tt,
+    xmp,
+    // SVG Tags
+    animate,
+    animateMotion,
+    animateTransform,
+    circle,
+    clipPath,
+    defs,
+    desc,
+    ellipse,
+    feBlend,
+    feColorMatrix,
+    feComponentTransfer,
+    feComposite,
+    feConvolveMatrix,
+    feDiffuseLighting,
+    feDisplacementMap,
+    feDistantLight,
+    feDropShadow,
+    feFlood,
+    feFuncA,
+    feFuncB,
+    feFuncG,
+    feFuncR,
+    feGaussianBlur,
+    feImage,
+    feMerge,
+    feMergeNode,
+    feMorphology,
+    feOffset,
+    fePointLight,
+    feSpecularLighting,
+    feSpotLight,
+    feTile,
+    feTurbulence,
+    filter,
+    foreignObject,
+    g,
+    image,
+    line,
+    linearGradient,
+    marker,
+    mask,
+    metadata,
+    mpath,
+    path,
+    pattern,
+    polygon,
+    polyline,
+    radialGradient,
+    rect,
+    set,
+    stop,
+    svg,
+    @"switch",
+    symbol,
+    text,
+    textPath,
+    tspan,
+    use,
+    view,
+};
 const SELF_CLOSING_ONLY: []const ElementTag = &.{ .br, .hr, .img, .input, .link, .source, .track, .wbr };
 const NO_CHILDREN_ONLY: []const ElementTag = &.{ .meta, .link, .input };
 
@@ -306,6 +508,16 @@ pub const Component = union(enum) {
                     }
                 }
 
+                // <><div>...</div></> => <div>...</div>
+                if (elem.tag == .fragment) {
+                    if (elem.children) |children| {
+                        for (children) |child| {
+                            try child.internalRender(writer, slots);
+                        }
+                    }
+                    return;
+                }
+
                 // Otherwise, render normally
                 // Opening tag
                 try writer.print("<{s}", .{@tagName(elem.tag)});
@@ -514,6 +726,48 @@ const ZxContext = struct {
     pub fn txt(self: *ZxContext, text: []const u8) Component {
         const escaped = self.escapeHtml(text);
         return .{ .text = escaped };
+    }
+
+    pub fn expr(self: *ZxContext, val: anytype) Component {
+        const T = @TypeOf(val);
+
+        if (T == Component) return val;
+
+        const Cmp = switch (@typeInfo(T)) {
+            .int => self.fmt("{d}", .{val}),
+            .float => self.fmt("{d}", .{val}),
+            .bool => self.fmt("{?}", .{val}),
+            .pointer => |ptr_info| switch (ptr_info.size) {
+                .one => switch (@typeInfo(ptr_info.child)) {
+                    .array => {
+                        // Coerce `*[N]T` to `[]const T`.
+                        const Slice = []const std.meta.Elem(ptr_info.child);
+                        return self.expr(@as(Slice, val));
+                    },
+                    else => {
+                        return self.expr(val.*);
+                    },
+                },
+                .many, .slice => {
+                    if (ptr_info.size == .many and ptr_info.sentinel() == null)
+                        @compileError("unable to stringify type '" ++ @typeName(T) ++ "' without sentinel");
+                    const slice = if (ptr_info.size == .many) std.mem.span(val) else val;
+
+                    if (ptr_info.child == u8) {
+                        // This is a []const u8, or some similar Zig string.
+                        if (std.unicode.utf8ValidateSlice(slice)) {
+                            return txt(self, slice);
+                        }
+                    }
+
+                    return self.txt(slice);
+                },
+                else => @compileError("Unable to stringify type '" ++ @typeName(T) ++ "'"),
+            },
+            else => @compileError("Unsupported type"),
+        };
+
+        return Cmp;
     }
 
     pub fn fmt(self: *ZxContext, comptime format: []const u8, args: anytype) Component {

@@ -134,7 +134,7 @@ fn init(ctx: zli.CommandContext) !void {
 }
 
 pub fn isDirEmpty(path: []const u8) !bool {
-    var dir = std.fs.cwd().openDir(path, .{}) catch |err| switch (err) {
+    var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
         error.FileNotFound => return true,
         else => return err,
     };
@@ -161,11 +161,10 @@ const template_dir = "init/template";
 
 const templates = [_]TemplateFile{
     // Shared
-    .{ .path = ".vscode/extensions.json", .content = @embedFile(template_dir ++ "/.vscode/extensions.json") },
     .{ .path = "build.zig.zon", .content = @embedFile(template_dir ++ "/build.zig.zon") },
     // .{ .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{ .{ 1, 28 }, .{ 30, 32 } } },
     .{ .path = "README.md", .content = @embedFile(template_dir ++ "/README.md") },
-    .{ .path = "site/public/style.css", .content = @embedFile(template_dir ++ "/site/public/style.css") },
+    .{ .path = "site/assets/style.css", .content = @embedFile(template_dir ++ "/site/assets/style.css") },
     .{ .path = "site/public/favicon.ico", .content = @embedFile(template_dir ++ "/site/public/favicon.ico") },
     .{ .path = "site/pages/about/page.zx", .content = @embedFile(template_dir ++ "/site/pages/about/page.zx") },
     .{ .path = "site/pages/layout.zx", .content = @embedFile(template_dir ++ "/site/pages/layout.zx") },

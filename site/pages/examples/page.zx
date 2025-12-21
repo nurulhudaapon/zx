@@ -1,5 +1,6 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
+    const age: i32 = 10;
 
     return (
         <div @allocator={allocator}>
@@ -10,43 +11,38 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <div class="examples-hero">
                     <h1>Examples</h1>
                     <p class="examples-hero-description">
-                        Explore interactive examples showcasing the power and flexibility of ZX framework
+                         Explore interactive examples showcasing the power and flexibility of ZX framework
                     </p>
                     <a href="https://github.com/nurulhudaapon/zx/tree/main/site/pages/examples" target="_blank" rel="noopener noreferrer" class="view-source-btn">
-                        View All Examples Code on GitHub
+                         View All Examples Code on GitHub
                     </a>
+                    <h1>{age}</h1>
                 </div>
-
                 <div class="featured-grid">
                     <a href="/examples/wasm" class="featured-card">
                         <h3>WASM TODO App</h3>
                         <p>A fully functional TODO application built with WebAssembly</p>
                         <span class="featured-card-link">View Example →</span>
                     </a>
-
                     <a href="/examples/wasm/simple" class="featured-card">
                         <h3>Simple WASM</h3>
                         <p>Getting started with WebAssembly in ZX</p>
                         <span class="featured-card-link">View Example →</span>
                     </a>
-
                     <a href="/examples/form" class="featured-card">
                         <h3>Form Handling</h3>
                         <p>Learn how to handle forms and user input</p>
                         <span class="featured-card-link">View Example →</span>
                     </a>
                 </div>
-
                 <div class="examples-section">
                     <h2 class="section-title">Interactive Examples</h2>
-                    
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/csr_react.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>CSR React Example</h3>
                         <p class="example-card-description">Client-side rendering with React component imported from a .tsx file to .zx file</p>
                         <CsrReactExample />
                     </div>
-
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/csr_zig.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>CSR Zig Example</h3>
@@ -54,24 +50,20 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <CsrZigExample />
                     </div>
                 </div>
-
                 <div class="examples-section">
                     <h2 class="section-title">Control Flow Examples</h2>
-                    
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/for.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>For Loop</h3>
                         <p class="example-card-description">Iterating over collections and rendering lists</p>
                         <ForExample />
                     </div>
-
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/if.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>If Statement</h3>
                         <p class="example-card-description">Conditional rendering based on state</p>
                         <IfExample />
                     </div>
-
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/switch.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>Switch Statement</h3>
@@ -79,17 +71,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <SwitchExample />
                     </div>
                 </div>
-
                 <div class="examples-section">
                     <h2 class="section-title">Form & Data Examples</h2>
-                    
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/form.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>Form Example</h3>
                         <p class="example-card-description">Working with forms, validation, and submission</p>
                         <FormExample />
                     </div>
-
                     <div class="example-card">
                         <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/overview.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
                         <h3>Quick Example</h3>
@@ -98,7 +87,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </div>
             </div>
-
             <script src="/assets/main.js" />
         </div>
     );

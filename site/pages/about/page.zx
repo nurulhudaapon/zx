@@ -10,7 +10,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     
     return (
         <div @allocator={allocator}>
-            <link rel="stylesheet" href="/doc.css">
+            <link rel="stylesheet" href="/doc.css" />
             <div class="content">
                 <section class="section">
                     <div class="section-header">
@@ -20,9 +20,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     
                     <h3>Key Features</h3>
                     <ul>
-                        {for (features) |feature| (
-                            <li>{feature}</li>
-                        )}
+                        {for (features) |feature| (<li>{feature}</li>)}
                     </ul>
                     
                     <h3>Why ZX?</h3>

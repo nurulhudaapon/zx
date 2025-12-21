@@ -392,7 +392,7 @@ dependencies = [
 
 [[package]]
 name = "nurulhudaapon_zx"
-version = "0.0.1-dev.278"
+version = "0.1.0-dev.278"
 dependencies = [
  "serde_json",
  "uuid",

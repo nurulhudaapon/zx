@@ -1,1 +1,1 @@
-/Users/nurulhudaapon/Projects/nurulhudaapon/zx/tree-sitter-zx/queries/runnables.scm
+../../../../packages/tree-sitter-zx/queries/runnables.scm

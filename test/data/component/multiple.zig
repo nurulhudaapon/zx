@@ -23,7 +23,7 @@ fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.txt(props.title),
+                _zx.expr(props.title),
             },
         },
     );
@@ -37,7 +37,7 @@ fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.txt(props.label),
+                _zx.expr(props.label),
                 _zx.txt(" #"),
                 _zx.fmt("{d}", .{props.index}),
             },

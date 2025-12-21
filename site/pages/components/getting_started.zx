@@ -21,7 +21,6 @@ zx init</code></pre>
             <pre class="language-bash"><code>○ Initializing ZX project!
 
   - [default]
-    + .vscode/extensions.json
     + build.zig.zon
     + build.zig
     + README.md

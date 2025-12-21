@@ -1,1 +1,1 @@
-/Users/nurulhudaapon/Projects/nurulhudaapon/zx/tree-sitter-zx/queries/injections.scm
+../../../../packages/tree-sitter-zx/queries/injections.scm

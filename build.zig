@@ -4,8 +4,15 @@ const std = @import("std");
 const buildlib = @import("src/build/main.zig");
 
 // --- Public API (setting up ZX Site) --- //
+/// Options for initializing
+pub const ZxInitOptions = buildlib.initlib.ZxInitOptions;
 /// Initialize a ZX project (sets up ZX, dependencies, executables, wasm executable and `serve` step)
 pub const init = buildlib.initlib.init;
+
+/// Default plugins
+/// #### Available plugins
+/// - tailwind: Tailwind CSS plugin
+pub const plugins = buildlib.plugins;
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -18,41 +25,33 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "repository", build_zon.repository);
 
     // --- ZX App Module --- //
-    const mod = b.addModule("zx", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
+    const tree_sitter_dep = b.dependency("tree_sitter", .{ .target = target, .optimize = optimize });
+    const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
     mod.addImport("httpz", httpz_dep.module("httpz"));
+    mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
     mod.addOptions("zx_info", options);
 
     // --- ZX WASM Module --- //
-    const zx_wasm_mod = b.addModule("zx_wasm", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    const zx_wasm_mod = b.addModule("zx_wasm", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
     const jsz_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
     zx_wasm_mod.addImport("js", jsz_dep.module("zig-js"));
     zx_wasm_mod.addOptions("zx_info", options);
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
-    // const rustlib_step = buildlib.rustlib.build(b, target, optimize);
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
-    const exe = b.addExecutable(.{
-        .name = "zx",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "zx", .module = mod },
-                .{ .name = "zli", .module = zli_dep.module("zli") },
-            },
-        }),
-    });
-    // buildlib.rustlib.link(b, exe, rustlib_step, optimize);
+    const exe_rootmod_opts: std.Build.Module.CreateOptions = .{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zx", .module = mod },
+            .{ .name = "zli", .module = zli_dep.module("zli") },
+        },
+    };
+    const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
     b.installArtifact(exe);
 
     // --- Steps: Run --- //
@@ -66,9 +65,6 @@ pub fn build(b: *std.Build) !void {
     {
         const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
         if (is_zx_docsite) {
-            const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
-            const tree_sitter_dep = b.lazyDependency("tree_sitter", .{ .target = target, .optimize = optimize }).?;
-
             const zx_docsite_exe = b.addExecutable(.{
                 .name = "zx_site",
                 .root_module = b.createModule(.{
@@ -82,14 +78,14 @@ pub fn build(b: *std.Build) !void {
 
             try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
                 .cli_path = null,
-                .site_outdir = "site/.zx",
-                .site_path = "site",
+                .site_outdir = b.path("site/.zx"),
+                .site_path = b.path("site"),
                 .experimental_enabled_csr = true,
-                .steps = .{
-                    .serve = "serve",
-                    .dev = "dev",
-                    .@"export" = "export",
-                    .bundle = "bundle",
+                .experimental_ts_based_transpile = true,
+                .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
+                .plugins = &.{
+                    plugins.typescript(.{}),
+                    // plugins.tailwind(.{}),
                 },
             });
         }
@@ -115,12 +111,13 @@ pub fn build(b: *std.Build) !void {
             .root_module = testing_mod,
             .test_runner = .{ .path = b.path("test/runner.zig"), .mode = .simple },
         });
-        const run_transpiler_tests = b.addRunArtifact(testing_mod_tests);
+        const test_run = b.addRunArtifact(testing_mod_tests);
+        test_run.step.dependOn(b.getInstallStep());
 
         const test_step = b.step("test", "Run tests");
         test_step.dependOn(&run_mod_tests.step);
         test_step.dependOn(&run_exe_tests.step);
-        test_step.dependOn(&run_transpiler_tests.step);
+        test_step.dependOn(&test_run.step);
     }
 
     // --- ZX Releases (Cross-compilation targets for all platforms) --- //
@@ -141,6 +138,17 @@ pub fn build(b: *std.Build) !void {
 
         for (release_targets) |release_target| {
             const resolved_target = b.resolveTargetQuery(release_target.target);
+
+            const release_tree_sitter_dep = b.dependency("tree_sitter", .{ .target = resolved_target, .optimize = .ReleaseSafe });
+            const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
+
+            const release_mod = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
+
+            release_mod.addImport("httpz", httpz_dep.module("httpz"));
+            release_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
+            release_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
+            release_mod.addOptions("zx_info", options);
+
             const release_exe = b.addExecutable(.{
                 .name = "zx",
                 .root_module = b.createModule(.{
@@ -148,15 +156,11 @@ pub fn build(b: *std.Build) !void {
                     .target = resolved_target,
                     .optimize = .ReleaseSafe,
                     .imports = &.{
-                        .{ .name = "zx", .module = mod },
-                        .{ .name = "httpz", .module = httpz_dep.module("httpz") },
+                        .{ .name = "zx", .module = release_mod },
                         .{ .name = "zli", .module = zli_dep.module("zli") },
                     },
                 }),
             });
-
-            // const release_rustlib_step = buildlib.rustlib.build(b, resolved_target, .ReleaseFast);
-            // buildlib.rustlib.link(b, release_exe, release_rustlib_step, .ReleaseFast);
 
             const exe_ext = if (resolved_target.result.os.tag == .windows) ".exe" else "";
             const install_release = b.addInstallArtifact(release_exe, .{

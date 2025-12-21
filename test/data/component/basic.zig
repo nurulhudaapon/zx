@@ -19,7 +19,7 @@ pub fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.txt(props.title),
+                _zx.expr(props.title),
             },
         },
     );

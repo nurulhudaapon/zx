@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# Pre-commit hook to increment version number in build.zig.zon
-# Increments the dev version number (e.g., dev.10 -> dev.11)
+# Pre-commit hook to set or increment version number
+# Usage: ./precommit [version]
+#   If version is provided, sets that version everywhere
+#   If no version is provided, increments the dev number (e.g., dev.10 -> dev.11)
 
 BUILD_ZON_FILE="build.zig.zon"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,34 +24,76 @@ if [ -z "$CURRENT_VERSION" ]; then
     exit 1
 fi
 
-# Extract the dev number (e.g., extract 10 from "0.0.1-dev.10")
-DEV_NUMBER=$(echo "$CURRENT_VERSION" | grep -oE 'dev\.([0-9]+)' | grep -oE '[0-9]+')
+# Check if version was provided as argument
+if [ -n "$1" ]; then
+    NEW_VERSION="$1"
+    echo "Setting version to: $NEW_VERSION"
+else
+    # Extract the dev number (e.g., extract 10 from "0.1.0-dev.10")
+    DEV_NUMBER=$(echo "$CURRENT_VERSION" | grep -oE 'dev\.([0-9]+)' | grep -oE '[0-9]+')
 
-if [ -z "$DEV_NUMBER" ]; then
-    echo "Error: Could not extract dev number from version: $CURRENT_VERSION"
-    exit 1
+    if [ -z "$DEV_NUMBER" ]; then
+        echo "Error: Could not extract dev number from version: $CURRENT_VERSION"
+        exit 1
+    fi
+
+    # Increment the dev number
+    NEW_DEV_NUMBER=$((DEV_NUMBER + 1))
+
+    # Create new version string (replace dev.XX with dev.NEW_NUMBER)
+    NEW_VERSION=$(echo "$CURRENT_VERSION" | sed -E "s/dev\.$DEV_NUMBER/dev.$NEW_DEV_NUMBER/")
 fi
 
-# Increment the dev number
-NEW_DEV_NUMBER=$((DEV_NUMBER + 1))
+# Version pattern to match any dev version (e.g., 0.1.0-dev.XXX)
+VERSION_PATTERN="0\\.1\\.0-dev\\.[0-9]+"
 
-# Create new version string (replace dev.XX with dev.NEW_NUMBER)
-NEW_VERSION=$(echo "$CURRENT_VERSION" | sed -E "s/dev\.$DEV_NUMBER/dev.$NEW_DEV_NUMBER/")
-
-# Update the file - replace the version string directly
-# Escape dots in NEW_VERSION for sed
-ESCAPED_NEW_VERSION=$(echo "$NEW_VERSION" | sed 's/\./\\./g')
-ESCAPED_CURRENT_VERSION=$(echo "$CURRENT_VERSION" | sed 's/\./\\./g')
-sed -i.bak "s/$ESCAPED_CURRENT_VERSION/$ESCAPED_NEW_VERSION/" "$BUILD_ZON_PATH"
-
-# Remove backup file (created by sed -i.bak)
+# Update build.zig.zon
+sed -i.bak -E "s/$VERSION_PATTERN/$NEW_VERSION/" "$BUILD_ZON_PATH"
 rm -f "$BUILD_ZON_PATH.bak"
-
-echo "Version incremented: $CURRENT_VERSION -> $NEW_VERSION"
+echo "Version: $CURRENT_VERSION -> $NEW_VERSION"
 echo "Updated $BUILD_ZON_FILE"
 
-# Stage the updated file for commit
+# Update packages/ziex/package.json version
+ZIEX_PACKAGE_JSON="$PROJECT_ROOT/packages/ziex/package.json"
+if [ -f "$ZIEX_PACKAGE_JSON" ]; then
+    sed -i.bak -E "s/$VERSION_PATTERN/$NEW_VERSION/" "$ZIEX_PACKAGE_JSON"
+    rm -f "$ZIEX_PACKAGE_JSON.bak"
+    echo "Updated packages/ziex/package.json"
+fi
+
+# Update editors/zed/extension.toml version
+ZED_EXTENSION_TOML="$PROJECT_ROOT/editors/zed/extension.toml"
+if [ -f "$ZED_EXTENSION_TOML" ]; then
+    sed -i.bak -E "s/$VERSION_PATTERN/$NEW_VERSION/" "$ZED_EXTENSION_TOML"
+    rm -f "$ZED_EXTENSION_TOML.bak"
+    echo "Updated editors/zed/extension.toml"
+fi
+
+# Update editors/vscode/package.json version (uses 0.1.X format since VSCode doesn't support prerelease versions)
+VSCODE_PACKAGE_JSON="$PROJECT_ROOT/editors/vscode/package.json"
+if [ -f "$VSCODE_PACKAGE_JSON" ]; then
+    # Extract the dev number from the new version (e.g., 357 from 0.1.0-dev.357)
+    VSCODE_DEV_NUMBER=$(echo "$NEW_VERSION" | grep -oE 'dev\.([0-9]+)' | grep -oE '[0-9]+')
+    if [ -n "$VSCODE_DEV_NUMBER" ]; then
+        VSCODE_VERSION="0.1.$VSCODE_DEV_NUMBER"
+        sed -i.bak -E "s/\"version\": \"0\\.1\\.[0-9]+\"/\"version\": \"$VSCODE_VERSION\"/" "$VSCODE_PACKAGE_JSON"
+        rm -f "$VSCODE_PACKAGE_JSON.bak"
+        echo "Updated editors/vscode/package.json -> $VSCODE_VERSION"
+    fi
+fi
+
+# Stage the updated files for commit
 git add "$BUILD_ZON_PATH"
+git add "$ZIEX_PACKAGE_JSON" 2>/dev/null || true
+git add "$ZED_EXTENSION_TOML" 2>/dev/null || true
+git add "$VSCODE_PACKAGE_JSON" 2>/dev/null || true
+
+# Update tree-sitter-zx version (ignore errors)
+TREE_SITTER_DIR="$PROJECT_ROOT/packages/tree-sitter-zx"
+if [ -d "$TREE_SITTER_DIR" ]; then
+    (cd "$TREE_SITTER_DIR" && tree-sitter version "$NEW_VERSION") 2>/dev/null || true
+    git add "$TREE_SITTER_DIR" 2>/dev/null || true
+fi
 
 exit 0
 

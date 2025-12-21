@@ -2,6 +2,8 @@ const std = @import("std");
 const zli = @import("zli");
 const log = std.log.scoped(.cli);
 const zx = @import("zx");
+const tui = @import("../tui/main.zig");
+const colors = tui.Colors;
 
 const stdio_flag = zli.Flag{
     .name = "stdio",
@@ -17,18 +19,27 @@ const stdout_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
+const ts_flag = zli.Flag{
+    .name = "ts",
+    .description = "Use tree-sitter to format the code",
+    .type = .Bool,
+    .default_value = .{ .Bool = true },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "fmt",
-        .description = "Format a .zx file or directory.",
+        .description = "Format .zx files or directories.",
     }, fmt);
 
     try cmd.addFlag(stdio_flag);
     try cmd.addFlag(stdout_flag);
+    try cmd.addFlag(ts_flag);
     try cmd.addPositionalArg(.{
-        .name = "path",
-        .description = "Path to .zx file or directory",
+        .name = "paths",
+        .description = "Paths to .zx files or directories",
         .required = false,
+        .variadic = true,
     });
     return cmd;
 }
@@ -36,50 +47,60 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 fn fmt(ctx: zli.CommandContext) !void {
     const use_stdio = ctx.flag("stdio", bool);
     const use_stdout = ctx.flag("stdout", bool);
-    const path = ctx.getArg("path");
+    const use_ts = ctx.flag("ts", bool);
 
     if (use_stdio) {
-        try formatFromStdin(ctx.allocator, ctx.writer);
+        try formatFromStdin(ctx.allocator, ctx.writer, use_ts);
         return;
     }
 
-    const path_value = path orelse {
-        try ctx.writer.print("Missing path arg\n", .{});
+    const paths = ctx.positional_args;
+    if (paths.len == 0) {
+        try ctx.writer.print("{s}No paths were given.{s}\n", .{ colors.yellow, colors.reset });
+        try ctx.writer.print("\nUsage:\n\n", .{});
+        try ctx.writer.print("  {s}zx fmt{s} {s}{s}site/pages/page.zx{s}  {s}# Format a single file{s}\n\n", .{
+            colors.cyan,
+            colors.reset,
+            colors.bold,
+            colors.gray,
+            colors.reset,
+            colors.gray,
+            colors.reset,
+        });
+        try ctx.writer.print("  {s}zx fmt{s} {s}{s}site/pages{s}  {s}# Format all .zx files in a directory{s}\n\n", .{
+            colors.cyan,
+            colors.reset,
+            colors.bold,
+            colors.gray,
+            colors.reset,
+            colors.gray,
+            colors.reset,
+        });
         return;
-    };
+    }
 
-    // Check if path is a directory first
-    if (std.fs.cwd().openDir(path_value, .{ .iterate = true })) |dir| {
-        var dir_mut = dir;
-        dir_mut.close();
-        // It's a directory, format it
-        try formatDir(
-            ctx.allocator,
-            ctx.writer,
-            path_value,
-            use_stdout,
-        );
-    } else |_| {
-        // It's a file, format it
-        try formatFile(
-            ctx.allocator,
-            ctx.writer,
-            std.fs.cwd(),
-            path_value,
-            path_value,
-            use_stdout,
-        );
+    for (paths) |path| {
+        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
+            error.NotDir => {
+                try formatFile(ctx.allocator, ctx.writer, std.fs.cwd(), path, path, use_stdout, use_ts);
+                continue;
+            },
+            else => continue,
+        };
+
+        defer dir.close();
+        try formatDir(ctx.allocator, ctx.writer, path, use_stdout, use_ts);
     }
 }
 
-fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
+fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer, use_ts: bool) !void {
     var reader = std.fs.File.stdin().reader(&.{});
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     _ = try reader.interface.streamRemaining(&buffer.writer);
     const input = try buffer.toOwnedSliceSentinel(0);
     defer allocator.free(input);
 
-    var format_result = try zx.Ast.fmt(allocator, input);
+    var format_result = if (use_ts) try zx.Ast.fmtTs(allocator, input) else try zx.Ast.fmt(allocator, input);
     defer format_result.deinit(allocator);
 
     try writer.writeAll(format_result.formatted_zx);
@@ -92,6 +113,7 @@ fn formatFile(
     sub_path: []const u8,
     full_path: []const u8,
     use_stdout: bool,
+    use_ts: bool,
 ) !void {
     if (!std.mem.endsWith(u8, sub_path, ".zx")) {
         return; // Skip non-.zx files
@@ -105,9 +127,9 @@ fn formatFile(
     defer allocator.free(source);
 
     const source_z = try allocator.dupeZ(u8, source);
-    defer allocator.free(source_z);
+    defer if (!use_ts) allocator.free(source_z);
 
-    var format_result = try zx.Ast.fmt(allocator, source_z);
+    var format_result = if (use_ts) try zx.Ast.fmtTs(allocator, source_z) else try zx.Ast.fmt(allocator, source_z);
     defer format_result.deinit(allocator);
 
     if (use_stdout) {
@@ -134,6 +156,7 @@ fn formatDir(
     writer: *std.Io.Writer,
     path: []const u8,
     use_stdout: bool,
+    use_ts: bool,
 ) !void {
     var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
     defer dir.close();
@@ -162,9 +185,15 @@ fn formatDir(
         defer allocator.free(source);
 
         const source_z = try allocator.dupeZ(u8, source);
-        defer allocator.free(source_z);
+        defer if (!use_ts) allocator.free(source_z);
 
-        var format_result = zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
+        var format_result = if (use_ts) zx.Ast.fmtTs(allocator, source_z) catch |err| switch (err) {
+            error.ParseError => {
+                log.err("Error formatting {s}: {}\n", .{ full_path, err });
+                continue;
+            },
+            else => return err,
+        } else zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
             error.ParseError => {
                 log.err("Error formatting {s}: {}\n", .{ full_path, err });
                 continue;

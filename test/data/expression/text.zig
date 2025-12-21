@@ -18,7 +18,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 .{
                                     .children = &.{
                                         _zx.txt("User: "),
-                                        _zx.txt(user_name),
+                                        _zx.expr(user_name),
                                     },
                                 },
                             ),
@@ -27,7 +27,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 .{
                                     .children = &.{
                                         _zx.txt("Safe HTML: "),
-                                        _zx.txt(html_content),
+                                        _zx.expr(html_content),
                                     },
                                 },
                             ),

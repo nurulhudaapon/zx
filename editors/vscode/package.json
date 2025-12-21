@@ -1,0 +1,108 @@
+{
+  "name": "zx",
+  "displayName": "ZX",
+  "description": "ZX let's you write HTML within your Zig code.",
+  "version": "0.1.372",
+  "publisher": "nurulhudaapon",
+  "icon": "images/zx-icon.png",
+  "private": true,
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "zig",
+    "zx",
+    "syntax",
+    "highlighting"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nurulhudaapon/zx"
+  },
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "extensionDependencies": [
+    "ziglang.vscode-zig"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension",
+  "contributes": {
+    "configurationDefaults": {
+      "explorer.autoRevealExclude": {
+        "**/.zig-cache": true,
+        "**/zig-cache": true
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "zx.format.enableZigExpression": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable autoformatting of Zig expressions (and HTML inside those expressions) that are embedded inside HTML blocks. Default is true. Use the command 'ZX: Toggle embedded Zig expression formatting' from the Command Palette to toggle this setting."
+        },
+        "zx.autoCloseTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically insert closing HTML tags when typing '>' inside HTML fragments in ZX files."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "zx.toggleZigExpressionFormatting",
+        "title": "ZX: Toggle embedded Zig expression formatting"
+      }
+    ],
+    "languages": [
+      {
+        "id": "zx",
+        "extensions": [
+          ".zx"
+        ],
+        "aliases": [
+          "ZX"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "./images/zx-icon-dark.svg",
+          "light": "./images/zx-icon-light.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "zx",
+        "scopeName": "source.zx",
+        "path": "./syntaxes/zx.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.tag.zx": "zx-tags",
+          "meta.tag.attributes.zx": "zx",
+          "meta.embedded.expression.zx": "zx"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "rm -rf out && tsc -b",
+    "watch": "tsc -b -w",
+    "fmt": "prettier . --write"
+  },
+  "dependencies": {
+    "vscode-html-languageservice": "^5.6.0",
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.2",
+    "@types/node": "^24.10.0",
+    "@types/vscode": "^1.99.0",
+    "esbuild": "^0.27.0",
+    "prettier": "^3.6.2",
+    "pretty-quick": "^4.2.2",
+    "simple-git-hooks": "^2.13.1",
+    "typescript": "^5.9.3"
+  },
+  "prettier": {}
+}

@@ -1,0 +1,250 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "zx",
+  "scopeName": "source.zx",
+  "fileTypes": ["zx", "zx"],
+  "patterns": [
+    {
+      "include": "#zx"
+    },
+    {
+      "include": "source.zig"
+    }
+  ],
+  "repository": {
+    "zx": {
+      "patterns": [
+        {
+          "include": "#zx-tag-self-closing"
+        },
+        {
+          "include": "#zx-tag-open"
+        },
+        {
+          "include": "#zx-tag-close"
+        },
+        {
+          "include": "#zx-text"
+        },
+        {
+          "include": "#zx-expression"
+        }
+      ]
+    },
+    "zx-text": {
+      "patterns": [
+        {
+          "name": "text.html.zx",
+          "begin": "(?<=>)(?=[^<{)])",
+          "end": "(?=[<{)])",
+          "patterns": [
+            {
+              "name": "text.html.zx",
+              "match": "[^<{)]+"
+            }
+          ]
+        }
+      ]
+    },
+    "zx-tag-self-closing": {
+      "name": "meta.tag.self-closing.zx",
+      "begin": "(<)([a-zA-Z_][a-zA-Z0-9_-]*)(?=[^>]*/>)",
+      "end": "(/>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.zx"
+        },
+        "2": {
+          "name": "entity.name.tag.zx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.zx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#zx-attribute"
+        }
+      ]
+    },
+    "zx-tag-open": {
+      "name": "meta.tag.open.zx",
+      "begin": "(<)([a-zA-Z_][a-zA-Z0-9_-]*)",
+      "end": "(>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.zx"
+        },
+        "2": {
+          "name": "entity.name.tag.zx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.zx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#zx-attribute"
+        }
+      ]
+    },
+    "zx-tag-close": {
+      "name": "meta.tag.close.zx",
+      "match": "(</)([a-zA-Z_][a-zA-Z0-9_-]*)(>)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.zx"
+        },
+        "2": {
+          "name": "entity.name.tag.zx"
+        },
+        "3": {
+          "name": "punctuation.definition.tag.end.zx"
+        }
+      }
+    },
+    "zx-attribute": {
+      "patterns": [
+        {
+          "name": "meta.attribute.builtin.with-value.zx",
+          "begin": "\\s+(@[a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)",
+          "end": "(?=[\\s/>])|(?<=[\"'}])",
+          "beginCaptures": {
+            "1": {
+              "name": "support.function.builtin.zig"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.zx"
+            }
+          },
+          "patterns": [
+            {
+              "name": "string.quoted.double.zx",
+              "begin": "\"",
+              "end": "\"",
+              "patterns": [
+                {
+                  "include": "source.zig#stringcontent"
+                }
+              ]
+            },
+            {
+              "name": "string.quoted.single.zx",
+              "begin": "'",
+              "end": "'",
+              "patterns": [
+                {
+                  "include": "source.zig#stringcontent"
+                }
+              ]
+            },
+            {
+              "include": "#zx-expression"
+            }
+          ]
+        },
+        {
+          "name": "meta.attribute.with-value.zx",
+          "begin": "\\s+([a-zA-Z_:][a-zA-Z0-9_:-]*)\\s*(=)",
+          "end": "(?=[\\s/>])|(?<=[\"'}])",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.other.attribute-name.zx"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.zx"
+            }
+          },
+          "patterns": [
+            {
+              "name": "string.quoted.double.zx",
+              "begin": "\"",
+              "end": "\"",
+              "patterns": [
+                {
+                  "include": "source.zig#stringcontent"
+                }
+              ]
+            },
+            {
+              "name": "string.quoted.single.zx",
+              "begin": "'",
+              "end": "'",
+              "patterns": [
+                {
+                  "include": "source.zig#stringcontent"
+                }
+              ]
+            },
+            {
+              "include": "#zx-expression"
+            }
+          ]
+        },
+        {
+          "name": "meta.attribute.builtin.zx",
+          "match": "\\s+(@[a-zA-Z_][a-zA-Z0-9_]*)(?=[\\s/>])",
+          "captures": {
+            "1": {
+              "name": "support.function.builtin.zig"
+            }
+          }
+        },
+        {
+          "name": "entity.other.attribute-name.zx",
+          "match": "\\s+([a-zA-Z_:][a-zA-Z0-9_:-]*)(?=[\\s/>])",
+          "captures": {
+            "1": {
+              "name": "entity.other.attribute-name.zx"
+            }
+          }
+        }
+      ]
+    },
+    "zx-children": {
+      "patterns": [
+        {
+          "include": "#zx-expression"
+        },
+        {
+          "include": "#zx"
+        },
+        {
+          "name": "text.zx.zx",
+          "match": "[^<\\{\\}]+"
+        }
+      ]
+    },
+    "zx-expression": {
+      "patterns": [
+        {
+          "name": "meta.embedded.expression.zx",
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.begin.zx"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.zx"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#zx"
+            },
+            {
+              "include": "source.zig"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

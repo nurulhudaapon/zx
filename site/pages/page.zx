@@ -22,10 +22,8 @@ const hero_stats = [_]HeroStat{
     .{ .value = "∞", .label = "Memory Safety" },
 };
 
-
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
-    const css_version = std.fmt.allocPrint(allocator, "/assets/home.css?v={s}", .{zx.info.version_string}) catch unreachable;
     const current_year = blk: {
         const timestamp = std.time.timestamp();
         const seconds_per_year = 365.25 * 24 * 60 * 60;
@@ -39,7 +37,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <div @allocator={allocator}>
-            <link rel="stylesheet" href={css_version}>
             <nav class="nav">
                 <div class="nav-content">
                     <a href="/" class="nav-logo">ZX</a>
@@ -56,7 +53,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </div>
             </nav>
-
             <section class="hero">
                 <div class="hero-content">
                     <div class="hero-badge">v{zx.info.version_string}</div>
@@ -65,19 +61,15 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <div class="hero-title-accent">/</div>
                     </div>
                     <p class="hero-subtitle">
-                        Build fast full-stack web apps with Zig.
+                         Build fast full-stack web apps with Zig.
                     </p>
                     <p class="hero-description">
-                        JSX like syntax or just like HTML with having access to Zig's control flow. 
-                        No JavaScript runtime, no garbage collection.
+                         JSX like syntax or just like HTML with having access to Zig's control flow. 
+                         No JavaScript runtime, no garbage collection.
                     </p>
-                    
                     <div class="hero-stats">
-                        {for (hero_stats) |h| (
-                            <HeroStatCard allocator={allocator} value={h.value} label={h.label} />
-                        )}
+                        {for (hero_stats) |h| (<HeroStatCard allocator={allocator} value={h.value} label={h.label} />)}
                     </div>
-
                     <div class="hero-cta">
                         <a href="/docs" class="btn btn-primary">Get Started</a>
                         <a href="/examples" class="btn btn-secondary">Examples</a>
@@ -89,31 +81,25 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <div class="hero-decoration-line"></div>
                 </div>
             </section>
-
             <section class="features">
                 <div class="features-header">
                     <h2 class="section-title">Features</h2>
                     <p class="section-subtitle">
-                        Performance-focused web apps built with Zig.
+                         Performance-focused web apps built with Zig.
                     </p>
                 </div>
-                
                 <div class="features-grid">
-                    {for (features) |f| (
-                        <FeatureCard allocator={allocator} icon_fn={f.icon_fn} title ={f.title} description={f.description} />
-                    )}
+                    {for (features) |f| (<FeatureCard allocator={allocator} icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
                 </div>
             </section>
-
             <section class="code-section">
                 <div class="code-container">
                     <div class="code-header">
                         <h2 class="section-title">Familiar Syntax</h2>
                         <p class="section-subtitle">
-                            Familiar JSX like syntax or just like HTML with having access to Zig's control flow.
+                             Familiar JSX like syntax or just like HTML with having access to Zig's control flow.
                         </p>
                     </div>
-                    
                     <div class="code-example">
                         <div class="code-example-header">
                             <div class="code-example-dots">
@@ -127,29 +113,23 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </div>
             </section>
-
             <section class="performance">
                 <div class="performance-header">
                     <h2 class="section-title">The Numbers</h2>
                     <p class="section-subtitle">
-                        Real numbers based on some initial benchmarks.
+                         Real numbers based on some initial benchmarks.
                     </p>
                 </div>
-                
                 <div class="performance-grid">
-                    {for (performances) |p| (
-                        <PerformanceCard allocator={allocator} value={p.value} label={p.label} />
-                    )}
+                    {for (performances) |p| (<PerformanceCard allocator={allocator} value={p.value} label={p.label} />)}
                 </div>
             </section>
-
             <footer class="footer">
                 <p>© {[current_year:d]} ZX Framework. Built with Zig.</p>
             </footer>
         </div>
     );
 }
-
 
 const Feature = struct { icon_fn: *const fn (zx.Allocator) zx.Component, title: []const u8, description: []const u8 };
 fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {

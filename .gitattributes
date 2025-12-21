@@ -4,7 +4,7 @@
 # Explicitly declare text files you want to always be normalized and converted
 # to native line endings on checkout
 *.zig text eol=lf
-*.zx text eol=lf
+*.zx text eol=lf linguist-language=Zig
 *.md text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

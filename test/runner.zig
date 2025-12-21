@@ -34,7 +34,7 @@ pub fn main() !void {
     const env = Env.init(allocator);
     defer env.deinit(allocator);
 
-    var slowest = SlowTracker.init(allocator, 5);
+    var slowest = SlowTracker.init(allocator, 15);
     defer slowest.deinit();
 
     var pass: usize = 0;
@@ -70,6 +70,7 @@ pub fn main() !void {
                 continue;
             }
         }
+        if (is_unnamed_test) continue;
 
         var scope_name: []const u8 = "";
         const friendly_name = blk: {
