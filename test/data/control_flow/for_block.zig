@@ -1,19 +1,19 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const chars = "ABC";
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 blk_0: {
-                    const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, chars.len) catch unreachable;
+                    const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, chars.len) catch unreachable;
                     for (chars, 0..) |char, _zx_i_0| {
-                        __zx_children_0[_zx_i_0] = _zx.zx(
+                        __zx_children_0[_zx_i_0] = _zx.ele(
                             .div,
                             .{
                                 .children = &.{
-                                    _zx.zx(
+                                    _zx.ele(
                                         .i,
                                         .{
                                             .children = &.{
@@ -25,7 +25,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         );
                     }
-                    break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                    break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                 },
             },
         },

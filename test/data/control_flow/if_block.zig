@@ -1,16 +1,16 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const is_logged_in = false;
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                if (is_logged_in) _zx.zx(
+                if (is_logged_in) _zx.ele(
                     .div,
                     .{
                         .children = &.{
-                            _zx.zx(
+                            _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
@@ -20,11 +20,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             ),
                         },
                     },
-                ) else _zx.zx(
+                ) else _zx.ele(
                     .div,
                     .{
                         .children = &.{
-                            _zx.zx(
+                            _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{

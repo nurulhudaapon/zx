@@ -1,17 +1,17 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_type: UserType = .admin;
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 switch (user_type) {
-                    .admin => _zx.zx(
+                    .admin => _zx.ele(
                         .div,
                         .{
                             .children = &.{
-                                _zx.zx(
+                                _zx.ele(
                                     .p,
                                     .{
                                         .children = &.{
@@ -22,11 +22,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         },
                     ),
-                    .member => _zx.zx(
+                    .member => _zx.ele(
                         .div,
                         .{
                             .children = &.{
-                                _zx.zx(
+                                _zx.ele(
                                     .p,
                                     .{
                                         .children = &.{

@@ -3,17 +3,17 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const html_content = "<script>alert('XSS')</script>";
     const unsafe_html = "<span>Test</span>";
 
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .section,
                     .{
                         .children = &.{
-                            _zx.zx(
+                            _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
@@ -22,7 +22,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                     },
                                 },
                             ),
-                            _zx.zx(
+                            _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
@@ -31,7 +31,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                     },
                                 },
                             ),
-                            _zx.zx(
+                            _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{

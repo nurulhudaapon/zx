@@ -4,20 +4,20 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{ .name = "Jane", .is_active = false },
         .{ .name = "Jim", .is_active = true },
     };
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 blk_0: {
-                    const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
+                    const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
                     for (users, 0..) |user, _zx_i_0| {
-                        __zx_children_0[_zx_i_0] = _zx.zx(
+                        __zx_children_0[_zx_i_0] = _zx.ele(
                             .fragment,
                             .{
                                 .children = &.{
-                                    (if (user.is_active) _zx.zx(
+                                    (if (user.is_active) _zx.ele(
                                         .p,
                                         .{
                                             .children = &.{
@@ -25,7 +25,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                 _zx.txt(" (Active)"),
                                             },
                                         },
-                                    ) else _zx.zx(
+                                    ) else _zx.ele(
                                         .p,
                                         .{
                                             .children = &.{
@@ -38,7 +38,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         );
                     }
-                    break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                    break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                 },
             },
         },

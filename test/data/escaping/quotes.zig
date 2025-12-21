@@ -1,12 +1,12 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .div,
         .{
             .allocator = allocator,
             .children = &.{
                 _zx.txt(" quote should be escaped "),
-                _zx.zx(
+                _zx.ele(
                     .code,
                     .{
                         .children = &.{
@@ -14,7 +14,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .pre,
                     .{
                         .children = &.{

@@ -1,15 +1,15 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_type: UserType = .admin;
     const status: Status = .active;
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 switch (user_type) {
                     .admin => switch (status) {
-                        .active => _zx.zx(
+                        .active => _zx.ele(
                             .p,
                             .{
                                 .children = &.{
@@ -17,7 +17,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 },
                             },
                         ),
-                        .inactive => _zx.zx(
+                        .inactive => _zx.ele(
                             .p,
                             .{
                                 .children = &.{
@@ -27,7 +27,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         ),
                     },
                     .member => switch (status) {
-                        .active => _zx.zx(
+                        .active => _zx.ele(
                             .p,
                             .{
                                 .children = &.{
@@ -35,7 +35,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 },
                             },
                         ),
-                        .inactive => _zx.zx(
+                        .inactive => _zx.ele(
                             .p,
                             .{
                                 .children = &.{

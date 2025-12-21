@@ -682,25 +682,30 @@ pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Compon
 const ZxContext = struct {
     allocator: ?std.mem.Allocator = null,
 
-    pub fn getAllocator(self: *ZxContext) std.mem.Allocator {
+    /// TODO: Remove once we've migrated to new transpiler
+    pub const getAllocator = getAlloc;
+    pub fn getAlloc(self: *ZxContext) std.mem.Allocator {
         return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
     }
 
     fn escapeHtml(self: *ZxContext, text: []const u8) []const u8 {
-        const allocator = self.getAllocator();
+        const allocator = self.getAlloc();
         // Use a buffer writer to leverage the shared escaping logic
         var aw = std.io.Writer.Allocating.init(allocator);
         escapeAttributeValueToWriter(&aw.writer, text) catch @panic("OOM");
         return aw.written();
     }
 
-    pub fn zx(self: *ZxContext, tag: ElementTag, options: ZxOptions) Component {
+    /// TODO: Remove once we've migrated to new transpiler
+    pub const zx = ele;
+
+    pub fn ele(self: *ZxContext, tag: ElementTag, options: ZxOptions) Component {
         // Set allocator from @allocator option if provided
         if (options.allocator) |allocator| {
             self.allocator = allocator;
         }
 
-        const allocator = self.getAllocator();
+        const allocator = self.getAlloc();
 
         // Allocate and copy children if provided
         const children_copy = if (options.children) |children| blk: {
@@ -770,19 +775,22 @@ const ZxContext = struct {
     }
 
     pub fn fmt(self: *ZxContext, comptime format: []const u8, args: anytype) Component {
-        const allocator = self.getAllocator();
+        const allocator = self.getAlloc();
         const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
         return .{ .text = text };
     }
 
     pub fn print(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
-        const allocator = self.getAllocator();
+        const allocator = self.getAlloc();
         const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
         return text;
     }
 
-    pub fn lazy(self: *ZxContext, comptime func: anytype, props: anytype) Component {
-        const allocator = self.getAllocator();
+    /// TODO: Remove once we've migrated to new transpiler
+    pub const lazy = cmp;
+
+    pub fn cmp(self: *ZxContext, comptime func: anytype, props: anytype) Component {
+        const allocator = self.getAlloc();
         const FuncInfo = @typeInfo(@TypeOf(func));
         const param_count = FuncInfo.@"fn".params.len;
 
@@ -797,7 +805,7 @@ const ZxContext = struct {
     }
 
     pub fn client(self: *ZxContext, options: ClientComponentOptions, props: anytype) Component {
-        const allocator = self.getAllocator();
+        const allocator = self.getAlloc();
 
         const name_copy = allocator.alloc(u8, options.name.len) catch @panic("OOM");
         @memcpy(name_copy, options.name);
@@ -829,9 +837,12 @@ pub fn init() ZxContext {
 }
 
 /// Initialize a ZxContext with an allocator (for backward compatibility with direct API usage)
-pub fn initWithAllocator(allocator: std.mem.Allocator) ZxContext {
+pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
+
+/// TODO: Remove once we've migrated to new transpiler
+pub const initWithAllocator = allocInit;
 
 pub const info = @import("zx_info");
 const routing = @import("routing.zig");

@@ -433,7 +433,7 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                     try ctx.writeM("var", node.startByte(), self);
                     try ctx.write(" _zx = zx.");
                     if (allocator_value) |alloc| {
-                        try ctx.write("initWithAllocator(");
+                        try ctx.write("allocInit(");
                         try ctx.write(alloc);
                         try ctx.write(")");
                     } else {
@@ -670,7 +670,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     try writeHtmlElement(self, node, tag, attributes.items, children.items, ctx, preserve_whitespace);
 }
 
-/// Write a custom component: _zx.lazy(Component, .{ .prop = value }) or _zx.client(...) for CSR/CSZ
+/// Write a custom component: _zx.cmp(Component, .{ .prop = value }) or _zx.client(...) for CSR/CSZ
 fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, ctx: *TranspileContext) !void {
     // Check if this is a client-side rendered component (@rendering={.csr} or @rendering={.csz})
     var rendering_value: ?[]const u8 = null;
@@ -790,8 +790,8 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
 
         try ctx.write(" })");
     } else {
-        // Regular lazy component
-        try ctx.writeM("_zx.lazy", node.startByte(), self);
+        // Regular cmp component
+        try ctx.writeM("_zx.cmp", node.startByte(), self);
         try ctx.write("(");
         try ctx.write(tag);
         try ctx.write(", .{");
@@ -833,10 +833,10 @@ fn generateComponentId(name: []const u8, path: []const u8) [35]u8 {
     return result;
 }
 
-/// Write a regular HTML element: _zx.zx(.tag, .{ ... })
+/// Write a regular HTML element: _zx.ele(.tag, .{ ... })
 /// When preserve_whitespace is true (e.g. for <pre>), text nodes won't be trimmed
 fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) !void {
-    try ctx.writeM("_zx.zx", node.startByte(), self);
+    try ctx.writeM("_zx.ele", node.startByte(), self);
     try ctx.write("(\n");
 
     ctx.indent_level += 1;
@@ -885,9 +885,9 @@ fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, attributes: []co
     try ctx.write(")");
 }
 
-/// Write a regular HTML element with raw (unprocessed) content: _zx.zx(.tag, .{ .children = &.{ _zx.txt("...") } })
+/// Write a regular HTML element with raw (unprocessed) content: _zx.ele(.tag, .{ .children = &.{ _zx.txt("...") } })
 fn writeHtmlElementRaw(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, raw_content: []const u8, ctx: *TranspileContext) !void {
-    try ctx.writeM("_zx.zx", node.startByte(), self);
+    try ctx.writeM("_zx.ele", node.startByte(), self);
     try ctx.write("(\n");
 
     ctx.indent_level += 1;
@@ -1140,7 +1140,7 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write(" else ");
         try transpileBranch(self, else_n, ctx);
     } else {
-        try ctx.write(" else _zx.zx(.fragment, .{})");
+        try ctx.write(" else _zx.ele(.fragment, .{})");
     }
 }
 
@@ -1149,7 +1149,7 @@ fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutO
     switch (NodeKind.fromNode(node)) {
         .zx_block => try transpileBlock(self, node, ctx),
         .parenthesized_expression => {
-            try ctx.write("_zx.zx(.fragment, .{ .children = &.{\n");
+            try ctx.write("_zx.ele(.fragment, .{ .children = &.{\n");
             try transpileExprBlock(self, node, ctx);
             try ctx.write(",},},)");
         },
@@ -1209,7 +1209,7 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: blk_N: { const __zx_children_N = _zx.getAllocator().alloc(...); for (...) |item, i| { ... }; break :blk_N ...; }
+        // Generate: blk_N: { const __zx_children_N = _zx.getAlloc().alloc(...); for (...) |item, i| { ... }; break :blk_N ...; }
         try ctx.writeM("blk_", node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
@@ -1218,7 +1218,7 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.writeIndent();
         try ctx.write("const __zx_children_");
         try ctx.write(idx_str);
-        try ctx.write(" = _zx.getAllocator().alloc(zx.Component, ");
+        try ctx.write(" = _zx.getAlloc().alloc(zx.Component, ");
         try ctx.write(iterable_text.?);
         try ctx.write(".len) catch unreachable;\n");
 
@@ -1257,7 +1257,7 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.writeIndent();
         try ctx.write("break :blk_");
         try ctx.write(idx_str);
-        try ctx.write(" _zx.zx(.fragment, .{ .children = __zx_children_");
+        try ctx.write(" _zx.ele(.fragment, .{ .children = __zx_children_");
         try ctx.write(idx_str);
         try ctx.write(" });\n");
 
@@ -1307,7 +1307,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAllocator()); while (cond) : (cont) { __zx_list_N.append(...); }; break :blk_N ...; }
+        // Generate: blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAlloc()); while (cond) : (cont) { __zx_list_N.append(...); }; break :blk_N ...; }
         try ctx.writeM("blk_", node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
@@ -1336,7 +1336,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.writeIndent();
         try ctx.write("__zx_list_");
         try ctx.write(idx_str);
-        try ctx.write(".append(_zx.getAllocator(), ");
+        try ctx.write(".append(_zx.getAlloc(), ");
         try transpileBlock(self, body_node.?, ctx);
         try ctx.write(") catch unreachable;\n");
         ctx.indent_level -= 1;
@@ -1347,7 +1347,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.writeIndent();
         try ctx.write("break :blk_");
         try ctx.write(idx_str);
-        try ctx.write(" _zx.zx(.fragment, .{ .children = __zx_list_");
+        try ctx.write(" _zx.ele(.fragment, .{ .children = __zx_list_");
         try ctx.write(idx_str);
         try ctx.write(".items });\n");
 

@@ -2,20 +2,20 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const show_list = true;
     var i: usize = 0;
 
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                if (show_list) _zx.zx(
+                if (show_list) _zx.ele(
                     .div,
                     .{
                         .children = &.{
                             blk_0: {
                                 var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
                                 while (i < 3) : (i += 1) {
-                                    __zx_list_0.append(_zx.getAllocator(), _zx.zx(
+                                    __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                                         .p,
                                         .{
                                             .children = &.{
@@ -24,11 +24,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                         },
                                     )) catch unreachable;
                                 }
-                                break :blk_0 _zx.zx(.fragment, .{ .children = __zx_list_0.items });
+                                break :blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
                             },
                         },
                     },
-                ) else _zx.zx(
+                ) else _zx.ele(
                     .p,
                     .{
                         .children = &.{

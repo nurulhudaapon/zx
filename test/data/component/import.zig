@@ -1,11 +1,11 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.lazy(Button, .{ .title = "Custom Button" }),
+                _zx.cmp(Button, .{ .title = "Custom Button" }),
             },
         },
     );

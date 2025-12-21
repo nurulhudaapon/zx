@@ -2,17 +2,17 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_type: UserType = .admin;
     const admin_users = [_][]const u8{ "John", "Jane" };
     const member_users = [_][]const u8{ "Jim", "Jill" };
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 switch (user_type) {
                     .admin => blk_0: {
-                        const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, admin_users.len) catch unreachable;
+                        const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, admin_users.len) catch unreachable;
                         for (admin_users, 0..) |name, _zx_i_0| {
-                            __zx_children_0[_zx_i_0] = _zx.zx(
+                            __zx_children_0[_zx_i_0] = _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
@@ -21,12 +21,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 },
                             );
                         }
-                        break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                        break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                     },
                     .member => blk_1: {
-                        const __zx_children_1 = _zx.getAllocator().alloc(zx.Component, member_users.len) catch unreachable;
+                        const __zx_children_1 = _zx.getAlloc().alloc(zx.Component, member_users.len) catch unreachable;
                         for (member_users, 0..) |name, _zx_i_1| {
-                            __zx_children_1[_zx_i_1] = _zx.zx(
+                            __zx_children_1[_zx_i_1] = _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
@@ -35,7 +35,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 },
                             );
                         }
-                        break :blk_1 _zx.zx(.fragment, .{ .children = __zx_children_1 });
+                        break :blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
                     },
                 },
             },

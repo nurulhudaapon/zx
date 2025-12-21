@@ -1,15 +1,15 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.lazy(Button, .{ .title = "Submit" }),
-                _zx.lazy(Button, .{ .title = "Cancel" }),
-                _zx.lazy(AsyncScore, .{ .index = 1, .label = "Score" }),
-                _zx.lazy(AsyncScore, .{ .index = 2, .label = "Points" }),
-                _zx.lazy(AsyncScore, .{ .index = 3, .label = "Rating" }),
+                _zx.cmp(Button, .{ .title = "Submit" }),
+                _zx.cmp(Button, .{ .title = "Cancel" }),
+                _zx.cmp(AsyncScore, .{ .index = 1, .label = "Score" }),
+                _zx.cmp(AsyncScore, .{ .index = 2, .label = "Points" }),
+                _zx.cmp(AsyncScore, .{ .index = 3, .label = "Rating" }),
             },
         },
     );
@@ -17,8 +17,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
 const ButtonProps = struct { title: []const u8 };
 fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .button,
         .{
             .allocator = allocator,
@@ -31,8 +31,8 @@ fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
 
 const AsyncScoreProps = struct { index: u64, label: []const u8 };
 fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .span,
         .{
             .allocator = allocator,

@@ -1,6 +1,6 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
@@ -12,8 +12,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .button,
         .{
             .allocator = allocator,
