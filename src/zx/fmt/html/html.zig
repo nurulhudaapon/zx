@@ -24,19 +24,17 @@ pub const HtmlSafe = struct {
 
 pub const Language = enum {
     html,
-    superhtml,
     xml,
 
     /// Use to map file extensions to a Language, supports aliases.
     pub fn fromSliceResilient(s: []const u8) ?Language {
-        const Alias = enum { html, superhtml, shtml, xml };
+        const Alias = enum { html, xml };
 
         const alias = std.meta.stringToEnum(Alias, s) orelse {
             return null;
         };
 
         return switch (alias) {
-            .superhtml, .shtml => .superhtml,
             .html => .html,
             .xml => .xml,
         };

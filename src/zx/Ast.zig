@@ -25,8 +25,17 @@ pub const ParseResult = struct {
     }
 };
 
-pub const fmt = @import("fmt/fmt.zig").format;
-pub fn fmtTs(allocator: std.mem.Allocator, zx_source: [:0]const u8) !@import("fmt/fmt.zig").FormatResult {
+pub const FormatResult = struct {
+    formatted_zx: [:0]const u8,
+    zx_source: [:0]const u8,
+
+    pub fn deinit(self: *FormatResult, allocator: std.mem.Allocator) void {
+        allocator.free(self.formatted_zx);
+        allocator.free(self.zx_source);
+    }
+};
+
+pub fn fmt(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FormatResult {
     var aa = std.heap.ArenaAllocator.init(allocator);
     defer aa.deinit();
     const arena = aa.allocator();

@@ -199,11 +199,6 @@ pub const Token = union(enum) {
             std.debug.assert(st.name.end != 0);
 
             if (language == .xml) return false;
-            if (language == .superhtml) {
-                if (super_void_tag_names.has(st.name.slice(src))) {
-                    return true;
-                }
-            }
 
             if (void_tag_names.has(st.name.slice(src))) {
                 return true;

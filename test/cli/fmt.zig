@@ -187,7 +187,7 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime no_expect: bool) !voi
     // defer allocator.free(source_z);
 
     // Parse and transpile
-    var result = try zx.Ast.fmtTs(allocator, source_z);
+    var result = try zx.Ast.fmt(allocator, source_z);
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file

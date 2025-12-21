@@ -19,13 +19,6 @@ const stdout_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
-const ts_flag = zli.Flag{
-    .name = "ts",
-    .description = "Use tree-sitter to format the code",
-    .type = .Bool,
-    .default_value = .{ .Bool = true },
-};
-
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "fmt",
@@ -34,7 +27,6 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(stdio_flag);
     try cmd.addFlag(stdout_flag);
-    try cmd.addFlag(ts_flag);
     try cmd.addPositionalArg(.{
         .name = "paths",
         .description = "Paths to .zx files or directories",
@@ -47,10 +39,9 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 fn fmt(ctx: zli.CommandContext) !void {
     const use_stdio = ctx.flag("stdio", bool);
     const use_stdout = ctx.flag("stdout", bool);
-    const use_ts = ctx.flag("ts", bool);
 
     if (use_stdio) {
-        try formatFromStdin(ctx.allocator, ctx.writer, use_ts);
+        try formatFromStdin(ctx.allocator, ctx.writer);
         return;
     }
 
@@ -82,25 +73,25 @@ fn fmt(ctx: zli.CommandContext) !void {
     for (paths) |path| {
         var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
             error.NotDir => {
-                try formatFile(ctx.allocator, ctx.writer, std.fs.cwd(), path, path, use_stdout, use_ts);
+                try formatFile(ctx.allocator, ctx.writer, std.fs.cwd(), path, path, use_stdout);
                 continue;
             },
             else => continue,
         };
 
         defer dir.close();
-        try formatDir(ctx.allocator, ctx.writer, path, use_stdout, use_ts);
+        try formatDir(ctx.allocator, ctx.writer, path, use_stdout);
     }
 }
 
-fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer, use_ts: bool) !void {
+fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
     var reader = std.fs.File.stdin().reader(&.{});
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     _ = try reader.interface.streamRemaining(&buffer.writer);
     const input = try buffer.toOwnedSliceSentinel(0);
     defer allocator.free(input);
 
-    var format_result = if (use_ts) try zx.Ast.fmtTs(allocator, input) else try zx.Ast.fmt(allocator, input);
+    var format_result = try zx.Ast.fmt(allocator, input);
     defer format_result.deinit(allocator);
 
     try writer.writeAll(format_result.formatted_zx);
@@ -113,7 +104,6 @@ fn formatFile(
     sub_path: []const u8,
     full_path: []const u8,
     use_stdout: bool,
-    use_ts: bool,
 ) !void {
     if (!std.mem.endsWith(u8, sub_path, ".zx")) {
         return; // Skip non-.zx files
@@ -127,9 +117,8 @@ fn formatFile(
     defer allocator.free(source);
 
     const source_z = try allocator.dupeZ(u8, source);
-    defer if (!use_ts) allocator.free(source_z);
 
-    var format_result = if (use_ts) try zx.Ast.fmtTs(allocator, source_z) else try zx.Ast.fmt(allocator, source_z);
+    var format_result = try zx.Ast.fmt(allocator, source_z);
     defer format_result.deinit(allocator);
 
     if (use_stdout) {
@@ -156,7 +145,6 @@ fn formatDir(
     writer: *std.Io.Writer,
     path: []const u8,
     use_stdout: bool,
-    use_ts: bool,
 ) !void {
     var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
     defer dir.close();
@@ -185,15 +173,8 @@ fn formatDir(
         defer allocator.free(source);
 
         const source_z = try allocator.dupeZ(u8, source);
-        defer if (!use_ts) allocator.free(source_z);
 
-        var format_result = if (use_ts) zx.Ast.fmtTs(allocator, source_z) catch |err| switch (err) {
-            error.ParseError => {
-                log.err("Error formatting {s}: {}\n", .{ full_path, err });
-                continue;
-            },
-            else => return err,
-        } else zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
+        var format_result = zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
             error.ParseError => {
                 log.err("Error formatting {s}: {}\n", .{ full_path, err });
                 continue;

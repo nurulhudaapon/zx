@@ -32,10 +32,7 @@ pub const Kind = enum {
     // Expressions
     switch_expr, if_expr, for_expr, while_expr, text_expr,
 
-    // superhtml
-    extend, super, ctx,
-    
-    ___, // invalid or web component (or superhtml if not in shtml mode)
+    ___, // invalid or web component
     
     // Begin of html tags
     a, abbr, address, area, article, aside, audio, b, base, bdi, bdo,
@@ -298,7 +295,7 @@ pub const Error = struct {
                 return switch (tf.tag) {
                     .token => |terr| try w.print("syntax error: {t}", .{terr}),
                     .unsupported_doctype => w.print(
-                        "unsupported doctype: superhtml only supports the 'html' doctype",
+                        "unsupported doctype",
                         .{},
                     ),
                     .invalid_attr => w.print(
@@ -628,26 +625,6 @@ pub fn init(
                             continue :node .start;
                         },
                         .start => switch (language) {
-                            .superhtml => {
-                                const kind: Ast.Kind = if (std.ascii.eqlIgnoreCase("ctx", name))
-                                    .ctx
-                                else if (std.ascii.eqlIgnoreCase("super", name))
-                                    .super
-                                else if (std.ascii.eqlIgnoreCase("extend", name))
-                                    .extend
-                                else
-                                    kinds.get(name) orelse .___;
-
-                                break :node .{
-                                    .open = tag.span,
-                                    .kind = kind,
-                                    .model = .{
-                                        .categories = .all,
-                                        .content = .all,
-                                    },
-                                    .self_closing = self_closing,
-                                };
-                            },
                             .html => {
                                 if (svg_lvl == 0 and math_lvl == 0) {
                                     if (kinds.get(name)) |kind| {
@@ -794,14 +771,6 @@ pub fn init(
                     else if (math_lvl == 1 and std.ascii.eqlIgnoreCase(name, "math"))
                         .math
                     else if (svg_lvl != 0 or math_lvl != 0) .___ else switch (language) {
-                        .superhtml => if (std.ascii.eqlIgnoreCase("ctx", name))
-                            .ctx
-                        else if (std.ascii.eqlIgnoreCase("super", name))
-                            .super
-                        else if (std.ascii.eqlIgnoreCase("extend", name))
-                            .extend
-                        else
-                            kinds.get(name) orelse .___,
                         .html => kinds.get(name) orelse .___,
                         .xml => .___,
                     };
