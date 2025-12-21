@@ -259,7 +259,7 @@ test "fmt" {
     defer allocator.free(zx_bin_abs);
     defer allocator.free(test_dir_abs);
 
-    var child = std.process.Child.init(&.{ zx_bin_abs, "fmt", "site/pages" }, allocator);
+    var child = std.process.Child.init(&.{ zx_bin_abs, "fmt", "site" ++ std.fs.path.sep_str ++ "pages" }, allocator);
     child.cwd = test_dir_abs;
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Pipe;
@@ -274,8 +274,8 @@ test "fmt" {
     // std.debug.print("stderr: {s}\n", .{stderr.items});
 
     const expected_strings = [_][]const u8{
-        "site/pages/layout.zx",
-        "site/pages/page.zx",
+        "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "layout.zx",
+        "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "page.zx",
     };
 
     for (expected_strings) |expected_string| {
