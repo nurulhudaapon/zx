@@ -89,58 +89,46 @@ pub fn deinit(self: *Ast, _: std.mem.Allocator) void {
 }
 
 pub const RenderResult = struct {
-    output: []const u8,
-    source_map: ?sourcemap.SourceMap = null,
+    source: []const u8,
+    sourcemap: ?sourcemap.SourceMap = null,
 
     pub fn deinit(self: *RenderResult, allocator: std.mem.Allocator) void {
-        allocator.free(self.output);
-        if (self.source_map) |*sm| {
+        allocator.free(self.source);
+        if (self.sourcemap) |*sm| {
             sm.deinit(allocator);
         }
     }
 };
 
-pub const RenderMode = enum { zx, zig };
+pub const RenderOptions = struct {
+    pub const RenderMode = enum { zx, zig };
+    mode: RenderMode,
+    sourcemap: bool,
+    path: ?[]const u8,
+};
 
-pub fn renderAlloc(self: *Ast, allocator: std.mem.Allocator, mode: RenderMode) ![]const u8 {
-    const result = try self.renderAllocWithSourceMap(allocator, mode, false);
-    defer if (result.source_map) |_| allocator.free(result.output);
-    return if (result.source_map) |_| try allocator.dupe(u8, result.output) else result.output;
-}
-
-pub fn renderAllocWithSourceMap(
+pub fn renderAlloc(
     self: *Ast,
     allocator: std.mem.Allocator,
-    mode: RenderMode,
-    include_source_map: bool,
+    options: RenderOptions,
 ) !RenderResult {
-    return self.renderAllocWithSourceMapAndFilePath(allocator, mode, include_source_map, null);
-}
-
-pub fn renderAllocWithSourceMapAndFilePath(
-    self: *Ast,
-    allocator: std.mem.Allocator,
-    mode: RenderMode,
-    include_source_map: bool,
-    file_path: ?[]const u8,
-) !RenderResult {
-    switch (mode) {
+    switch (options.mode) {
         .zx => {
             var aw = std.io.Writer.Allocating.init(allocator);
             const root = self.tree.rootNode();
             try Render.renderNode(self, root, &aw.writer);
-            return RenderResult{ .output = try aw.toOwnedSlice() };
+            return RenderResult{ .source = try aw.toOwnedSlice() };
         },
         .zig => {
-            var ctx = Transpile.TranspileContext.initWithFilePath(allocator, self.source, include_source_map, file_path);
+            var ctx = Transpile.TranspileContext.init(allocator, self.source, .{ .sourcemap = options.sourcemap, .path = options.path });
             defer ctx.deinit();
 
             const root = self.tree.rootNode();
             try Transpile.transpileNode(self, root, &ctx);
 
             return RenderResult{
-                .output = try ctx.output.toOwnedSlice(),
-                .source_map = if (include_source_map) try ctx.finalizeSourceMap() else null,
+                .source = try ctx.output.toOwnedSlice(),
+                .sourcemap = if (options.sourcemap) try ctx.finalizeSourceMap() else null,
             };
         },
     }

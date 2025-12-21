@@ -280,7 +280,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     defer allocator.free(source_z);
 
     // Parse and transpile with file path for CSZ support
-    var result = try zx.Ast.parseWithFilePath(allocator, source_z, full_file_path);
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path });
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file

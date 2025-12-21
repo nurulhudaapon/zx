@@ -25,25 +25,25 @@ pub const ParseResult = struct {
     }
 };
 
-pub const FormatResult = struct {
+pub const FmtResult = struct {
     formatted_zx: [:0]const u8,
     zx_source: [:0]const u8,
 
-    pub fn deinit(self: *FormatResult, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *FmtResult, allocator: std.mem.Allocator) void {
         allocator.free(self.formatted_zx);
         allocator.free(self.zx_source);
     }
 };
 
-pub fn fmt(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FormatResult {
+pub fn fmt(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FmtResult {
     var aa = std.heap.ArenaAllocator.init(allocator);
     defer aa.deinit();
     const arena = aa.allocator();
 
     var parser_result = try Parser.parse(arena, zx_source);
     defer parser_result.deinit(allocator);
-    const formatted_zx = try parser_result.renderAlloc(arena, .zx);
-    const formatted_zx_z = try allocator.dupeZ(u8, formatted_zx);
+    const render_result = try parser_result.renderAlloc(arena, .{ .mode = .zx, .sourcemap = false, .path = null });
+    const formatted_zx_z = try allocator.dupeZ(u8, render_result.source);
 
     return .{
         .formatted_zx = formatted_zx_z,
@@ -51,11 +51,11 @@ pub fn fmt(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FormatResult 
     };
 }
 
-pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8) !ParseResult {
-    return parseWithFilePath(gpa, zx_source, null);
-}
+const ParseOptions = struct {
+    path: ?[]const u8,
+};
 
-pub fn parseWithFilePath(gpa: std.mem.Allocator, zx_source: [:0]const u8, file_path: ?[]const u8) !ParseResult {
+pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOptions) !ParseResult {
     var aa = std.heap.ArenaAllocator.init(gpa);
     defer aa.deinit();
     const arena = aa.allocator();
@@ -64,8 +64,8 @@ pub fn parseWithFilePath(gpa: std.mem.Allocator, zx_source: [:0]const u8, file_p
     const transpilation_result = try Transpiler.transpile(arena, zx_source);
     var parser_result = try Parser.parse(arena, zx_source);
     defer parser_result.deinit(allocator);
-    const new_zig_result = try parser_result.renderAllocWithSourceMapAndFilePath(arena, .zig, false, file_path);
-    const new_zig_source = new_zig_result.output;
+    const new_zig_result = try parser_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = false, .path = options.path });
+    const new_zig_source = new_zig_result.source;
     const zig_source = transpilation_result.zig_source;
 
     // astlog.warn("Zig Source: \n{s}\n", .{zig_source});

@@ -42,24 +42,19 @@ pub const TranspileContext = struct {
     /// Flag to track if _zx has been initialized in the current scope (e.g., inside a return statement)
     zx_initialized: bool = false,
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8, track_mappings: bool) TranspileContext {
-        return .{
-            .output = std.array_list.Managed(u8).init(allocator),
-            .source = source,
-            .sourcemap_builder = sourcemap.Builder.init(allocator),
-            .track_mappings = track_mappings,
-            .js_imports = std.StringHashMap([]const u8).init(allocator),
-        };
-    }
+    pub const TranspileOptions = struct {
+        sourcemap: bool,
+        path: ?[]const u8,
+    };
 
-    pub fn initWithFilePath(allocator: std.mem.Allocator, source: []const u8, track_mappings: bool, file_path: ?[]const u8) TranspileContext {
+    pub fn init(allocator: std.mem.Allocator, source: []const u8, options: TranspileOptions) TranspileContext {
         return .{
             .output = std.array_list.Managed(u8).init(allocator),
             .source = source,
             .sourcemap_builder = sourcemap.Builder.init(allocator),
-            .track_mappings = track_mappings,
+            .track_mappings = options.sourcemap,
             .js_imports = std.StringHashMap([]const u8).init(allocator),
-            .file_path = file_path,
+            .file_path = options.path,
         };
     }
 

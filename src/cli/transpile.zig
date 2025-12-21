@@ -122,7 +122,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 defer ctx.allocator.free(source_z);
 
                 // Parse and transpile
-                var result = try zx.Ast.parse(ctx.allocator, source_z);
+                var result = try zx.Ast.parse(ctx.allocator, source_z, .{ .path = path });
                 defer result.deinit(ctx.allocator);
 
                 // Output to stdout
@@ -865,7 +865,7 @@ fn transpileFile(
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z);
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = source_path });
     defer result.deinit(allocator);
 
     // Extract route from source path
