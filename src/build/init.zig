@@ -87,6 +87,7 @@ pub fn initInner(
     const transpile_cmd = getZxRun(b, zx_exe, opts);
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
+    transpile_cmd.addArg("--ts");
     transpile_cmd.addArg("--outdir");
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
     transpile_cmd.expectExitCode(0);

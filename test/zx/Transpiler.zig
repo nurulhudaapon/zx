@@ -138,6 +138,12 @@ test "while_block" {
     try test_render(@import("./../data/control_flow/while_block.zig").Page);
 }
 
+test "attribute_builtin" {
+    // if (true) return error.Todo;
+    try test_transpile("attribute/builtin");
+    // try test_render(@import("./../data/attribute/builtin.zig").Page);
+}
+
 test "expression_text" {
     // if (true) return error.Todo;
     try test_transpile("expression/text");

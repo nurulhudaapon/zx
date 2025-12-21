@@ -166,6 +166,7 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
 }
 
 // @import("component.zx") --> @import("component.zig")
+// @jsImport("component.tsx") --> // @jsImport("component.tsx")
 pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool {
     var had_output = false;
     var builtin_identifier: ?[]const u8 = null;
@@ -273,13 +274,15 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
 
             switch (child_kind) {
                 .zx_element, .zx_self_closing_element, .zx_fragment => {
-                    // Check if we need to initialize _zx
-                    const has_allocator = try hasAllocatorAttribute(self, child);
+                    // Check if we need to initialize _zx with allocator
+                    const allocator_value = try getAllocatorAttribute(self, child);
 
                     try ctx.writeWithMappingFromByte("var", node.startByte(), self);
                     try ctx.write(" _zx = zx.");
-                    if (has_allocator) {
-                        try ctx.write("initWithAllocator(allocator)");
+                    if (allocator_value) |alloc| {
+                        try ctx.write("initWithAllocator(");
+                        try ctx.write(alloc);
+                        try ctx.write(")");
                     } else {
                         try ctx.write("init()");
                     }
@@ -315,37 +318,36 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     }
 }
 
-pub fn hasAllocatorAttribute(self: *Ast, node: ts.Node) !bool {
+/// Returns the allocator attribute value text if found, null otherwise
+pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
+        if (NodeKind.fromNode(child) != .zx_start_tag) continue;
 
-        switch (child_kind) {
-            .zx_start_tag => {
-                // Check attributes in start tag
-                var j: u32 = 0;
-                const tag_children = child.childCount();
-                while (j < tag_children) : (j += 1) {
-                    const attr = child.child(j) orelse continue;
-                    const attr_kind = NodeKind.fromNode(attr);
+        // Check attributes in start tag
+        const tag_children = child.childCount();
+        var j: u32 = 0;
+        while (j < tag_children) : (j += 1) {
+            const attr = child.child(j) orelse continue;
+            const attr_kind = NodeKind.fromNode(attr);
 
-                    switch (attr_kind) {
-                        .zx_attribute, .zx_builtin_attribute => {
-                            const attr_name = try self.getNodeText(attr);
-                            if (std.mem.indexOf(u8, attr_name, "@allocator") != null) {
-                                return true;
-                            }
-                        },
-                        else => {},
-                    }
-                }
-            },
-            else => {},
+            if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute) continue;
+
+            // Get the actual attribute node (zx_attribute wraps zx_builtin_attribute)
+            const actual_attr = if (attr_kind == .zx_attribute) attr.child(0) orelse continue else attr;
+
+            // Use field name to get name and value directly
+            const name_node = actual_attr.childByFieldName("name") orelse continue;
+            const name = try self.getNodeText(name_node);
+            if (std.mem.eql(u8, name, "@allocator")) {
+                const value_node = actual_attr.childByFieldName("value") orelse return "allocator";
+                return try getAttributeValue(self, value_node);
+            }
         }
     }
-    return false;
+    return null;
 }
 
 pub fn transpileElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
@@ -1055,82 +1057,60 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
 }
 
 pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
-    var name: ?[]const u8 = null;
-    var value: ?[]const u8 = null;
-    var value_offset: u32 = 0;
-    var is_builtin = false;
-
     const node_kind = NodeKind.fromNode(node);
 
     // Handle nested attribute structure: zx_attribute contains zx_builtin_attribute or zx_regular_attribute
-    switch (node_kind) {
-        .zx_attribute => {
-            // Get the actual attribute child
-            const child_count = node.childCount();
-            if (child_count > 0) {
-                const actual_attr = node.child(0) orelse return ZxAttribute{
-                    .name = "",
-                    .value = "\"\"",
-                    .value_byte_offset = node.startByte(),
-                    .is_builtin = false,
-                };
-                return try parseAttribute(self, actual_attr);
-            }
+    const attr_node = switch (node_kind) {
+        .zx_attribute => node.child(0) orelse return ZxAttribute{
+            .name = "",
+            .value = "\"\"",
+            .value_byte_offset = node.startByte(),
+            .is_builtin = false,
         },
-        else => {},
-    }
+        else => node,
+    };
 
-    // Parse builtin or regular attribute directly
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
+    // Use field names to get name and value directly
+    const name_node = attr_node.childByFieldName("name");
+    const value_node = attr_node.childByFieldName("value");
 
-        switch (child_kind) {
-            .zx_attribute_name, .zx_builtin_name => {
-                name = try self.getNodeText(child);
-                is_builtin = std.mem.startsWith(u8, name.?, "@");
-            },
-            .zx_attribute_value => {
-                value_offset = child.startByte();
-                value = try getAttributeValue(self, child);
-            },
-            else => {},
-        }
-    }
+    const name = if (name_node) |n| try self.getNodeText(n) else "";
+    const is_builtin = name.len > 0 and name[0] == '@';
+
+    const value = if (value_node) |v| try getAttributeValue(self, v) else "\"\"";
+    const value_offset = if (value_node) |v| v.startByte() else node.startByte();
 
     return ZxAttribute{
-        .name = name orelse "",
-        .value = value orelse "\"\"",
+        .name = name,
+        .value = value,
         .value_byte_offset = value_offset,
         .is_builtin = is_builtin,
     };
 }
 
 pub fn getAttributeValue(self: *Ast, node: ts.Node) ![]const u8 {
-    switch (NodeKind.fromNode(node)) {
-        .zx_expression_block, .zx_attribute_value => {
-            const child_count = node.childCount();
-            var i: u32 = 0;
-            while (i < child_count) : (i += 1) {
-                const child = node.child(i) orelse continue;
+    const node_kind = NodeKind.fromNode(node);
 
-                // Skip braces
-                switch (SkipTokens.from(child.kind())) {
-                    .open_brace, .close_brace => continue,
-                    else => {},
-                }
+    // For expression blocks, extract the inner expression using field name
+    if (node_kind == .zx_expression_block) {
+        const expr_node = node.childByFieldName("expression") orelse return try self.getNodeText(node);
+        return try self.getNodeText(expr_node);
+    }
 
-                // Recursively handle nested expression blocks
-                if (NodeKind.fromNode(child) == .zx_expression_block) {
-                    return try getAttributeValue(self, child);
-                }
-
+    // For attribute values containing expression blocks, recurse
+    if (node_kind == .zx_attribute_value) {
+        const child_count = node.childCount();
+        var i: u32 = 0;
+        while (i < child_count) : (i += 1) {
+            const child = node.child(i) orelse continue;
+            if (NodeKind.fromNode(child) == .zx_expression_block) {
+                return try getAttributeValue(self, child);
+            }
+            // Skip braces, return first non-brace content
+            if (SkipTokens.from(child.kind()) == .other) {
                 return try self.getNodeText(child);
             }
-        },
-        else => {},
+        }
     }
 
     return try self.getNodeText(node);
