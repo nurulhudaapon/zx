@@ -10,10 +10,10 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk: {
-                    const __zx_children = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
-                    for (users, 0..) |user, _zx_i| {
-                        __zx_children[_zx_i] = _zx.zx(
+                blk_0: {
+                    const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
+                    for (users, 0..) |user, _zx_i_0| {
+                        __zx_children_0[_zx_i_0] = _zx.zx(
                             .fragment,
                             .{
                                 .children = &.{
@@ -38,7 +38,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         );
                     }
-                    break :blk _zx.zx(.fragment, .{ .children = __zx_children });
+                    break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
                 },
             },
         },

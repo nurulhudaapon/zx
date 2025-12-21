@@ -37,6 +37,8 @@ pub const TranspileContext = struct {
     js_imports_collected: bool = false,
     /// The file path of the source file being transpiled (relative to cwd)
     file_path: ?[]const u8 = null,
+    /// Counter for generating unique block labels and variable names (for nested loops)
+    block_counter: u32 = 0,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8, track_mappings: bool) TranspileContext {
         return .{
@@ -108,6 +110,13 @@ pub const TranspileContext = struct {
 
     pub fn finalizeSourceMap(self: *TranspileContext) !sourcemap.SourceMap {
         return try self.sourcemap_builder.build();
+    }
+
+    /// Get the next unique block index for generating unique labels/variable names
+    pub fn nextBlockIndex(self: *TranspileContext) u32 {
+        const idx = self.block_counter;
+        self.block_counter += 1;
+        return idx;
     }
 };
 
@@ -1195,13 +1204,21 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     }
 
     if (iterable_text != null and payload_text != null and body_node != null) {
-        // Generate: blk: { const __zx_children = _zx.getAllocator().alloc(...); for (...) |item, i| { ... }; break :blk __zx_children; }
-        try ctx.writeWithMappingFromByte("blk", node.startByte(), self);
+        // Get unique index for this block to avoid conflicts with nested loops
+        const block_idx = ctx.nextBlockIndex();
+        var idx_buf: [16]u8 = undefined;
+        const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
+
+        // Generate: blk_N: { const __zx_children_N = _zx.getAllocator().alloc(...); for (...) |item, i| { ... }; break :blk_N ...; }
+        try ctx.writeWithMappingFromByte("blk_", node.startByte(), self);
+        try ctx.write(idx_str);
         try ctx.write(": {\n");
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("const __zx_children = _zx.getAllocator().alloc(zx.Component, ");
+        try ctx.write("const __zx_children_");
+        try ctx.write(idx_str);
+        try ctx.write(" = _zx.getAllocator().alloc(zx.Component, ");
         try ctx.write(iterable_text.?);
         try ctx.write(".len) catch unreachable;\n");
 
@@ -1219,11 +1236,17 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             payload;
 
         try ctx.write(payload_clean);
-        try ctx.write(", _zx_i| {\n");
+        try ctx.write(", _zx_i_");
+        try ctx.write(idx_str);
+        try ctx.write("| {\n");
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("__zx_children[_zx_i] = ");
+        try ctx.write("__zx_children_");
+        try ctx.write(idx_str);
+        try ctx.write("[_zx_i_");
+        try ctx.write(idx_str);
+        try ctx.write("] = ");
         try transpileBranch(self, body_node.?, ctx);
         try ctx.write(";\n");
         ctx.indent_level -= 1;
@@ -1232,7 +1255,11 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write("}\n");
 
         try ctx.writeIndent();
-        try ctx.write("break :blk _zx.zx(.fragment, .{ .children = __zx_children });\n");
+        try ctx.write("break :blk_");
+        try ctx.write(idx_str);
+        try ctx.write(" _zx.zx(.fragment, .{ .children = __zx_children_");
+        try ctx.write(idx_str);
+        try ctx.write(" });\n");
 
         ctx.indent_level -= 1;
         try ctx.writeIndent();
@@ -1275,13 +1302,21 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     }
 
     if (condition_text != null and body_node != null) {
-        // Generate: blk: { var __zx_list = std.ArrayList(zx.Component).init(_zx.getAllocator()); while (cond) : (cont) { __zx_list.append(...); }; break :blk __zx_list.toOwnedSlice(); }
-        try ctx.writeWithMappingFromByte("blk", node.startByte(), self);
+        // Get unique index for this block to avoid conflicts with nested loops
+        const block_idx = ctx.nextBlockIndex();
+        var idx_buf: [16]u8 = undefined;
+        const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
+
+        // Generate: blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAllocator()); while (cond) : (cont) { __zx_list_N.append(...); }; break :blk_N ...; }
+        try ctx.writeWithMappingFromByte("blk_", node.startByte(), self);
+        try ctx.write(idx_str);
         try ctx.write(": {\n");
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("var __zx_list = @import(\"std\").ArrayList(zx.Component).empty;\n");
+        try ctx.write("var __zx_list_");
+        try ctx.write(idx_str);
+        try ctx.write(" = @import(\"std\").ArrayList(zx.Component).empty;\n");
 
         try ctx.writeIndent();
         try ctx.writeWithMappingFromByte("while", node.startByte(), self);
@@ -1299,7 +1334,9 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("__zx_list.append(_zx.getAllocator(), ");
+        try ctx.write("__zx_list_");
+        try ctx.write(idx_str);
+        try ctx.write(".append(_zx.getAllocator(), ");
         try transpileBlock(self, body_node.?, ctx);
         try ctx.write(") catch unreachable;\n");
         ctx.indent_level -= 1;
@@ -1308,7 +1345,11 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write("}\n");
 
         try ctx.writeIndent();
-        try ctx.write("break :blk _zx.zx(.fragment, .{ .children = __zx_list.items });\n");
+        try ctx.write("break :blk_");
+        try ctx.write(idx_str);
+        try ctx.write(" _zx.zx(.fragment, .{ .children = __zx_list_");
+        try ctx.write(idx_str);
+        try ctx.write(".items });\n");
 
         ctx.indent_level -= 1;
         try ctx.writeIndent();

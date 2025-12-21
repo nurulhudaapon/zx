@@ -101,7 +101,7 @@ test "for_if" {
     try test_render(@import("./../data/control_flow/for_if.zig").Page);
 }
 test "for_for" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/for_for");
     try test_render(@import("./../data/control_flow/for_for.zig").Page);
 }
@@ -144,7 +144,7 @@ test "attribute_builtin" {
     try test_render(@import("./../data/attribute/builtin.zig").Page);
 }
 
-test "raw_pre" {
+test "escaping_pre" {
     // if (true) return error.Todo;
     try test_transpile("escaping/pre");
     try test_render(@import("./../data/escaping/pre.zig").Page);
