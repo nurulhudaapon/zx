@@ -141,7 +141,7 @@ test "while_block" {
 test "attribute_builtin" {
     // if (true) return error.Todo;
     try test_transpile("attribute/builtin");
-    // try test_render(@import("./../data/attribute/builtin.zig").Page);
+    try test_render(@import("./../data/attribute/builtin.zig").Page);
 }
 
 test "expression_text" {
@@ -171,14 +171,20 @@ test "component_multiple" {
     try test_render(@import("./../data/component/multiple.zig").Page);
 }
 test "component_csr_react" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("component/csr_react");
     try test_render(@import("./../data/component/csr_react.zig").Page);
 }
 test "component_csr_react_multiple" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("component/csr_react_multiple");
     try test_render(@import("./../data/component/csr_react_multiple.zig").Page);
+}
+
+test "component_csr_zig" {
+    // if (true) return error.Todo;
+    try test_transpile("component/csr_zig");
+    try test_render(@import("./../data/component/csr_zig.zig").Page);
 }
 
 test "component_import" {
@@ -218,14 +224,15 @@ fn test_transpile(comptime file_path: []const u8) !void {
     // Construct paths for .zx and .zig files
     const source_path = file_path ++ ".zx";
     const expected_source_path = file_path ++ ".zig";
+    const full_file_path = "test/data/" ++ file_path ++ ".zx";
 
     // Get pre-loaded source file
     const source = cache.get(source_path) orelse return error.FileNotFound;
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    // Parse and transpile
-    var result = try zx.Ast.parse(allocator, source_z);
+    // Parse and transpile with file path for CSZ support
+    var result = try zx.Ast.parseWithFilePath(allocator, source_z, full_file_path);
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file

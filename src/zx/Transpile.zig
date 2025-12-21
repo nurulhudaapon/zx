@@ -31,6 +31,12 @@ pub const TranspileContext = struct {
     current_column: i32 = 0,
     track_mappings: bool,
     indent_level: u32 = 0,
+    /// Maps component name to its import path (from @jsImport)
+    js_imports: std.StringHashMap([]const u8),
+    /// Flag to track if we've done the pre-pass for @jsImport collection
+    js_imports_collected: bool = false,
+    /// The file path of the source file being transpiled (relative to cwd)
+    file_path: ?[]const u8 = null,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8, track_mappings: bool) TranspileContext {
         return .{
@@ -38,12 +44,25 @@ pub const TranspileContext = struct {
             .source = source,
             .sourcemap_builder = sourcemap.Builder.init(allocator),
             .track_mappings = track_mappings,
+            .js_imports = std.StringHashMap([]const u8).init(allocator),
+        };
+    }
+
+    pub fn initWithFilePath(allocator: std.mem.Allocator, source: []const u8, track_mappings: bool, file_path: ?[]const u8) TranspileContext {
+        return .{
+            .output = std.array_list.Managed(u8).init(allocator),
+            .source = source,
+            .sourcemap_builder = sourcemap.Builder.init(allocator),
+            .track_mappings = track_mappings,
+            .js_imports = std.StringHashMap([]const u8).init(allocator),
+            .file_path = file_path,
         };
     }
 
     pub fn deinit(self: *TranspileContext) void {
         self.output.deinit();
         self.sourcemap_builder.deinit();
+        self.js_imports.deinit();
     }
 
     fn write(self: *TranspileContext, bytes: []const u8) !void {
@@ -92,10 +111,35 @@ pub const TranspileContext = struct {
     }
 };
 
+/// Pre-pass to collect all @jsImport mappings from the entire AST
+fn collectJsImports(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+    const node_kind = NodeKind.fromNode(node);
+
+    if (node_kind == .variable_declaration) {
+        if (try extractJsImport(self, node)) |js_import| {
+            try ctx.js_imports.put(js_import.name, js_import.path);
+        }
+    }
+
+    // Recursively collect from children
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        try collectJsImports(self, child, ctx);
+    }
+}
+
 pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
     const node_kind = NodeKind.fromNode(node);
+
+    // On first call, do a pre-pass to collect all @jsImport mappings
+    if (!ctx.js_imports_collected) {
+        ctx.js_imports_collected = true;
+        try collectJsImports(self, node, ctx);
+    }
 
     // Check if this is a ZX block or return expression that needs special handling
     switch (node_kind) {
@@ -106,7 +150,9 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
         },
         .variable_declaration => {
             // Check if this variable declaration contains @jsImport
-            if (try containsJsImport(self, node)) {
+            if (try extractJsImport(self, node)) |js_import| {
+                // Store the mapping for later use
+                try ctx.js_imports.put(js_import.name, js_import.path);
                 // Comment out the entire declaration
                 try ctx.writeWithMappingFromByte("// ", start_byte, self);
                 if (start_byte < end_byte and end_byte <= self.source.len) {
@@ -176,35 +222,94 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     }
 }
 
-/// Check if a node contains @jsImport builtin
-fn containsJsImport(self: *Ast, node: ts.Node) !bool {
+const JsImportInfo = struct {
+    name: []const u8,
+    path: []const u8,
+};
+
+/// Extract @jsImport info from a variable declaration: const Name = @jsImport("path");
+fn extractJsImport(self: *Ast, node: ts.Node) !?JsImportInfo {
+    var component_name: ?[]const u8 = null;
+    var import_path: ?[]const u8 = null;
+
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
+        // Get the variable name (identifier)
+        if (child_kind == .identifier) {
+            component_name = try self.getNodeText(child);
+        }
+
+        // Check for @jsImport builtin
         if (child_kind == .builtin_function) {
-            // Check if this builtin is @jsImport
+            var is_js_import = false;
             const builtin_child_count = child.childCount();
             var j: u32 = 0;
             while (j < builtin_child_count) : (j += 1) {
                 const builtin_child = child.child(j) orelse continue;
-                if (NodeKind.fromNode(builtin_child) == .builtin_identifier) {
+                const builtin_child_kind = NodeKind.fromNode(builtin_child);
+
+                if (builtin_child_kind == .builtin_identifier) {
                     const ident = try self.getNodeText(builtin_child);
                     if (std.mem.eql(u8, ident, "@jsImport")) {
-                        return true;
+                        is_js_import = true;
                     }
                 }
+
+                // Extract the path from arguments
+                if (is_js_import and builtin_child_kind == .arguments) {
+                    const args_count = builtin_child.childCount();
+                    var k: u32 = 0;
+                    while (k < args_count) : (k += 1) {
+                        const arg = builtin_child.child(k) orelse continue;
+                        if (NodeKind.fromNode(arg) == .string) {
+                            // Get string content (strip quotes)
+                            const str_count = arg.childCount();
+                            var m: u32 = 0;
+                            while (m < str_count) : (m += 1) {
+                                const str_child = arg.child(m) orelse continue;
+                                if (NodeKind.fromNode(str_child) == .string_content) {
+                                    import_path = try self.getNodeText(str_child);
+                                    break;
+                                }
+                            }
+                            // Fallback: strip quotes manually
+                            if (import_path == null) {
+                                const full = try self.getNodeText(arg);
+                                if (full.len >= 2) {
+                                    import_path = full[1 .. full.len - 1];
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (is_js_import) {
+                if (component_name != null and import_path != null) {
+                    return JsImportInfo{
+                        .name = component_name.?,
+                        .path = import_path.?,
+                    };
+                }
+                // Has @jsImport but couldn't extract all info - still return something
+                return JsImportInfo{
+                    .name = component_name orelse "Unknown",
+                    .path = import_path orelse "",
+                };
             }
         }
 
         // Recursively check children
-        if (try containsJsImport(self, child)) {
-            return true;
+        if (try extractJsImport(self, child)) |info| {
+            return info;
         }
     }
-    return false;
+    return null;
 }
 
 // @import("component.zx") --> @import("component.zig")
@@ -498,26 +603,167 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     try writeHtmlElement(self, node, tag, attributes.items, children.items, ctx);
 }
 
-/// Write a custom component: _zx.lazy(Component, .{ .prop = value })
+/// Write a custom component: _zx.lazy(Component, .{ .prop = value }) or _zx.client(...) for CSR/CSZ
 fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, ctx: *TranspileContext) !void {
-    try ctx.writeWithMappingFromByte("_zx.lazy", node.startByte(), self);
-    try ctx.write("(");
-    try ctx.write(tag);
-    try ctx.write(", .{");
-
-    var first_prop = true;
+    // Check if this is a client-side rendered component (@rendering={.csr} or @rendering={.csz})
+    var rendering_value: ?[]const u8 = null;
     for (attributes) |attr| {
-        if (attr.is_builtin) continue;
-        if (!first_prop) try ctx.write(",");
-        first_prop = false;
-
-        try ctx.write(" .");
-        try ctx.write(attr.name);
-        try ctx.write(" = ");
-        try ctx.writeWithMappingFromByte(attr.value, attr.value_byte_offset, self);
+        if (attr.is_builtin and std.mem.eql(u8, attr.name, "@rendering")) {
+            rendering_value = attr.value;
+            break;
+        }
     }
 
-    try ctx.write(" })");
+    const is_csr = if (rendering_value) |rv| std.mem.eql(u8, rv, ".csr") else false;
+    const is_csz = if (rendering_value) |rv| std.mem.eql(u8, rv, ".csz") else false;
+
+    if (is_csr or is_csz) {
+        var path_buf: [512]u8 = undefined;
+        var full_path: []const u8 = undefined;
+
+        if (is_csr) {
+            // CSR: use current file's directory + @jsImport path
+            const raw_path = ctx.js_imports.get(tag) orelse "unknown.tsx";
+
+            // Get the directory of the current file
+            if (ctx.file_path) |fp| {
+                // Find the last slash to get the directory
+                if (std.mem.lastIndexOfScalar(u8, fp, '/')) |last_slash| {
+                    const dir = fp[0 .. last_slash + 1];
+                    // Strip leading ./ from raw_path if present
+                    const clean_path = if (std.mem.startsWith(u8, raw_path, "./"))
+                        raw_path[2..]
+                    else
+                        raw_path;
+                    const len = dir.len + clean_path.len;
+                    if (len <= path_buf.len) {
+                        @memcpy(path_buf[0..dir.len], dir);
+                        @memcpy(path_buf[dir.len..][0..clean_path.len], clean_path);
+                        full_path = path_buf[0..len];
+                    } else {
+                        full_path = raw_path;
+                    }
+                } else {
+                    // No directory, just use the raw path with ./
+                    if (std.mem.startsWith(u8, raw_path, "./")) {
+                        full_path = raw_path;
+                    } else {
+                        const len = 2 + raw_path.len;
+                        if (len <= path_buf.len) {
+                            @memcpy(path_buf[0..2], "./");
+                            @memcpy(path_buf[2..][0..raw_path.len], raw_path);
+                            full_path = path_buf[0..len];
+                        } else {
+                            full_path = raw_path;
+                        }
+                    }
+                }
+            } else {
+                // No file path, fallback to ./ + raw_path
+                if (std.mem.startsWith(u8, raw_path, "./")) {
+                    full_path = raw_path;
+                } else {
+                    const len = 2 + raw_path.len;
+                    if (len <= path_buf.len) {
+                        @memcpy(path_buf[0..2], "./");
+                        @memcpy(path_buf[2..][0..raw_path.len], raw_path);
+                        full_path = path_buf[0..len];
+                    } else {
+                        full_path = raw_path;
+                    }
+                }
+            }
+        } else {
+            // CSZ: use file path with .zig extension (relative to cwd)
+            if (ctx.file_path) |fp| {
+                // Replace .zx extension with .zig
+                if (std.mem.endsWith(u8, fp, ".zx")) {
+                    const base_len = fp.len - 3;
+                    const len = base_len + 4; // ".zig" is 4 chars
+                    if (len <= path_buf.len) {
+                        @memcpy(path_buf[0..base_len], fp[0..base_len]);
+                        @memcpy(path_buf[base_len..][0..4], ".zig");
+                        full_path = path_buf[0..len];
+                    } else {
+                        full_path = fp;
+                    }
+                } else {
+                    full_path = fp;
+                }
+            } else {
+                full_path = "unknown.zig";
+            }
+        }
+
+        // Generate unique ID based on component name and full path
+        const id = generateComponentId(tag, full_path);
+
+        // Write _zx.client(.{ .name = "Name", .path = "path", .id = "id" }, .{ props })
+        try ctx.writeWithMappingFromByte("_zx.client", node.startByte(), self);
+        try ctx.write("(.{ .name = \"");
+        try ctx.write(tag);
+        try ctx.write("\", .path = \"");
+        try ctx.write(full_path);
+        try ctx.write("\", .id = \"");
+        try ctx.write(&id);
+        try ctx.write("\" }, .{");
+
+        // Write props (non-builtin attributes)
+        var first_prop = true;
+        for (attributes) |attr| {
+            if (attr.is_builtin) continue;
+            if (!first_prop) try ctx.write(",");
+            first_prop = false;
+
+            try ctx.write(" .");
+            try ctx.write(attr.name);
+            try ctx.write(" = ");
+            try ctx.writeWithMappingFromByte(attr.value, attr.value_byte_offset, self);
+        }
+
+        try ctx.write(" })");
+    } else {
+        // Regular lazy component
+        try ctx.writeWithMappingFromByte("_zx.lazy", node.startByte(), self);
+        try ctx.write("(");
+        try ctx.write(tag);
+        try ctx.write(", .{");
+
+        var first_prop = true;
+        for (attributes) |attr| {
+            if (attr.is_builtin) continue;
+            if (!first_prop) try ctx.write(",");
+            first_prop = false;
+
+            try ctx.write(" .");
+            try ctx.write(attr.name);
+            try ctx.write(" = ");
+            try ctx.writeWithMappingFromByte(attr.value, attr.value_byte_offset, self);
+        }
+
+        try ctx.write(" })");
+    }
+}
+
+/// Generate a unique component ID based on name and path
+fn generateComponentId(name: []const u8, path: []const u8) [35]u8 {
+    var hasher = std.crypto.hash.Md5.init(.{});
+    hasher.update(name);
+    hasher.update(path);
+    var digest: [16]u8 = undefined;
+    hasher.final(&digest);
+
+    var result: [35]u8 = undefined;
+    const prefix = "zx-";
+    @memcpy(result[0..3], prefix);
+
+    const hex_chars = "0123456789abcdef";
+    for (digest, 0..) |byte, i| {
+        result[3 + i * 2] = hex_chars[byte >> 4];
+        result[3 + i * 2 + 1] = hex_chars[byte & 0x0f];
+    }
+
+    return result;
 }
 
 /// Write a regular HTML element: _zx.zx(.tag, .{ ... })
