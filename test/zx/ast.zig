@@ -123,17 +123,17 @@ test "switch_if" {
     try test_render(@import("./../data/control_flow/switch_if.zig").Page);
 }
 test "switch_for" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/switch_for");
     try test_render(@import("./../data/control_flow/switch_for.zig").Page);
 }
 test "switch_switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/switch_switch");
     try test_render(@import("./../data/control_flow/switch_switch.zig").Page);
 }
 test "switch_while" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/switch_while");
     try test_render(@import("./../data/control_flow/switch_while.zig").Page);
 }

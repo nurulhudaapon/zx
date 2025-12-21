@@ -9,33 +9,33 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .allocator = allocator,
             .children = &.{
                 switch (user_type) {
-                    .admin => blk_0: {
+                    .admin => _zx_for_blk_0: {
                         const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, admin_users.len) catch unreachable;
                         for (admin_users, 0..) |name, _zx_i_0| {
                             __zx_children_0[_zx_i_0] = _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
-                                        _zx.txt(name),
+                                        _zx.expr(name),
                                     },
                                 },
                             );
                         }
-                        break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
+                        break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                     },
-                    .member => blk_1: {
+                    .member => _zx_for_blk_1: {
                         const __zx_children_1 = _zx.getAlloc().alloc(zx.Component, member_users.len) catch unreachable;
                         for (member_users, 0..) |name, _zx_i_1| {
                             __zx_children_1[_zx_i_1] = _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
-                                        _zx.txt(name),
+                                        _zx.expr(name),
                                     },
                                 },
                             );
                         }
-                        break :blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
+                        break :_zx_for_blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
                     },
                 },
             },

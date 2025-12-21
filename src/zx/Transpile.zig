@@ -1546,23 +1546,50 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     }
 
     if (value_node) |v| {
-        switch (NodeKind.fromNode(v)) {
-            .zx_block => try transpileBlock(self, v, ctx),
-            // Handle nested control flow expressions
-            .if_expression => try transpileIf(self, v, ctx),
-            .for_expression => try transpileFor(self, v, ctx),
-            .while_expression => try transpileWhile(self, v, ctx),
-            .switch_expression => try transpileSwitch(self, v, ctx),
-            .parenthesized_expression => {
-                // Value like `("Admin")` renders as _zx.txt("Admin")
-                try ctx.writeM("_zx.txt", v.startByte(), self);
-                try ctx.writeM(try self.getNodeText(v), v.startByte(), self);
-            },
-            else => try ctx.writeM(try self.getNodeText(v), v.startByte(), self),
-        }
+        try transpileCaseValue(self, v, ctx);
     }
 
     try ctx.write(",\n");
+}
+
+/// Transpile switch case value, handling parenthesized expressions with nested control flow
+fn transpileCaseValue(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+    const kind = NodeKind.fromNode(node);
+
+    switch (kind) {
+        .zx_block => try transpileBlock(self, node, ctx),
+        .if_expression => try transpileIf(self, node, ctx),
+        .for_expression => try transpileFor(self, node, ctx),
+        .while_expression => try transpileWhile(self, node, ctx),
+        .switch_expression => try transpileSwitch(self, node, ctx),
+        .parenthesized_expression => {
+            // Check if contains control flow - transpile it directly
+            if (findControlFlowChild(node)) |cf_child| {
+                try transpileCaseValue(self, cf_child, ctx);
+            } else {
+                // Simple parenthesized expression like ("Admin")
+                try ctx.writeM("_zx.txt", node.startByte(), self);
+                try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
+            }
+        },
+        else => try ctx.writeM(try self.getNodeText(node), node.startByte(), self),
+    }
+}
+
+/// Find control flow expression inside a node (e.g., for inside parenthesized_expression)
+fn findControlFlowChild(node: ts.Node) ?ts.Node {
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        switch (NodeKind.fromNode(child)) {
+            .if_expression, .for_expression, .while_expression, .switch_expression => return child,
+            else => {
+                if (findControlFlowChild(child)) |found| return found;
+            },
+        }
+    }
+    return null;
 }
 
 pub const ZxAttribute = struct {

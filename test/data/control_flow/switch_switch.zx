@@ -4,17 +4,15 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             {switch (user_type) {
-                .admin => {
+                .admin => 
                     switch (status) {
                         .active => (<p>Active Admin</p>),
                         .inactive => (<p>Inactive Admin</p>),
-                    }
                 },
-                .member => {
+                .member => 
                     switch (status) {
                         .active => (<p>Active Member</p>),
                         .inactive => (<p>Inactive Member</p>),
-                    }
                 },
             }}
     );

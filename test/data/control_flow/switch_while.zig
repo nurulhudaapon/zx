@@ -17,19 +17,19 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         },
                     ),
-                    .repeat => blk_0: {
+                    .repeat => _zx_whl_blk_0: {
                         var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
                         while (i < 3) : (i += 1) {
                             __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                                 .p,
                                 .{
                                     .children = &.{
-                                        _zx.fmt("{d}", .{i}),
+                                        _zx.expr(i),
                                     },
                                 },
                             )) catch unreachable;
                         }
-                        break :blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
+                        break :_zx_whl_blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
                     },
                 },
             },
