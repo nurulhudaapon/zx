@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk_0: {
+                _zx_for_blk_0: {
                     const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, user_names.len) catch unreachable;
                     for (user_names, 0..) |name, _zx_i_0| {
                         __zx_children_0[_zx_i_0] = _zx.ele(
@@ -18,7 +18,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         );
                     }
-                    break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
+                    break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                 },
             },
         },
@@ -32,7 +32,7 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk_1: {
+                _zx_for_blk_1: {
                     const __zx_children_1 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
                     for (users, 0..) |user, _zx_i_1| {
                         __zx_children_1[_zx_i_1] = _zx.ele(
@@ -46,7 +46,7 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
                             },
                         );
                     }
-                    break :blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
+                    break :_zx_for_blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
                 },
             },
         },
@@ -60,12 +60,12 @@ pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk_2: {
+                _zx_for_blk_2: {
                     const __zx_children_2 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
                     for (users, 0..) |user, _zx_i_2| {
                         __zx_children_2[_zx_i_2] = _zx.cmp(UserComponent, .{ .name = user.name, .age = user.age });
                     }
-                    break :blk_2 _zx.ele(.fragment, .{ .children = __zx_children_2 });
+                    break :_zx_for_blk_2 _zx.ele(.fragment, .{ .children = __zx_children_2 });
                 },
             },
         },

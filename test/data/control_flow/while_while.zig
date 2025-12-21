@@ -8,14 +8,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk_0: {
+                _zx_whl_blk_0: {
                     var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
                     while (i < 2) : (i += 1) {
                         __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                             .div,
                             .{
                                 .children = &.{
-                                    blk_1: {
+                                    _zx_whl_blk_1: {
                                         var __zx_list_1 = @import("std").ArrayList(zx.Component).empty;
                                         while (j < 2) : (j += 1) {
                                             __zx_list_1.append(_zx.getAlloc(), _zx.ele(
@@ -27,13 +27,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                 },
                                             )) catch unreachable;
                                         }
-                                        break :blk_1 _zx.ele(.fragment, .{ .children = __zx_list_1.items });
+                                        break :_zx_whl_blk_1 _zx.ele(.fragment, .{ .children = __zx_list_1.items });
                                     },
                                 },
                             },
                         )) catch unreachable;
                     }
-                    break :blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
+                    break :_zx_whl_blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
                 },
             },
         },

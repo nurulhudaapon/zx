@@ -9,14 +9,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk_0: {
+                _zx_for_blk_0: {
                     const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, groups.len) catch unreachable;
                     for (groups, 0..) |group, _zx_i_0| {
                         __zx_children_0[_zx_i_0] = _zx.ele(
                             .div,
                             .{
                                 .children = &.{
-                                    blk_1: {
+                                    _zx_for_blk_1: {
                                         const __zx_children_1 = _zx.getAlloc().alloc(zx.Component, group.members.len) catch unreachable;
                                         for (group.members, 0..) |member, _zx_i_1| {
                                             __zx_children_1[_zx_i_1] = _zx.ele(
@@ -28,13 +28,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                 },
                                             );
                                         }
-                                        break :blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
+                                        break :_zx_for_blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
                                     },
                                 },
                             },
                         );
                     }
-                    break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
+                    break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                 },
             },
         },

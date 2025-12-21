@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                blk_0: {
+                _zx_for_blk_0: {
                     const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, chars.len) catch unreachable;
                     for (chars, 0..) |char, _zx_i_0| {
                         __zx_children_0[_zx_i_0] = _zx.ele(
@@ -25,7 +25,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             },
                         );
                     }
-                    break :blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
+                    break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                 },
             },
         },
