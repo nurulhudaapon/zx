@@ -16,120 +16,144 @@ test "tests:afterAll" {
 }
 
 // Control Flow
-// If
+// === If ===
 test "if" {
-    try test_fmt("control_flow/if", false);
+    try test_fmt("control_flow/if");
 }
-
 test "if_block" {
-    try test_fmt("control_flow/if_block", false);
+    try test_fmt("control_flow/if_block");
 }
-
 test "if_if_only" {
-    return error.Todo;
-    // try test_transpile("control_flow/if_if_only");
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/if_if_only");
 }
-
 test "if_if_only_block" {
-    return error.Todo;
-    // try test_transpile("control_flow/if_if_only_block");
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/if_if_only_block");
 }
 test "if_only" {
-    try test_fmt("control_flow/if_only", false);
+    try test_fmt("control_flow/if_only");
 }
-
 test "if_only_block" {
-    try test_fmt("control_flow/if_only_block", false);
+    try test_fmt("control_flow/if_only_block");
 }
-// For
-test "for" {
-    try test_fmt("control_flow/for", false);
+test "if_while" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/if_while");
 }
-
-test "for_block" {
-    try test_fmt("control_flow/for_block", false);
-}
-// Switch
-test "switch" {
-    try test_fmt("control_flow/switch", false);
-}
-test "switch_block" {
-    return error.Todo;
-    // try test_fmt("control_flow/switch_block");
-}
-// Nested Control Flow (2-level nesting)
 test "if_if" {
-    try test_fmt("control_flow/if_if", false);
+    try test_fmt("control_flow/if_if");
 }
 test "if_for" {
-    try test_fmt("control_flow/if_for", false);
+    try test_fmt("control_flow/if_for");
 }
 test "if_switch" {
-    try test_fmt("control_flow/if_switch", false);
+    try test_fmt("control_flow/if_switch");
+}
+
+// === For ===
+test "for" {
+    try test_fmt("control_flow/for");
+}
+test "for_block" {
+    try test_fmt("control_flow/for_block");
 }
 test "for_if" {
-    return error.Todo;
-    // try test_fmt("control_flow/for_if", false);
+    if (true) return error.Todo;
+    try test_fmt("control_flow/for_if");
 }
 test "for_for" {
-    try test_fmt("control_flow/for_for", false);
+    try test_fmt("control_flow/for_for");
 }
 test "for_switch" {
-    try test_fmt("control_flow/for_switch", false);
+    try test_fmt("control_flow/for_switch");
+}
+test "for_while" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/for_while");
+}
+
+// === Switch ===
+test "switch" {
+    try test_fmt("control_flow/switch");
+}
+test "switch_block" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/switch_block");
 }
 test "switch_if" {
-    try test_fmt("control_flow/switch_if", false);
+    try test_fmt("control_flow/switch_if");
 }
 test "switch_for" {
-    return error.Todo;
-    // try test_fmt("control_flow/switch_for");
+    if (true) return error.Todo;
+    try test_fmt("control_flow/switch_for");
 }
 test "switch_switch" {
-    return error.Todo;
-    // try test_fmt("control_flow/switch_switch");
+    if (true) return error.Todo;
+    try test_fmt("control_flow/switch_switch");
 }
-// While
+test "switch_while" {
+    if (true) return error.Todo;
+    try test_fmt("control_flow/switch_while");
+}
+
+// === While ===
 test "while" {
-    try test_fmt("control_flow/while", false);
+    try test_fmt("control_flow/while");
 }
-
 test "while_block" {
-    try test_fmt("control_flow/while_block", false);
+    try test_fmt("control_flow/while_block");
+}
+test "while_while" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/while_while");
+}
+test "while_if" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/while_if");
+}
+test "while_for" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/while_for");
+}
+test "while_switch" {
+    if (true) return error.Todo;
+    try test_fmt("control_flow/while_switch");
 }
 
+// === Miscellaneous ===
 test "expression_text" {
-    try test_fmt("expression/text", false);
+    try test_fmt("expression/text");
 }
 test "expression_format" {
-    try test_fmt("expression/format", false);
+    try test_fmt("expression/format");
 }
 test "expression_component" {
-    try test_fmt("expression/component", false);
+    try test_fmt("expression/component");
 }
 
 test "component_basic" {
-    try test_fmt("component/basic", false);
+    try test_fmt("component/basic");
 }
 test "component_multiple" {
-    try test_fmt("component/multiple", false);
+    try test_fmt("component/multiple");
 }
 test "component_csr_react" {
-    try test_fmt("component/csr_react", false);
+    try test_fmt("component/csr_react");
 }
 test "component_csr_react_multiple" {
-    try test_fmt("component/csr_react_multiple", false);
+    try test_fmt("component/csr_react_multiple");
 }
 
 test "performance" {
+    // if (true) return error.Todo;
     const MAX_TIME_MS = 50.0 * 8; // 50ms is on M1 Pro
     const MAX_TIME_PER_FILE_MS = 8.0 * 10; // 5ms is on M1 Pro
 
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
         const start_time = std.time.nanoTimestamp();
-        test_fmt(comptime_path, true) catch {
-            // continue;
-        };
+        try test_fmt_inner(comptime_path, true);
         const end_time = std.time.nanoTimestamp();
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
@@ -145,7 +169,11 @@ test "performance" {
     try expectLessThan(MAX_TIME_PER_FILE_MS, average_time_ms);
 }
 
-fn test_fmt(comptime file_path: []const u8, no_expect: bool) !void {
+fn test_fmt(comptime file_path: []const u8) !void {
+    try test_fmt_inner(file_path, false);
+}
+
+fn test_fmt_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
     const allocator = std.testing.allocator;
     const cache = test_file_cache orelse return error.CacheNotInitialized;
 
@@ -163,7 +191,10 @@ fn test_fmt(comptime file_path: []const u8, no_expect: bool) !void {
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file
-    const expected_source = cache.get(expected_source_path) orelse return error.FileNotFound;
+    const expected_source = cache.get(expected_source_path) orelse {
+        std.log.err("Expected file not found: {s}\n", .{expected_source_path});
+        return error.FileNotFound;
+    };
     const expected_source_z = try allocator.dupeZ(u8, expected_source);
     defer allocator.free(expected_source_z);
 
