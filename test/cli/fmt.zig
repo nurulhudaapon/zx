@@ -163,7 +163,7 @@ test "performance" {
 
     const total_time_ms = total_time_ns / std.time.ns_per_ms;
     const average_time_ms = total_time_ms / TestFileCache.test_files.len;
-    std.debug.print("\x1b[33m⏱️\x1b[0m fmt \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms\n", .{ total_time_ms, average_time_ms });
+    std.debug.print("\x1b[33m⏲\x1b[0m fmt \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms\n", .{ total_time_ms, average_time_ms });
 
     try expectLessThan(MAX_TIME_MS, total_time_ms);
     try expectLessThan(MAX_TIME_PER_FILE_MS, average_time_ms);
