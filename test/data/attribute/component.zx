@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    const hello_child = (<div>Hello!</div>);
+    const hello_child = (<div @allocator={allocator}>Hello!</div>);
     return (
         <section @allocator={allocator}>
             <ChildComponent children={hello_child} />
@@ -8,7 +8,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     );
 }
 
-const hello_child_outside = (<div>Hello!</div>);
+const hello_child_outside = (<div @allocator={std.heap.page_allocator}>Hello!</div>);
 
 const Props = struct { children: zx.Component };
 pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
@@ -20,3 +20,4 @@ pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
 }
 
 const zx = @import("zx");
+const std = @import("std");

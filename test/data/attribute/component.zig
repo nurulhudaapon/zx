@@ -1,9 +1,10 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const hello_child = _zx_ele_blk_0: {
-        var _zx = zx.init();
+        var _zx = zx.allocInit(allocator);
         break :_zx_ele_blk_0 _zx.ele(
             .div,
             .{
+                .allocator = allocator,
                 .children = &.{
                     _zx.txt("Hello!"),
                 },
@@ -31,10 +32,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 const hello_child_outside = _zx_ele_blk_1: {
-    var _zx = zx.init();
+    var _zx = zx.allocInit(std.heap.page_allocator);
     break :_zx_ele_blk_1 _zx.ele(
         .div,
         .{
+            .allocator = std.heap.page_allocator,
             .children = &.{
                 _zx.txt("Hello!"),
             },
@@ -57,3 +59,4 @@ pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
 }
 
 const zx = @import("zx");
+const std = @import("std");

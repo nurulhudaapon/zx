@@ -179,7 +179,7 @@ test "attribute_builtin" {
 test "attribute_component" {
     // if (true) return error.Todo;
     try test_transpile("attribute/component");
-    // try test_render(@import("./../data/attribute/component.zig").Page);
+    try test_render(@import("./../data/attribute/component.zig").Page);
 }
 
 test "escaping_pre" {
