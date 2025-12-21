@@ -1,55 +1,26 @@
-const std = @import("std");
-const Transpiler = @import("Transpiler_prototype.zig");
-const Parser = @import("Parse.zig");
-const astlog = std.log.scoped(.ast);
-
-pub const ClientComponentMetadata = Transpiler.ClientComponentMetadata;
-pub const ParseResult = struct {
-    zig_ast: std.zig.Ast,
-    zx_source: [:0]const u8,
-    zig_source: [:0]const u8,
-    new_zig_source: [:0]const u8,
-    client_components: std.ArrayList(Transpiler.ClientComponentMetadata),
-
-    pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
-        self.zig_ast.deinit(allocator);
-        allocator.free(self.zx_source);
-        allocator.free(self.zig_source);
-        allocator.free(self.new_zig_source);
-        for (self.client_components.items) |*component| {
-            allocator.free(component.name);
-            allocator.free(component.path);
-            allocator.free(component.id);
-        }
-        self.client_components.deinit(allocator);
-    }
-};
-
-pub const FmtResult = struct {
-    formatted_zx: [:0]const u8,
-    zx_source: [:0]const u8,
-
-    pub fn deinit(self: *FmtResult, allocator: std.mem.Allocator) void {
-        allocator.free(self.formatted_zx);
-        allocator.free(self.zx_source);
-    }
-};
-
-pub fn fmt(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FmtResult {
+pub fn fmt(allocator: std.mem.Allocator, source: [:0]const u8) !FmtResult {
     var aa = std.heap.ArenaAllocator.init(allocator);
     defer aa.deinit();
     const arena = aa.allocator();
 
-    var parser_result = try Parser.parse(arena, zx_source);
+    var parser_result = try Parser.parse(arena, source);
     defer parser_result.deinit(allocator);
+
     const render_result = try parser_result.renderAlloc(arena, .{ .mode = .zx, .sourcemap = false, .path = null });
-    const formatted_zx_z = try allocator.dupeZ(u8, render_result.source);
+    const formatted_sourcez = try allocator.dupeZ(u8, render_result.source);
 
     return .{
-        .formatted_zx = formatted_zx_z,
-        .zx_source = zx_source,
+        .source = formatted_sourcez,
     };
 }
+
+pub const FmtResult = struct {
+    source: [:0]const u8,
+
+    pub fn deinit(self: *FmtResult, allocator: std.mem.Allocator) void {
+        allocator.free(self.source);
+    }
+};
 
 const ParseOptions = struct {
     path: ?[]const u8,
@@ -117,6 +88,29 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
     };
 }
 
+pub const ParseResult = struct {
+    zig_ast: std.zig.Ast,
+    zx_source: [:0]const u8,
+    zig_source: [:0]const u8,
+    new_zig_source: [:0]const u8,
+    client_components: std.ArrayList(Transpiler.ClientComponentMetadata),
+
+    pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
+        self.zig_ast.deinit(allocator);
+        allocator.free(self.zx_source);
+        allocator.free(self.zig_source);
+        allocator.free(self.new_zig_source);
+        for (self.client_components.items) |*component| {
+            allocator.free(component.name);
+            allocator.free(component.path);
+            allocator.free(component.id);
+        }
+        self.client_components.deinit(allocator);
+    }
+};
+
+pub const ClientComponentMetadata = Transpiler.ClientComponentMetadata;
+
 /// Post-process Zig source to comment out @jsImport declarations
 fn commentOutJsImports(allocator: std.mem.Allocator, source: [:0]const u8) ![:0]const u8 {
     var result = std.ArrayList(u8){};
@@ -146,3 +140,9 @@ fn commentOutJsImports(allocator: std.mem.Allocator, source: [:0]const u8) ![:0]
 
     return try allocator.dupeZ(u8, result.items);
 }
+
+const log = std.log.scoped(.ast);
+
+const std = @import("std");
+const Transpiler = @import("Transpiler_prototype.zig");
+const Parser = @import("Parse.zig");
