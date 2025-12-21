@@ -117,6 +117,7 @@ fn formatFile(
     defer allocator.free(source);
 
     const source_z = try allocator.dupeZ(u8, source);
+    defer allocator.free(source_z);
 
     var format_result = try zx.Ast.fmt(allocator, source_z);
     defer format_result.deinit(allocator);
@@ -173,6 +174,7 @@ fn formatDir(
         defer allocator.free(source);
 
         const source_z = try allocator.dupeZ(u8, source);
+        defer allocator.free(source_z);
 
         var format_result = zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
             error.ParseError => {

@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    return (<Button @allocator={allocator}  />);
+    return (<Button @allocator={allocator} />);
 }
 
 pub fn Button(allocator: zx.Allocator) zx.Component {

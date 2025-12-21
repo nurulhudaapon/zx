@@ -1,7 +1,7 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <div @allocator={allocator}>
-                quote should be escaped 
+             quote should be escaped 
             <code>"quote"</code>
             <pre>"quote"</pre>
         </div>
