@@ -1,5 +1,6 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const groups = [_][]const u8{ "A", "B" };
+    var j: usize = 0;
 
     var _zx = zx.initWithAllocator(allocator);
     return _zx.zx(
@@ -10,19 +11,10 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 blk_0: {
                     const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, groups.len) catch unreachable;
                     for (groups, 0..) |group, _zx_i_0| {
-                        var j: usize = 0;
                         __zx_children_0[_zx_i_0] = _zx.zx(
                             .div,
                             .{
                                 .children = &.{
-                                    _zx.zx(
-                                        .span,
-                                        .{
-                                            .children = &.{
-                                                _zx.txt(group),
-                                            },
-                                        },
-                                    ),
                                     blk_1: {
                                         var __zx_list_1 = @import("std").ArrayList(zx.Component).empty;
                                         while (j < 2) : (j += 1) {
@@ -31,6 +23,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                 .{
                                                     .children = &.{
                                                         _zx.fmt("{d}", .{j}),
+                                                        _zx.txt(" : "),
+                                                        _zx.txt(group),
                                                     },
                                                 },
                                             )) catch unreachable;
@@ -49,4 +43,3 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");
-

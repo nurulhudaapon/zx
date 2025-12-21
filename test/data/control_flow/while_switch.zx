@@ -3,12 +3,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
     return (
         <main @allocator={allocator}>
-            {while (i < 3) : (i +=1) (
+            {while (i < 3) : (i +=1 ) (
                 <div>
                     {switch (i) {
-                        0 => <span>Zero</span>,
-                        1 => <span>One</span>,
-                        else => <span>Other</span>,
+                        0 => (<span>Zero</span>),
+                        1 => (<span>One</span>),
+                        else => (<span>Other</span>),
                     }}
                 </div>
             )}

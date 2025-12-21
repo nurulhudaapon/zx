@@ -158,7 +158,7 @@ test "while_for" {
 }
 
 test "while_switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/while_switch");
     try test_render(@import("./../data/control_flow/while_switch.zig").Page);
 }
@@ -170,7 +170,7 @@ test "if_while" {
 }
 
 test "for_while" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/for_while");
     try test_render(@import("./../data/control_flow/for_while.zig").Page);
 }
@@ -243,14 +243,14 @@ test "component_import" {
 }
 
 test "performance" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     const MAX_TIME_MS = 50.0 * 8; // 50ms is on M1 Pro
     const MAX_TIME_PER_FILE_MS = 8.0 * 10; // 5ms is on M1 Pro
 
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
         const start_time = std.time.nanoTimestamp();
-        try test_transpile(comptime_path);
+        try test_transpile_inner(comptime_path, true);
         const end_time = std.time.nanoTimestamp();
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
@@ -267,6 +267,10 @@ test "performance" {
 }
 
 fn test_transpile(comptime file_path: []const u8) !void {
+    try test_transpile_inner(file_path, false);
+}
+
+fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
     const allocator = std.testing.allocator;
     const cache = test_file_cache orelse return error.CacheNotInitialized;
 
@@ -285,12 +289,17 @@ fn test_transpile(comptime file_path: []const u8) !void {
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file
-    const expected_source = cache.get(expected_source_path) orelse return error.FileNotFound;
+    const expected_source = cache.get(expected_source_path) orelse {
+        std.log.err("Expected file not found: {s}\n", .{expected_source_path});
+        return error.FileNotFound;
+    };
     const expected_source_z = try allocator.dupeZ(u8, expected_source);
     defer allocator.free(expected_source_z);
 
-    // try testing.expectEqualStrings(expected_source_z, result.zig_source);
-    try testing.expectEqualStrings(expected_source_z, result.new_zig_source);
+    if (!no_expect) {
+        // try testing.expectEqualStrings(expected_source_z, result.zig_source);
+        try testing.expectEqualStrings(expected_source_z, result.new_zig_source);
+    }
 }
 
 fn test_render(comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !void {

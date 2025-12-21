@@ -9,7 +9,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 blk_0: {
                     var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
-                    while (i < 3) : (i +=1) {
+                    while (i < 3) : (i += 1) {
                         __zx_list_0.append(_zx.getAllocator(), _zx.zx(
                             .div,
                             .{
