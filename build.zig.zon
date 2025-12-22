@@ -1,6 +1,6 @@
 .{
     .name = .zx,
-    .version = "0.1.0-dev.400",
+    .version = "0.1.0-dev.401",
     .description = "ZX is a framework for building web applications with Zig.",
     .repository = "https://github.com/nurulhudaapon/zx",
     .fingerprint = 0xcad77a8d2a3389f2,

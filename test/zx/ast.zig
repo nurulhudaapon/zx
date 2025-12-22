@@ -181,11 +181,21 @@ test "attribute_component" {
     try test_transpile("attribute/component");
     try test_render(@import("./../data/attribute/component.zig").Page);
 }
+test "attribute_builtin_escaping" {
+    // if (true) return error.Todo;
+    try test_transpile("attribute/builtin_escaping");
+    try test_render(@import("./../data/attribute/builtin_escaping.zig").Page);
+}
 
 test "escaping_pre" {
     // if (true) return error.Todo;
     try test_transpile("escaping/pre");
     try test_render(@import("./../data/escaping/pre.zig").Page);
+}
+test "escaping_quotes" {
+    // if (true) return error.Todo;
+    try test_transpile("escaping/quotes");
+    try test_render(@import("./../data/escaping/quotes.zig").Page);
 }
 
 test "expression_text" {
