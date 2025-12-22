@@ -752,7 +752,7 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     const tag = tag_name orelse return;
 
     if (isCustomComponent(tag)) {
-        try writeCustomComponent(self, node, tag, attributes.items, ctx);
+        try writeCustomComponent(self, node, tag, attributes.items, &.{}, ctx);
     } else {
         try writeHtmlElement(self, node, tag, attributes.items, &.{}, ctx, false);
     }
@@ -802,7 +802,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
     // Custom component with children
     if (isCustomComponent(tag)) {
-        try writeCustomComponent(self, node, tag, attributes.items, ctx);
+        try writeCustomComponent(self, node, tag, attributes.items, children.items, ctx);
         return;
     }
 
@@ -840,7 +840,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 }
 
 /// Write a custom component: _zx.cmp(Component, .{ .prop = value }) or _zx.client(...) for CSR/CSZ
-fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     // Check if this is a client-side rendered component (@rendering={.csr} or @rendering={.csz})
     var rendering_value: ?[]const u8 = null;
     for (attributes) |attr| {
@@ -987,6 +987,30 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
                 try transpileBlock(self, zx_node, ctx);
             } else {
                 try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            }
+        }
+
+        // Add children prop if there are children
+        if (children.len > 0) {
+            if (!first_prop) try ctx.write(",");
+            try ctx.write(" .children = ");
+
+            if (children.len == 1) {
+                // Single child - transpile directly
+                _ = try transpileChild(self, children[0], ctx, false, true);
+            } else {
+                // Multiple children - wrap in fragment
+                try ctx.write("_zx.ele(.fragment, .{ .children = &.{");
+                for (children, 0..) |child, idx| {
+                    const saved_len = ctx.output.items.len;
+                    const had_output = try transpileChild(self, child, ctx, false, idx == children.len - 1);
+                    if (had_output) {
+                        try ctx.write(", ");
+                    } else {
+                        ctx.output.shrinkRetainingCapacity(saved_len);
+                    }
+                }
+                try ctx.write("} })");
             }
         }
 

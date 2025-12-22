@@ -263,7 +263,6 @@ test "component_multiple" {
     try test_render(@import("./../data/component/multiple.zig").Page);
 }
 test "component_nested" {
-    if (true) return error.Todo;
     try test_transpile("component/nested");
     try test_render(@import("./../data/component/nested.zig").Page);
 }
