@@ -121,6 +121,12 @@ test "while_switch" {
     try test_fmt("control_flow/while_switch");
 }
 
+// === Deeply Nested Control Flow (3-level) ===
+test "if_for_if" {
+    if (true) return error.Todo;
+    try test_fmt("control_flow/if_for_if");
+}
+
 // === Miscellaneous ===
 test "expression_text" {
     try test_fmt("expression/text");
@@ -130,6 +136,22 @@ test "expression_format" {
 }
 test "expression_component" {
     try test_fmt("expression/component");
+}
+test "expression_mixed" {
+    if (true) return error.Todo;
+    try test_fmt("expression/mixed");
+}
+test "expression_optional" {
+    if (true) return error.Todo;
+    try test_fmt("expression/optional");
+}
+test "expression_struct_access" {
+    if (true) return error.Todo;
+    try test_fmt("expression/struct_access");
+}
+test "expression_function_call" {
+    if (true) return error.Todo;
+    try test_fmt("expression/function_call");
 }
 
 test "component_basic" {
@@ -143,6 +165,76 @@ test "component_csr_react" {
 }
 test "component_csr_react_multiple" {
     try test_fmt("component/csr_react_multiple");
+}
+test "component_nested" {
+    if (true) return error.Todo;
+    try test_fmt("component/nested");
+}
+test "component_children_only" {
+    if (true) return error.Todo;
+    try test_fmt("component/children_only");
+}
+test "component_csr_zig" {
+    if (true) return error.Todo;
+    try test_fmt("component/csr_zig");
+}
+test "component_import" {
+    if (true) return error.Todo;
+    try test_fmt("component/import");
+}
+test "component_root_cmp" {
+    if (true) return error.Todo;
+    try test_fmt("component/root_cmp");
+}
+
+// === Attribute ===
+test "attribute_builtin" {
+    if (true) return error.Todo;
+    try test_fmt("attribute/builtin");
+}
+test "attribute_component" {
+    if (true) return error.Todo;
+    try test_fmt("attribute/component");
+}
+test "attribute_builtin_escaping" {
+    if (true) return error.Todo;
+    try test_fmt("attribute/builtin_escaping");
+}
+test "attribute_dynamic" {
+    if (true) return error.Todo;
+    try test_fmt("attribute/dynamic");
+}
+
+// === Element ===
+test "element_void" {
+    if (true) return error.Todo;
+    try test_fmt("element/void");
+}
+test "element_empty" {
+    if (true) return error.Todo;
+    try test_fmt("element/empty");
+}
+test "element_nested" {
+    if (true) return error.Todo;
+    try test_fmt("element/nested");
+}
+test "element_fragment" {
+    if (true) return error.Todo;
+    try test_fmt("element/fragment");
+}
+test "element_fragment_root" {
+    if (true) return error.Todo;
+    try test_fmt("element/fragment_root");
+}
+
+// === Escaping ===
+test "escaping_pre" {
+    if (true) return error.Todo;
+    try test_fmt("escaping/pre");
+}
+test "escaping_quotes" {
+    if (true) return error.Todo;
+    try test_fmt("escaping/quotes");
 }
 
 test "performance" {

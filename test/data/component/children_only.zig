@@ -1,0 +1,75 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
+        .main,
+        .{
+            .allocator = allocator,
+            .children = &.{
+                _zx.cmp(Wrapper, .{ .children = _zx.ele(.fragment, .{ .children = &.{
+                    _zx.ele(
+                        .p,
+                        .{
+                            .children = &.{
+                                _zx.txt("Wrapped content"),
+                            },
+                        },
+                    ),
+                } }) }),
+                _zx.cmp(Container, .{ .children = _zx.ele(.fragment, .{ .children = &.{
+                    _zx.ele(
+                        .span,
+                        .{
+                            .children = &.{
+                                _zx.txt("First"),
+                            },
+                        },
+                    ),
+                    _zx.ele(
+                        .span,
+                        .{
+                            .children = &.{
+                                _zx.txt("Second"),
+                            },
+                        },
+                    ),
+                } }) }),
+            },
+        },
+    );
+}
+
+const WrapperProps = struct { children: zx.Component };
+fn Wrapper(allocator: zx.Allocator, props: WrapperProps) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
+        .div,
+        .{
+            .allocator = allocator,
+            .attributes = &.{
+                .{ .name = "class", .value = "wrapper" },
+            },
+            .children = &.{
+                _zx.expr(props.children),
+            },
+        },
+    );
+}
+
+const ContainerProps = struct { children: zx.Component };
+fn Container(allocator: zx.Allocator, props: ContainerProps) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
+        .section,
+        .{
+            .allocator = allocator,
+            .attributes = &.{
+                .{ .name = "class", .value = "container" },
+            },
+            .children = &.{
+                _zx.expr(props.children),
+            },
+        },
+    );
+}
+
+const zx = @import("zx");

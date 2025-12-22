@@ -49,11 +49,14 @@ pub const TestFileCache = struct {
         "expression/format",
         "expression/component",
         "expression/mixed",
+        "expression/struct_access",
+        "expression/function_call",
 
         // Component
         "component/basic",
         "component/multiple",
         "component/nested",
+        "component/children_only",
         "component/csr_react",
         "component/csr_react_multiple",
         "component/csr_zig",
@@ -68,6 +71,7 @@ pub const TestFileCache = struct {
 
         // Element
         "element/void",
+        "element/empty",
         "element/nested",
         "element/fragment",
         "element/fragment_root",

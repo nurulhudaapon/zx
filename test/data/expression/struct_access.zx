@@ -1,0 +1,21 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const user = User{ .name = "Alice", .age = 25 };
+    const product = Product{ .title = "Book", .price = 29.99 };
+
+    return (
+        <main @allocator={allocator}>
+            <p>Name: {user.name}</p>
+            <p>Age: {user.age}</p>
+            <div class="product">
+                <h2>{product.title}</h2>
+                <span>Price: ${product.price}</span>
+            </div>
+        </main>
+    );
+}
+
+const User = struct { name: []const u8, age: u32 };
+const Product = struct { title: []const u8, price: f64 };
+
+const zx = @import("zx");
+

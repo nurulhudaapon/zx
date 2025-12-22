@@ -202,6 +202,10 @@ test "element_void" {
     try test_transpile("element/void");
     try test_render(@import("./../data/element/void.zig").Page);
 }
+test "element_empty" {
+    try test_transpile("element/empty");
+    try test_render(@import("./../data/element/empty.zig").Page);
+}
 test "element_nested" {
     try test_transpile("element/nested");
     try test_render(@import("./../data/element/nested.zig").Page);
@@ -251,6 +255,14 @@ test "expression_optional" {
     try test_transpile("expression/optional");
     try test_render(@import("./../data/expression/optional.zig").Page);
 }
+test "expression_struct_access" {
+    try test_transpile("expression/struct_access");
+    try test_render(@import("./../data/expression/struct_access.zig").Page);
+}
+test "expression_function_call" {
+    try test_transpile("expression/function_call");
+    try test_render(@import("./../data/expression/function_call.zig").Page);
+}
 
 test "component_basic" {
     // if (true) return error.Todo;
@@ -265,6 +277,10 @@ test "component_multiple" {
 test "component_nested" {
     try test_transpile("component/nested");
     try test_render(@import("./../data/component/nested.zig").Page);
+}
+test "component_children_only" {
+    try test_transpile("component/children_only");
+    try test_render(@import("./../data/component/children_only.zig").Page);
 }
 test "component_csr_react" {
     // if (true) return error.Todo;

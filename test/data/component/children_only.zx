@@ -1,0 +1,34 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Wrapper>
+                <p>Wrapped content</p>
+            </Wrapper>
+            <Container>
+                <span>First</span>
+                <span>Second</span>
+            </Container>
+        </main>
+    );
+}
+
+const WrapperProps = struct { children: zx.Component };
+fn Wrapper(allocator: zx.Allocator, props: WrapperProps) zx.Component {
+    return (
+        <div @allocator={allocator} class="wrapper">
+            {props.children}
+        </div>
+    );
+}
+
+const ContainerProps = struct { children: zx.Component };
+fn Container(allocator: zx.Allocator, props: ContainerProps) zx.Component {
+    return (
+        <section @allocator={allocator} class="container">
+            {props.children}
+        </section>
+    );
+}
+
+const zx = @import("zx");
+

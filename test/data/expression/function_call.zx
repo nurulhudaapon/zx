@@ -1,0 +1,23 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const items = [_][]const u8{ "apple", "banana", "cherry" };
+
+    return (
+        <main @allocator={allocator}>
+            <p>Count: {getCount()}</p>
+            <p>Items: {items.len}</p>
+            <p>Greeting: {greet("World")}</p>
+        </main>
+    );
+}
+
+fn getCount() u32 {
+    return 42;
+}
+
+fn greet(name: []const u8) []const u8 {
+    _ = name;
+    return "Hello!";
+}
+
+const zx = @import("zx");
+
