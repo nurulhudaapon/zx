@@ -8,20 +8,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 <ul>
                     {for (items) |item| (
                         <li>
-                            {if (item.len > 5) (
-                                <strong>{item}</strong>
-                            ) else (
-                                <span>{item}</span>
-                            )}
+                            {if (item.len > 5) (<strong>{item}</strong>) else (<span>{item}</span>)}
                         </li>
                     )}
                 </ul>
-            ) else (
-                <p>No items</p>
-            )}
+            ) else (<p>No items</p>)}
         </main>
     );
 }
 
 const zx = @import("zx");
-

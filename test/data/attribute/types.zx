@@ -30,4 +30,3 @@ const InputType = enum {
 };
 
 const zx = @import("zx");
-

@@ -31,4 +31,3 @@ fn Container(allocator: zx.Allocator, props: ContainerProps) zx.Component {
 }
 
 const zx = @import("zx");
-

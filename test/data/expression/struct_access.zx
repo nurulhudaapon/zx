@@ -18,4 +18,3 @@ const User = struct { name: []const u8, age: u32 };
 const Product = struct { title: []const u8, price: f64 };
 
 const zx = @import("zx");
-
