@@ -29,9 +29,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.ele(
                     .div,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = "product" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", "product"),
+                        }),
                         .children = &.{
                             _zx.ele(
                                 .h2,

@@ -12,17 +12,17 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.ele(
                     .div,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = class_name },
-                            .{ .name = "id", .value = id },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", class_name),
+                            _zx.attr("id", id),
+                        }),
                         .children = &.{
                             _zx.ele(
                                 .button,
                                 .{
-                                    .attributes = &.{
-                                        .{ .name = "class", .value = if (is_active) "active" else "inactive" },
-                                    },
+                                    .attributes = _zx.attrs(.{
+                                        _zx.attr("class", if (is_active) "active" else "inactive"),
+                                    }),
                                     .children = &.{
                                         _zx.txt(" Click me"),
                                     },

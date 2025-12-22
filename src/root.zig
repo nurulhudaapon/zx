@@ -811,6 +811,94 @@ const ZxContext = struct {
         return text;
     }
 
+    /// Create an attribute with type-aware value handling
+    /// Returns null for values that should omit the attribute (false booleans, null optionals)
+    pub fn attr(self: *ZxContext, comptime name: []const u8, val: anytype) ?Element.Attribute {
+        const T = @TypeOf(val);
+
+        return switch (@typeInfo(T)) {
+            // Strings pass through directly
+            .pointer => |ptr_info| blk: {
+                if (ptr_info.size == .slice and ptr_info.child == u8) {
+                    break :blk .{ .name = name, .value = val };
+                }
+                if (ptr_info.size == .one) {
+                    if (@typeInfo(ptr_info.child) == .array) {
+                        const Slice = []const std.meta.Elem(ptr_info.child);
+                        return self.attr(name, @as(Slice, val));
+                    }
+                }
+                @compileError("Unsupported pointer type for attribute: " ++ @typeName(T));
+            },
+
+            // Integers - format to string
+            .int, .comptime_int => .{
+                .name = name,
+                .value = self.print("{d}", .{val}),
+            },
+
+            // Floats - format with default precision
+            .float, .comptime_float => .{
+                .name = name,
+                .value = self.print("{d}", .{val}),
+            },
+
+            // Booleans - presence-only attribute (true) or omit (false)
+            .bool => if (val) .{ .name = name, .value = null } else null,
+
+            // Optionals - recurse if non-null, omit if null
+            .optional => if (val) |inner| self.attr(name, inner) else null,
+
+            // Enums - convert tag name to string
+            .@"enum", .enum_literal => .{
+                .name = name,
+                .value = @tagName(val),
+            },
+
+            else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
+        };
+    }
+
+    /// Filter and collect non-null attributes into a slice
+    pub fn attrs(self: *ZxContext, inputs: anytype) []const Element.Attribute {
+        const allocator = self.getAlloc();
+        const InputType = @TypeOf(inputs);
+        const input_info = @typeInfo(InputType);
+
+        // Handle tuple/struct (comptime known)
+        if (input_info == .@"struct" and input_info.@"struct".is_tuple) {
+            // Count non-null attributes at runtime
+            var count: usize = 0;
+            inline for (inputs) |input| {
+                if (@TypeOf(input) == ?Element.Attribute) {
+                    if (input != null) count += 1;
+                } else {
+                    count += 1;
+                }
+            }
+
+            if (count == 0) return &.{};
+
+            const result = allocator.alloc(Element.Attribute, count) catch @panic("OOM");
+            var idx: usize = 0;
+            inline for (inputs) |input| {
+                if (@TypeOf(input) == ?Element.Attribute) {
+                    if (input) |a| {
+                        result[idx] = a;
+                        idx += 1;
+                    }
+                } else {
+                    result[idx] = input;
+                    idx += 1;
+                }
+            }
+
+            return result;
+        }
+
+        @compileError("attrs() expects a tuple of attributes");
+    }
+
     /// TODO: Remove once we've migrated to new transpiler
     pub const lazy = cmp;
 

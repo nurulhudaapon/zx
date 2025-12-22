@@ -45,9 +45,9 @@ fn Wrapper(allocator: zx.Allocator, props: WrapperProps) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .attributes = &.{
-                .{ .name = "class", .value = "wrapper" },
-            },
+            .attributes = _zx.attrs(.{
+                _zx.attr("class", "wrapper"),
+            }),
             .children = &.{
                 _zx.expr(props.children),
             },
@@ -62,9 +62,9 @@ fn Container(allocator: zx.Allocator, props: ContainerProps) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .attributes = &.{
-                .{ .name = "class", .value = "container" },
-            },
+            .attributes = _zx.attrs(.{
+                _zx.attr("class", "container"),
+            }),
             .children = &.{
                 _zx.expr(props.children),
             },

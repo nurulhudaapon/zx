@@ -12,17 +12,17 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.ele(
                     .span,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = "spacer" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", "spacer"),
+                        }),
                     },
                 ),
                 _zx.ele(
                     .section,
                     .{
-                        .attributes = &.{
-                            .{ .name = "id", .value = "empty-section" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("id", "empty-section"),
+                        }),
                     },
                 ),
             },

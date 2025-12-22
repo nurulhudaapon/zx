@@ -16,27 +16,27 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.ele(
                     .input,
                     .{
-                        .attributes = &.{
-                            .{ .name = "type", .value = "text" },
-                            .{ .name = "name", .value = "username" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("type", "text"),
+                            _zx.attr("name", "username"),
+                        }),
                     },
                 ),
                 _zx.ele(
                     .img,
                     .{
-                        .attributes = &.{
-                            .{ .name = "src", .value = "/logo.png" },
-                            .{ .name = "alt", .value = "Logo" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("src", "/logo.png"),
+                            _zx.attr("alt", "Logo"),
+                        }),
                     },
                 ),
                 _zx.ele(
                     .meta,
                     .{
-                        .attributes = &.{
-                            .{ .name = "charset", .value = "utf-8" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("charset", "utf-8"),
+                        }),
                     },
                 ),
             },

@@ -1743,31 +1743,31 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
         try ctx.write(",\n");
     }
 
-    // Write regular attributes
+    // Write regular attributes using _zx.attrs() and _zx.attr() for type-aware handling
     if (!ZxAttribute.hasRegular(attributes)) return;
 
     try ctx.writeIndent();
-    try ctx.write(".attributes = &.{\n");
+    try ctx.write(".attributes = _zx.attrs(.{\n");
     ctx.indent_level += 1;
 
     for (attributes) |attr| {
         if (attr.is_builtin) continue;
         try ctx.writeIndent();
-        try ctx.write(".{ .name = \"");
+        try ctx.write("_zx.attr(\"");
         try ctx.write(attr.name);
-        try ctx.write("\", .value = ");
+        try ctx.write("\", ");
         // If value contains a zx_block, transpile it instead of writing raw text
         if (attr.zx_block_node) |zx_node| {
             try transpileBlock(self, zx_node, ctx);
         } else {
             try ctx.writeM(attr.value, attr.value_byte_offset, self);
         }
-        try ctx.write(" },\n");
+        try ctx.write("),\n");
     }
 
     ctx.indent_level -= 1;
     try ctx.writeIndent();
-    try ctx.write("},\n");
+    try ctx.write("}),\n");
 }
 
 pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {

@@ -20,16 +20,16 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .attributes = &.{
-                .{ .name = "class", .value = "card" },
-            },
+            .attributes = _zx.attrs(.{
+                _zx.attr("class", "card"),
+            }),
             .children = &.{
                 _zx.ele(
                     .h2,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = "card-header" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", "card-header"),
+                        }),
                         .children = &.{
                             _zx.expr(props.title),
                         },
@@ -38,9 +38,9 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
                 _zx.ele(
                     .div,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = "card-body" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", "card-body"),
+                        }),
                         .children = &.{
                             _zx.expr(props.children),
                         },
@@ -58,9 +58,9 @@ fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
         .button,
         .{
             .allocator = allocator,
-            .attributes = &.{
-                .{ .name = "class", .value = "btn" },
-            },
+            .attributes = _zx.attrs(.{
+                _zx.attr("class", "btn"),
+            }),
             .children = &.{
                 _zx.expr(props.label),
             },

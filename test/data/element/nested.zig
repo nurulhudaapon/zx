@@ -8,9 +8,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.ele(
                     .div,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = "container" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", "container"),
+                        }),
                         .children = &.{
                             _zx.ele(
                                 .header,
@@ -31,9 +31,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                                             _zx.ele(
                                                                                 .a,
                                                                                 .{
-                                                                                    .attributes = &.{
-                                                                                        .{ .name = "href", .value = "/" },
-                                                                                    },
+                                                                                    .attributes = _zx.attrs(.{
+                                                                                        _zx.attr("href", "/"),
+                                                                                    }),
                                                                                     .children = &.{
                                                                                         _zx.txt("Home"),
                                                                                     },
@@ -49,9 +49,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                                             _zx.ele(
                                                                                 .a,
                                                                                 .{
-                                                                                    .attributes = &.{
-                                                                                        .{ .name = "href", .value = "/about" },
-                                                                                    },
+                                                                                    .attributes = _zx.attrs(.{
+                                                                                        _zx.attr("href", "/about"),
+                                                                                    }),
                                                                                     .children = &.{
                                                                                         _zx.txt("About"),
                                                                                     },
