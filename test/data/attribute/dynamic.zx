@@ -1,0 +1,18 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const class_name = "container";
+    const is_active = true;
+    const id = "main-content";
+
+    return (
+        <main @allocator={allocator}>
+            <div class={class_name} id={id}>
+                <button class={if (is_active) "active" else "inactive"}>
+                    Click me
+                </button>
+            </div>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

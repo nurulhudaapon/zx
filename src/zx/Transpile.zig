@@ -632,11 +632,63 @@ pub fn transpileElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_ro
 
 pub fn transpileFragment(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
     _ = is_root;
-    _ = node;
-    _ = self;
-    _ = ctx;
-    // TODO: Implement fragment transpilation
-    // Fragments become anonymous containers
+
+    // Collect all zx_child nodes from the fragment
+    var children = std.ArrayList(ts.Node){};
+    defer children.deinit(ctx.output.allocator);
+
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        if (NodeKind.fromNode(child) == .zx_child) {
+            try children.append(ctx.output.allocator, child);
+        }
+    }
+
+    // Fragment is just like a regular element but with .fragment tag and no attributes
+    try ctx.writeM("_zx.ele", node.startByte(), self);
+    try ctx.write("(\n");
+
+    ctx.indent_level += 1;
+    try ctx.writeIndent();
+    try ctx.write(".fragment,\n");
+
+    try ctx.writeIndent();
+    try ctx.write(".{\n");
+    ctx.indent_level += 1;
+
+    // Write children
+    if (children.items.len > 0) {
+        try ctx.writeIndent();
+        try ctx.write(".children = &.{\n");
+        ctx.indent_level += 1;
+
+        for (children.items, 0..) |child, idx| {
+            const saved_len = ctx.output.items.len;
+            try ctx.writeIndent();
+            const is_last_child = idx == children.items.len - 1;
+            const had_output = try transpileChild(self, child, ctx, false, is_last_child);
+
+            if (had_output) {
+                try ctx.write(",\n");
+            } else {
+                ctx.output.shrinkRetainingCapacity(saved_len);
+            }
+        }
+
+        ctx.indent_level -= 1;
+        try ctx.writeIndent();
+        try ctx.write("},\n");
+    }
+
+    ctx.indent_level -= 1;
+    try ctx.writeIndent();
+    try ctx.write("},\n");
+    ctx.indent_level -= 1;
+
+    try ctx.writeIndent();
+    try ctx.write(")");
 }
 
 pub fn isCustomComponent(tag: []const u8) bool {

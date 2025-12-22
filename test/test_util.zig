@@ -59,6 +59,15 @@ pub const TestFileCache = struct {
         "attribute/builtin",
         "attribute/component",
         "attribute/builtin_escaping",
+        "attribute/dynamic",
+
+        // Element
+        "element/void",
+        "element/fragment",
+        "element/fragment_root",
+
+        // Expression
+        "expression/optional",
 
         // Raw
         "escaping/pre",

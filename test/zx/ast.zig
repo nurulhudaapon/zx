@@ -186,6 +186,26 @@ test "attribute_builtin_escaping" {
     try test_transpile("attribute/builtin_escaping");
     try test_render(@import("./../data/attribute/builtin_escaping.zig").Page);
 }
+test "attribute_dynamic" {
+    try test_transpile("attribute/dynamic");
+    try test_render(@import("./../data/attribute/dynamic.zig").Page);
+}
+
+// === Element ===
+test "element_void" {
+    try test_transpile("element/void");
+    try test_render(@import("./../data/element/void.zig").Page);
+}
+test "element_fragment" {
+    // TODO: Fragment transpilation generates invalid Zig code (trailing comma in empty children)
+    // if (true) return error.SkipZigTest;
+    try test_transpile("element/fragment");
+    try test_render(@import("./../data/element/fragment.zig").Page);
+}
+test "element_fragment_root" {
+    try test_transpile("element/fragment_root");
+    try test_render(@import("./../data/element/fragment_root.zig").Page);
+}
 
 test "escaping_pre" {
     // if (true) return error.Todo;
@@ -212,6 +232,10 @@ test "expression_component" {
     // if (true) return error.Todo;
     try test_transpile("expression/component");
     try test_render(@import("./../data/expression/component.zig").Page);
+}
+test "expression_optional" {
+    try test_transpile("expression/optional");
+    try test_render(@import("./../data/expression/optional.zig").Page);
 }
 
 test "component_basic" {
@@ -296,7 +320,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     defer allocator.free(source_z);
 
     // Parse and transpile with file path for CSZ support
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path });
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path, .version = .new });
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file
@@ -309,7 +333,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
 
     if (!no_expect) {
         // try testing.expectEqualStrings(expected_source_z, result.zig_source);
-        try testing.expectEqualStrings(expected_source_z, result.new_zig_source);
+        try testing.expectEqualStrings(expected_source_z, result.zig_source);
     }
 }
 

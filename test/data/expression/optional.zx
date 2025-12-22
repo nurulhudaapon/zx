@@ -1,0 +1,14 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const maybe_name: ?[]const u8 = "Alice";
+    const no_name: ?[]const u8 = null;
+
+    return (
+        <main @allocator={allocator}>
+            <p>Name: {maybe_name orelse "Guest"}</p>
+            <p>Default: {no_name orelse "Anonymous"}</p>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

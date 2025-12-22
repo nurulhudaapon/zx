@@ -1,0 +1,18 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <fragment @allocator={allocator}>
+            <FragmentComponent />
+        </fragment>
+    );
+}
+
+fn FragmentComponent(allocator: zx.Allocator) zx.Component {
+    return (
+        <fragment @allocator={allocator}>
+            <p>First</p>
+            <p>Second</p>
+        </fragment>
+    );
+}
+
+const zx = @import("zx");

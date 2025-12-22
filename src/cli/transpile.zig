@@ -122,11 +122,11 @@ fn transpile(ctx: zli.CommandContext) !void {
                 defer ctx.allocator.free(source_z);
 
                 // Parse and transpile
-                var result = try zx.Ast.parse(ctx.allocator, source_z, .{ .path = path });
+                var result = try zx.Ast.parse(ctx.allocator, source_z, .{ .path = path, .version = if (ts) .new else .legacy });
                 defer result.deinit(ctx.allocator);
 
                 // Output to stdout
-                try ctx.writer.writeAll(if (ts) result.new_zig_source else result.zig_source);
+                try ctx.writer.writeAll(result.zig_source);
                 return;
             }
         }
@@ -865,7 +865,7 @@ fn transpileFile(
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = source_path });
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = source_path, .version = if (ts) .new else .legacy });
     defer result.deinit(allocator);
 
     // Extract route from source path
@@ -873,7 +873,7 @@ fn transpileFile(
     defer allocator.free(component_route);
 
     // Append components from this file to the global list
-    for (if (ts) result.new_client_components.items else result.client_components.items) |component| {
+    for (result.client_components.items) |component| {
         const cloned_id = try allocator.dupe(u8, component.id);
         const cloned_name = try allocator.dupe(u8, component.name);
 
@@ -951,7 +951,7 @@ fn transpileFile(
 
     try std.fs.cwd().writeFile(.{
         .sub_path = output_path,
-        .data = if (ts) result.new_zig_source else result.zig_source,
+        .data = result.zig_source,
     });
 
     if (verbose) {

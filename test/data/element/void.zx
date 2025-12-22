@@ -1,0 +1,14 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <br />
+            <hr />
+            <input type="text" name="username" />
+            <img src="/logo.png" alt="Logo" />
+            <meta charset="utf-8" />
+        </main>
+    );
+}
+
+const zx = @import("zx");
+
