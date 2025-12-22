@@ -189,7 +189,7 @@ test "bundle" {
             "favicon.ico",
         },
         .expected_files = &.{
-            "bundle/zx_site",
+            "bundle/zx_site" ++ (if (builtin.os.tag == .windows) ".exe" else ""),
             "bundle/assets/style.css",
             "bundle/public/favicon.ico",
         },
