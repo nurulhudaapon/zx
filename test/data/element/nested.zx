@@ -1,0 +1,24 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <div class="container">
+                <header>
+                    <nav>
+                        <ul>
+                            <li><a href="/">Home</a></li>
+                            <li><a href="/about">About</a></li>
+                        </ul>
+                    </nav>
+                </header>
+                <article>
+                    <section>
+                        <p>Deeply nested content</p>
+                    </section>
+                </article>
+            </div>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

@@ -41,14 +41,19 @@ pub const TestFileCache = struct {
         "control_flow/while_switch",
         "control_flow/while_while",
 
+        // Deeply Nested Control Flow (3-level nesting)
+        "control_flow/if_for_if",
+
         // Expression
         "expression/text",
         "expression/format",
         "expression/component",
+        "expression/mixed",
 
         // Component
         "component/basic",
         "component/multiple",
+        "component/nested",
         "component/csr_react",
         "component/csr_react_multiple",
         "component/csr_zig",
@@ -63,6 +68,7 @@ pub const TestFileCache = struct {
 
         // Element
         "element/void",
+        "element/nested",
         "element/fragment",
         "element/fragment_root",
 

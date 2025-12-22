@@ -1,0 +1,16 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const name = "Alice";
+    const count = 5;
+    const item = "apple";
+
+    return (
+        <main @allocator={allocator}>
+            <p>Hello {name}, you have {count} {item}s in your cart.</p>
+            <p>Welcome back, {name}! Your order #{count} is ready.</p>
+            <span>Item: {item} (qty: {count})</span>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

@@ -1,0 +1,29 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Card title="Welcome">
+                <Button label="Click me" />
+            </Card>
+        </main>
+    );
+}
+
+const CardProps = struct { title: []const u8, children: zx.Component };
+fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2 class="card-header">{props.title}</h2>
+            <div class="card-body">
+                {props.children}
+            </div>
+        </div>
+    );
+}
+
+const ButtonProps = struct { label: []const u8 };
+fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
+    return (<button @allocator={allocator} class="btn">{props.label}</button>);
+}
+
+const zx = @import("zx");
+

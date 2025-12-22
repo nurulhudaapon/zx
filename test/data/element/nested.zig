@@ -1,0 +1,102 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
+        .main,
+        .{
+            .allocator = allocator,
+            .children = &.{
+                _zx.ele(
+                    .div,
+                    .{
+                        .attributes = &.{
+                            .{ .name = "class", .value = "container" },
+                        },
+                        .children = &.{
+                            _zx.ele(
+                                .header,
+                                .{
+                                    .children = &.{
+                                        _zx.ele(
+                                            .nav,
+                                            .{
+                                                .children = &.{
+                                                    _zx.ele(
+                                                        .ul,
+                                                        .{
+                                                            .children = &.{
+                                                                _zx.ele(
+                                                                    .li,
+                                                                    .{
+                                                                        .children = &.{
+                                                                            _zx.ele(
+                                                                                .a,
+                                                                                .{
+                                                                                    .attributes = &.{
+                                                                                        .{ .name = "href", .value = "/" },
+                                                                                    },
+                                                                                    .children = &.{
+                                                                                        _zx.txt("Home"),
+                                                                                    },
+                                                                                },
+                                                                            ),
+                                                                        },
+                                                                    },
+                                                                ),
+                                                                _zx.ele(
+                                                                    .li,
+                                                                    .{
+                                                                        .children = &.{
+                                                                            _zx.ele(
+                                                                                .a,
+                                                                                .{
+                                                                                    .attributes = &.{
+                                                                                        .{ .name = "href", .value = "/about" },
+                                                                                    },
+                                                                                    .children = &.{
+                                                                                        _zx.txt("About"),
+                                                                                    },
+                                                                                },
+                                                                            ),
+                                                                        },
+                                                                    },
+                                                                ),
+                                                            },
+                                                        },
+                                                    ),
+                                                },
+                                            },
+                                        ),
+                                    },
+                                },
+                            ),
+                            _zx.ele(
+                                .article,
+                                .{
+                                    .children = &.{
+                                        _zx.ele(
+                                            .section,
+                                            .{
+                                                .children = &.{
+                                                    _zx.ele(
+                                                        .p,
+                                                        .{
+                                                            .children = &.{
+                                                                _zx.txt("Deeply nested content"),
+                                                            },
+                                                        },
+                                                    ),
+                                                },
+                                            },
+                                        ),
+                                    },
+                                },
+                            ),
+                        },
+                    },
+                ),
+            },
+        },
+    );
+}
+
+const zx = @import("zx");

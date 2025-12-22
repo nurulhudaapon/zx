@@ -170,6 +170,12 @@ test "while_switch" {
     try test_render(@import("./../data/control_flow/while_switch.zig").Page);
 }
 
+// === Deeply Nested Control Flow (3-level) ===
+test "if_for_if" {
+    try test_transpile("control_flow/if_for_if");
+    try test_render(@import("./../data/control_flow/if_for_if.zig").Page);
+}
+
 // === Miscellaneous ===
 test "attribute_builtin" {
     // if (true) return error.Todo;
@@ -195,6 +201,10 @@ test "attribute_dynamic" {
 test "element_void" {
     try test_transpile("element/void");
     try test_render(@import("./../data/element/void.zig").Page);
+}
+test "element_nested" {
+    try test_transpile("element/nested");
+    try test_render(@import("./../data/element/nested.zig").Page);
 }
 test "element_fragment" {
     // TODO: Fragment transpilation generates invalid Zig code (trailing comma in empty children)
@@ -233,6 +243,10 @@ test "expression_component" {
     try test_transpile("expression/component");
     try test_render(@import("./../data/expression/component.zig").Page);
 }
+test "expression_mixed" {
+    try test_transpile("expression/mixed");
+    try test_render(@import("./../data/expression/mixed.zig").Page);
+}
 test "expression_optional" {
     try test_transpile("expression/optional");
     try test_render(@import("./../data/expression/optional.zig").Page);
@@ -247,6 +261,11 @@ test "component_multiple" {
     // if (true) return error.Todo;
     try test_transpile("component/multiple");
     try test_render(@import("./../data/component/multiple.zig").Page);
+}
+test "component_nested" {
+    if (true) return error.Todo;
+    try test_transpile("component/nested");
+    try test_render(@import("./../data/component/nested.zig").Page);
 }
 test "component_csr_react" {
     // if (true) return error.Todo;
