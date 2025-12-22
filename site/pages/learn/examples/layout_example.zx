@@ -1,0 +1,22 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <html @allocator={ctx.arena}>
+            <head>
+                <title>My App</title>
+            </head>
+            <body>
+                <nav>
+                    <a href="/">Home</a>
+                    <a href="/about">About</a>
+                </nav>
+                <main>
+                    {children}
+                </main>
+                <footer>© 2025 My App</footer>
+            </body>
+        </html>
+    );
+}
+
+const zx = @import("zx");
+

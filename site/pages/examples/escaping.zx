@@ -1,0 +1,12 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <div @escaping={.raw}>
+                <strong>This HTML is rendered directly</strong>
+            </div>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

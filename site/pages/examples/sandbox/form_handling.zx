@@ -1,0 +1,25 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h2>Contact Form</h2>
+            <form method="post" action="/api/contact">
+                <div>
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" placeholder="Your name" />
+                </div>
+                <div>
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" placeholder="your@email.com" />
+                </div>
+                <div>
+                    <label for="message">Message</label>
+                    <textarea id="message" name="message" placeholder="Your message..."></textarea>
+                </div>
+                <button type="submit">Send Message</button>
+            </form>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

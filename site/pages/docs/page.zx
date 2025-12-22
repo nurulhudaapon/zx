@@ -89,6 +89,54 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const txt_expr = "{expression}";
     const fmt_expr = "{[expression:format]}";
 
+    // Escaping example
+    var aw_escaping: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_escaping = @embedFile("../../../pages/examples/escaping.zx");
+    const zig_example_escaping = @embedFile("../examples/escaping.zig");
+    const html_page_escaping = @import("../examples/escaping.zig").Page(allocator);
+    html_page_escaping.render(&aw_escaping.writer) catch unreachable;
+    const html_example_escaping = allocator.dupe(u8, aw_escaping.written()) catch unreachable;
+
+    // CSR example
+    var aw_csr: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_csr = @embedFile("../../../pages/examples/csr.zx");
+    const zig_example_csr = @embedFile("../examples/csr.zig");
+    const html_page_csr = @import("../examples/csr.zig").Page(allocator);
+    html_page_csr.render(&aw_csr.writer) catch unreachable;
+    const html_example_csr = allocator.dupe(u8, aw_csr.written()) catch unreachable;
+
+    // Importing example
+    var aw_importing: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_importing = @embedFile("../../../pages/examples/importing.zx");
+    const zig_example_importing = @embedFile("../examples/importing.zig");
+    const html_page_importing = @import("../examples/importing.zig").Page(allocator);
+    html_page_importing.render(&aw_importing.writer) catch unreachable;
+    const html_example_importing = allocator.dupe(u8, aw_importing.written()) catch unreachable;
+
+    // Dynamic route example
+    var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_dynamic = @embedFile("../../../pages/examples/dynamic_route.zx");
+    const zig_example_dynamic = @embedFile("../examples/dynamic_route.zig");
+    const html_page_dynamic = @import("../examples/dynamic_route.zig").Page(ctx);
+    html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
+    const html_example_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
+
+    // Fragment example
+    var aw_fragment: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_fragment = @embedFile("../../../pages/examples/fragment.zx");
+    const zig_example_fragment = @embedFile("../examples/fragment.zig");
+    const html_page_fragment = @import("../examples/fragment.zig").Page(allocator);
+    html_page_fragment.render(&aw_fragment.writer) catch unreachable;
+    const html_example_fragment = allocator.dupe(u8, aw_fragment.written()) catch unreachable;
+
+    // Children example
+    var aw_children: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_children = @embedFile("../../../pages/examples/children.zx");
+    const zig_example_children = @embedFile("../examples/children.zig");
+    const html_page_children = @import("../examples/children.zig").Page(allocator);
+    html_page_children.render(&aw_children.writer) catch unreachable;
+    const html_example_children = allocator.dupe(u8, aw_children.written()) catch unreachable;
+
     // const setup_elapsed_ns = page_timer.read();
     // const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
     // std.log.info("\x1b[1;36m[DOCS PAGE] Setup phase completed: {d:.3}ms\x1b[0m", .{setup_elapsed_ms});
@@ -190,8 +238,59 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Set <code>@allocator</code> on the root element of each component that needs memory allocation</li>
                     <li>Child components inherit the allocator from their parent's component, so you don't need to pass it explicitly to every nested component</li>
                 </ul>
+                <h3>@escaping</h3>
+                <p>The <code>@escaping</code> attribute controls how text content is escaped within an element. By default, all text is HTML-escaped to prevent XSS attacks.</p>
+                <p><strong>Values:</strong></p>
+                <ul>
+                    <li><code>.default</code> - Standard HTML escaping (default behavior)</li>
+                    <li><code>.raw</code> - No escaping; outputs raw HTML. Use with caution for trusted content only.</li>
+                </ul>
+                <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} />
+                <p><strong>Warning:</strong> Only use <code>@escaping={"{.raw}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
+                <h3>@rendering</h3>
+                <p>The <code>@rendering</code> attribute enables client-side rendering for interactive components.</p>
+                <p><strong>Values:</strong></p>
+                <ul>
+                    <li><code>.csr</code> - Client-side render with React (for imported React/TSX components)</li>
+                    <li><code>.csz</code> - Client-side render with Zig (compile component to WebAssembly)</li>
+                </ul>
+                <ExampleBlock id="csr" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} />
             </section>
-            <ExamplesSection />
+            <section id="importing" class="section">
+                <h2>Importing</h2>
+                <p>ZX supports importing components and modules from various sources. You can import ZX components from other files, React/TSX components for client-side interactivity, and standard Zig modules.</p>
+                <ExampleBlock id="importing" zx_code={zx_example_importing} zig_code={zig_example_importing} html_code={html_example_importing} />
+                <p>Use <code>@jsImport</code> for React/TSX components and the standard <code>@import</code> for ZX and Zig files.</p>
+            </section>
+            <section id="dynamic-routes" class="section">
+                <h2>Dynamic Routes</h2>
+                <p>ZX supports dynamic route segments using bracket notation in folder names.</p>
+                <h3>Creating Dynamic Routes</h3>
+                <p>Create a folder with brackets around the parameter name:</p>
+                <ul>
+                    <li><code>site/pages/user/[id]/page.zx</code> → <code>/user/:id</code></li>
+                    <li><code>site/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
+                    <li><code>site/pages/[category]/[item]/page.zx</code> → <code>/:category/:item</code></li>
+                </ul>
+                <h3>Accessing Route and Query Parameters</h3>
+                <p>Use <code>ctx.request.param("name")</code> to access dynamic route parameters and <code>ctx.request.query("name")</code> for query strings:</p>
+                <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} />
+                <p>Both methods return <code>?[]const u8</code>, so use <code>orelse</code> to provide a default value.</p>
+            </section>
+            <section id="fragments" class="section">
+                <h2>Fragments</h2>
+                <p>Fragments allow you to return multiple elements from a component without adding an extra wrapper element to the DOM. Use the empty tag syntax <code>{"<>...</>"}</code> to create a fragment:</p>
+                <ExampleBlock id="fragment" zx_code={zx_example_fragment} zig_code={zig_example_fragment} html_code={html_example_fragment} />
+                <p>The fragment's children are rendered directly without any containing element.</p>
+            </section>
+            <section id="children-props" class="section">
+                <h2>Children Props</h2>
+                <p>Components can accept child elements through a <code>children</code> prop, enabling wrapper and container patterns. Any elements between the opening and closing tags are passed as the <code>children</code> prop:</p>
+                <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} />
+                <p>Multiple children are automatically wrapped in a fragment.</p>
+            </section>            
+            // <ExamplesSection />
+      
         </div>
     );
 }

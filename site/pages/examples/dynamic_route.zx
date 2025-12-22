@@ -1,0 +1,13 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const user_id = ctx.request.param("id") orelse "unknown";
+
+    return (
+        <main @allocator={ctx.arena}>
+            <h1>User Profile</h1>
+            <p>User ID: {user_id}</p>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

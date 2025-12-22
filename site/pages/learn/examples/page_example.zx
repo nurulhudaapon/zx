@@ -1,0 +1,12 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <h1>About Us</h1>
+            <p>Welcome to our website!</p>
+            <p>Path: {ctx.request.url.path}</p>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

@@ -1,0 +1,28 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const status: Status = .active;
+
+    return (
+        <main @allocator={allocator}>
+            <h2>Account Status</h2>
+            <div class="status">
+                {switch (status) {
+                    .active => (<span style="color: green">● Active</span>),
+                    .pending => (<span style="color: orange">● Pending</span>),
+                    .inactive => (<span style="color: red">● Inactive</span>),
+                }}
+            </div>
+            <p>
+                {switch (status) {
+                    .active => ("Your account is in good standing."),
+                    .pending => ("Your account is awaiting approval."),
+                    .inactive => ("Your account has been deactivated."),
+                }}
+            </p>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+
+const Status = enum { active, pending, inactive };
+

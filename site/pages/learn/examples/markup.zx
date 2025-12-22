@@ -1,0 +1,21 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h1>About</h1>
+            <p>Hello there.<br />How are you?</p>
+            <Card />
+        </main>
+    );
+}
+
+fn Card(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2>User Profile</h2>
+            <p>Welcome to the card component!</p>
+        </div>
+    );
+}
+
+const zx = @import("zx");
+

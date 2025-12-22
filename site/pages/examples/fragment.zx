@@ -1,0 +1,19 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Header />
+        </main>
+    );
+}
+
+fn Header(allocator: zx.Allocator) zx.Component {
+    return (
+        <>
+            <h1 @allocator={allocator}>Welcome</h1>
+            <p>Multiple elements without a wrapper</p>
+        </>
+    );
+}
+
+const zx = @import("zx");
+

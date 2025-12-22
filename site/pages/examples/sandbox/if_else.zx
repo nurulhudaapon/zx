@@ -1,0 +1,27 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const is_logged_in = true;
+    const is_premium = false;
+
+    return (
+        <main @allocator={allocator}>
+            {if (is_logged_in) (
+                <div>
+                    <h2>Welcome back!</h2>
+                    {if (is_premium) (
+                        <p>Enjoy your premium features.</p>
+                    ) else (
+                        <p>Upgrade to premium for more features.</p>
+                    )}
+                </div>
+            ) else (
+                <div>
+                    <h2>Hello, Guest</h2>
+                    <p>Please log in to continue.</p>
+                </div>
+            )}
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

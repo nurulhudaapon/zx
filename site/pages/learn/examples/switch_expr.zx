@@ -1,0 +1,19 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const role: Role = .admin;
+
+    return (
+        <main @allocator={allocator}>
+            <span class="badge">
+                {switch (role) {
+                    .admin => (<strong>Admin</strong>),
+                    .member => ("Member"),
+                    .guest => ("Guest"),
+                }}
+            </span>
+        </main>
+    );
+}
+
+const Role = enum { admin, member, guest };
+const zx = @import("zx");
+

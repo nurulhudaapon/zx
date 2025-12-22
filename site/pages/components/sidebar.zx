@@ -4,13 +4,24 @@ pub const SidebarProps = struct {
         text: []const u8,
     };
 
-    links: []const Link,
+    pub const Section = struct {
+        title: []const u8,
+        href: []const u8 = "", // Empty string means no link
+        items: []const Link = &.{},
+    };
+
+    pub const Category = struct {
+        title: []const u8,
+        sections: []const Section,
+    };
+
+    categories: []const Category = &.{},
+    links: []const Link = &.{}, // Legacy support
+    toc: []const Link = &.{}, // Table of contents for right sidebar
     children: zx.Component,
 };
 
 pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
-    const js_version = std.fmt.allocPrint(allocator, "/assets/docs.js?v={s}", .{zx.info.version_string}) catch unreachable;
-
     return (
         <div @allocator={allocator}>
             <header class="top-bar">
@@ -20,7 +31,8 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     </div>
                     <div class="top-bar-right">
                         <nav class="top-bar-nav">
-                            <a href="/docs" class="top-bar-link">Docs</a>
+                            <a href="/learn" class="top-bar-link">Learn</a>
+                            <a href="/docs" class="top-bar-link">Reference</a>
                             <a href="/examples" class="top-bar-link">Examples</a>
                             <a href="/cli" class="top-bar-link">CLI</a>
                         </nav>
@@ -34,22 +46,115 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
             </header>
             <div class="container">
                 <nav class="sidebar">
-                    <ul class="nav-menu">
-                        {for (props.links) |link| (<li><a href={link.href}>{link.text}</a></li>)}
-                    </ul>
+                    {if (props.categories.len > 0) (
+                        <div class="sidebar-categories">
+                            {for (props.categories) |category| (
+                                <SidebarCategory allocator={allocator} category={category} />
+                            )}
+                        </div>
+                    ) else (
+                        <ul class="nav-menu">
+                            {for (props.links) |link| (<li><a href={link.href}>{link.text}</a></li>)}
+                        </ul>
+                    )}
                 </nav>
                 <main class="content">
                     {props.children}
                 </main>
-                <aside class="right-sidebar" id="on-this-page">
-                    <div class="right-sidebar-content">
-                        <h3 class="right-sidebar-title">ON THIS PAGE</h3>
-                        <nav class="right-sidebar-nav" id="on-this-page-nav"></nav>
-                    </div>
-                </aside>
+                {if (props.toc.len > 0) (
+                    <aside class="right-sidebar">
+                        <div class="right-sidebar-content">
+                            <h4 class="right-sidebar-title">On This Page</h4>
+                            <nav class="right-sidebar-nav">
+                                {for (props.toc) |link| (
+                                    <a href={link.href} class="right-sidebar-link">{link.text}</a>
+                                )}
+                            </nav>
+                        </div>
+                    </aside>
+                )}
             </div>
-            <script async type="module" src={js_version}></script>
         </div>
+    );
+}
+
+const SidebarCategoryProps = struct {
+    category: SidebarProps.Category,
+};
+
+fn SidebarCategory(allocator: zx.Allocator, props: SidebarCategoryProps) zx.Component {
+    return (
+        <div class="sidebar-category" @allocator={allocator}>
+            <h3 class="sidebar-category-title">{props.category.title}</h3>
+            <ul class="sidebar-sections">
+                {for (props.category.sections) |section| (
+                    <SidebarSection allocator={allocator} section={section} />
+                )}
+            </ul>
+        </div>
+    );
+}
+
+const SidebarSectionProps = struct {
+    section: SidebarProps.Section,
+};
+
+fn SidebarSection(allocator: zx.Allocator, props: SidebarSectionProps) zx.Component {
+    const has_link = props.section.href.len > 0;
+    const has_items = props.section.items.len > 0;
+
+    if (has_items) {
+        return (
+            <li class="sidebar-section" @allocator={allocator}>
+                <details class="sidebar-details">
+                    <summary class="sidebar-summary">
+                        <SidebarSectionTitle allocator={allocator} section={props.section} />
+                        <span class="sidebar-arrow">›</span>
+                    </summary>
+                    <ul class="sidebar-subitems">
+                        {for (props.section.items) |item| (
+                            <li><a href={item.href}>{item.text}</a></li>
+                        )}
+                    </ul>
+                </details>
+            </li>
+        );
+    }
+
+    if (has_link) {
+        return (
+            <li class="sidebar-section" @allocator={allocator}>
+                <a href={props.section.href} class="sidebar-section-link">
+                    <span>{props.section.title}</span>
+                </a>
+            </li>
+        );
+    }
+
+    return (
+        <li class="sidebar-section" @allocator={allocator}>
+            <span class="sidebar-section-title">
+                <span>{props.section.title}</span>
+            </span>
+        </li>
+    );
+}
+
+fn SidebarSectionTitle(allocator: zx.Allocator, props: SidebarSectionProps) zx.Component {
+    const has_link = props.section.href.len > 0;
+    
+    if (has_link) {
+        return (
+            <a href={props.section.href} class="sidebar-section-link" @allocator={allocator}>
+                <span>{props.section.title}</span>
+            </a>
+        );
+    }
+    
+    return (
+        <span class="sidebar-section-title" @allocator={allocator}>
+            <span>{props.section.title}</span>
+        </span>
     );
 }
 

@@ -1,99 +1,214 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+
+    // For Loop example
+    var aw_for: std.io.Writer.Allocating = .init(allocator);
+    const zx_for = @embedFile("../../../pages/examples/sandbox/for_loop.zx");
+    const zig_for = @embedFile("./sandbox/for_loop.zig");
+    const html_page_for = @import("./sandbox/for_loop.zig").Page(allocator);
+    html_page_for.render(&aw_for.writer) catch unreachable;
+    const html_for = allocator.dupe(u8, aw_for.written()) catch unreachable;
+
+    // If/Else example
+    var aw_if: std.io.Writer.Allocating = .init(allocator);
+    const zx_if = @embedFile("../../../pages/examples/sandbox/if_else.zx");
+    const zig_if = @embedFile("./sandbox/if_else.zig");
+    const html_page_if = @import("./sandbox/if_else.zig").Page(allocator);
+    html_page_if.render(&aw_if.writer) catch unreachable;
+    const html_if = allocator.dupe(u8, aw_if.written()) catch unreachable;
+
+    // Switch example
+    var aw_switch: std.io.Writer.Allocating = .init(allocator);
+    const zx_switch = @embedFile("../../../pages/examples/sandbox/switch_expr.zx");
+    const zig_switch = @embedFile("./sandbox/switch_expr.zig");
+    const html_page_switch = @import("./sandbox/switch_expr.zig").Page(allocator);
+    html_page_switch.render(&aw_switch.writer) catch unreachable;
+    const html_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
+
+    // Form example
+    var aw_form: std.io.Writer.Allocating = .init(allocator);
+    const zx_form = @embedFile("../../../pages/examples/sandbox/form_handling.zx");
+    const zig_form = @embedFile("./sandbox/form_handling.zig");
+    const html_page_form = @import("./sandbox/form_handling.zig").Page(allocator);
+    html_page_form.render(&aw_form.writer) catch unreachable;
+    const html_form = allocator.dupe(u8, aw_form.written()) catch unreachable;
+
+    // Components example
+    var aw_components: std.io.Writer.Allocating = .init(allocator);
+    const zx_components = @embedFile("../../../pages/examples/sandbox/components.zx");
+    const zig_components = @embedFile("./sandbox/components.zig");
+    const html_page_components = @import("./sandbox/components.zig").Page(allocator);
+    html_page_components.render(&aw_components.writer) catch unreachable;
+    const html_components = allocator.dupe(u8, aw_components.written()) catch unreachable;
+
+    // Dynamic attributes example
+    var aw_dynattr: std.io.Writer.Allocating = .init(allocator);
+    const zx_dynattr = @embedFile("../../../pages/examples/sandbox/dynamic_attr.zx");
+    const zig_dynattr = @embedFile("./sandbox/dynamic_attr.zig");
+    const html_page_dynattr = @import("./sandbox/dynamic_attr.zig").Page(allocator);
+    html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
+    const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
+
+    const categories = [_]SidebarProps.Category{
+        .{
+            .title = "EXAMPLES",
+            .sections = &[_]SidebarProps.Section{
+                .{ .title = "Overview", .href = "/examples" },
+            },
+        },
+        .{
+            .title = "CONTROL FLOW",
+            .sections = &[_]SidebarProps.Section{
+                .{ 
+                    .title = "Conditionals",
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#if-else", .text = "If/Else" },
+                        .{ .href = "#switch", .text = "Switch" },
+                    },
+                },
+                .{ 
+                    .title = "Loops",
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#for-loop", .text = "For Loop" },
+                    },
+                },
+            },
+        },
+        .{
+            .title = "COMPONENTS",
+            .sections = &[_]SidebarProps.Section{
+                .{ 
+                    .title = "Building Blocks",
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#components", .text = "Component Props" },
+                        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
+                    },
+                },
+            },
+        },
+        .{
+            .title = "FORMS",
+            .sections = &[_]SidebarProps.Section{
+                .{ 
+                    .title = "Form Handling",
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#form-handling", .text = "Basic Form" },
+                    },
+                },
+            },
+        },
+        .{
+            .title = "ADVANCED",
+            .sections = &[_]SidebarProps.Section{
+                .{ .title = "WASM TODO App", .href = "/examples/wasm" },
+                .{ .title = "Simple WASM", .href = "/examples/wasm/simple" },
+            },
+        },
+    };
+
+    const toc_links = [_]SidebarProps.Link{
+        .{ .href = "#if-else", .text = "If/Else" },
+        .{ .href = "#switch", .text = "Switch" },
+        .{ .href = "#for-loop", .text = "For Loop" },
+        .{ .href = "#components", .text = "Component Props" },
+        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
+        .{ .href = "#form-handling", .text = "Form Handling" },
+    };
 
     return (
-        <div @allocator={ctx.arena}>
-            <style>
-                {[@embedFile("style.css"):s]}
-            </style>
-            <div class="examples-wrapper">
-                <div class="examples-hero">
-                    <h1>Examples</h1>
-                    <p class="examples-hero-description">
-                         Explore interactive examples showcasing the power and flexibility of ZX framework
-                    </p>
-                    <a href="https://github.com/nurulhudaapon/zx/tree/main/site/pages/examples" target="_blank" rel="noopener noreferrer" class="view-source-btn">
-                         View All Examples Code on GitHub
-                    </a>
-                </div>
-                <div class="featured-grid">
-                    <a href="/examples/wasm" class="featured-card">
-                        <h3>WASM TODO App</h3>
-                        <p>A fully functional TODO application built with WebAssembly</p>
-                        <span class="featured-card-link">View Example →</span>
-                    </a>
-                    <a href="/examples/wasm/simple" class="featured-card">
-                        <h3>Simple WASM</h3>
-                        <p>Getting started with WebAssembly in ZX</p>
-                        <span class="featured-card-link">View Example →</span>
-                    </a>
-                    <a href="/examples/form" class="featured-card">
-                        <h3>Form Handling</h3>
-                        <p>Learn how to handle forms and user input</p>
-                        <span class="featured-card-link">View Example →</span>
-                    </a>
-                </div>
-                <div class="examples-section">
-                    <h2 class="section-title">Interactive Examples</h2>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/csr_react.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>CSR React Example</h3>
-                        <p class="example-card-description">Client-side rendering with React component imported from a .tsx file to .zx file</p>
-                        <CsrReactExample />
-                    </div>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/csr_zig.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>CSR Zig Example</h3>
-                        <p class="example-card-description">Pure Zig client-side rendering using Zig's WASM target</p>
-                        <CsrZigExample />
-                    </div>
-                </div>
-                <div class="examples-section">
-                    <h2 class="section-title">Control Flow Examples</h2>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/for.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>For Loop</h3>
-                        <p class="example-card-description">Iterating over collections and rendering lists</p>
-                        <ForExample />
-                    </div>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/if.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>If Statement</h3>
-                        <p class="example-card-description">Conditional rendering based on state</p>
-                        <IfExample />
-                    </div>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/switch.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>Switch Statement</h3>
-                        <p class="example-card-description">Pattern matching for complex conditions</p>
-                        <SwitchExample />
-                    </div>
-                </div>
-                <div class="examples-section">
-                    <h2 class="section-title">Form & Data Examples</h2>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/form.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>Form Example</h3>
-                        <p class="example-card-description">Working with forms, validation, and submission</p>
-                        <FormExample />
-                    </div>
-                    <div class="example-card">
-                        <a href="https://github.com/nurulhudaapon/zx/blob/main/site/pages/examples/overview.zx" target="_blank" rel="noopener noreferrer" class="code-link">View source</a>
-                        <h3>Quick Example</h3>
-                        <p class="example-card-description">A quick overview of core features</p>
-                        <QuickExample />
-                    </div>
-                </div>
-            </div>
-            <script src="/assets/main.js" />
-        </div>
+        <Sidebar @allocator={allocator} categories={&categories} toc={&toc_links}>
+            <ExamplesHeader />
+            <IfElseSection zx_code={zx_if} zig_code={zig_if} html_code={html_if} />
+            <SwitchSection zx_code={zx_switch} zig_code={zig_switch} html_code={html_switch} />
+            <ForLoopSection zx_code={zx_for} zig_code={zig_for} html_code={html_for} />
+            <ComponentsSection zx_code={zx_components} zig_code={zig_components} html_code={html_components} />
+            <DynamicAttrSection zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
+            <FormSection zx_code={zx_form} zig_code={zig_form} html_code={html_form} />
+        </Sidebar>
     );
 }
 
+fn ExamplesHeader(allocator: zx.Allocator) zx.Component {
+    return (
+        <section class="section learn-header" @allocator={allocator}>
+            <p class="section-category">ZX Framework</p>
+            <h1>Examples</h1>
+            <p class="lead">Explore interactive examples showcasing the power and flexibility of ZX framework. Each example includes live code and preview.</p>
+        </section>
+    );
+}
+
+const ExampleSectionProps = struct {
+    zx_code: []const u8,
+    zig_code: []const u8,
+    html_code: []const u8,
+};
+
+fn IfElseSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+    return (
+        <section id="if-else" class="section" @allocator={allocator}>
+            <h2>If/Else Statements</h2>
+            <p>Use if/else expressions to conditionally render content based on state. ZX supports inline conditional expressions that return components or text.</p>
+            <ExampleBlock id="if-else-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="if_else.zx" />
+            <div class="callout tip">
+                <strong>Tip:</strong> You can nest if/else expressions for more complex conditional logic.
+            </div>
+        </section>
+    );
+}
+
+fn SwitchSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+    return (
+        <section id="switch" class="section" @allocator={allocator}>
+            <h2>Switch Expressions</h2>
+            <p>Switch expressions provide pattern matching for enums and other types. Each branch can return a component or text.</p>
+            <ExampleBlock id="switch-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="switch_expr.zx" />
+        </section>
+    );
+}
+
+fn ForLoopSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+    return (
+        <section id="for-loop" class="section" @allocator={allocator}>
+            <h2>For Loop</h2>
+            <p>Iterate over arrays and slices to render lists of components. Each iteration receives the current item which you can use in your template.</p>
+            <ExampleBlock id="for-loop-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="for_loop.zx" />
+        </section>
+    );
+}
+
+fn ComponentsSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+    return (
+        <section id="components" class="section" @allocator={allocator}>
+            <h2>Component Props</h2>
+            <p>Create reusable components by defining props structs. Components can accept any Zig type as props, including booleans, strings, and custom structs.</p>
+            <ExampleBlock id="components-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="components.zx" />
+        </section>
+    );
+}
+
+fn DynamicAttrSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+    return (
+        <section id="dynamic-attributes" class="section" @allocator={allocator}>
+            <h2>Dynamic Attributes</h2>
+            <p>Set HTML attributes dynamically using Zig expressions. Boolean attributes like <code>disabled</code> and <code>readonly</code> are handled automatically.</p>
+            <ExampleBlock id="dynamic-attr-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attr.zx" />
+        </section>
+    );
+}
+
+fn FormSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+    return (
+        <section id="form-handling" class="section" @allocator={allocator}>
+            <h2>Form Handling</h2>
+            <p>Build forms with standard HTML form elements. ZX handles form submission through standard HTTP methods.</p>
+            <ExampleBlock id="form-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="form_handling.zx" />
+        </section>
+    );
+}
+
+const std = @import("std");
 const zx = @import("zx");
-const ForExample = @import("for.zx").Page;
-const IfExample = @import("if.zx").Page;
-const SwitchExample = @import("switch.zx").Page;
-const FormExample = @import("form.zx").FormExample;
-const QuickExample = @import("overview.zx").QuickExample;
-const CsrReactExample = @import("csr_react.zx").Page;
-const CsrZigExample = @import("csr_zig.zx").Page;
+const Sidebar = @import("../components/sidebar.zx").Sidebar;
+const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
+const ExampleBlock = @import("../components/example_block.zx").ExampleBlock;

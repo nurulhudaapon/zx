@@ -1,0 +1,22 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const is_dark = true;
+    const size = 42;
+    const user_name = "Alice";
+
+    return (
+        <main @allocator={allocator}>
+            <h2>Dynamic Attributes</h2>
+            <button class={if (is_dark) "btn-dark" else "btn-light"}>
+                Click Me
+            </button>
+            <div 
+                style={std.fmt.allocPrint(allocator, "width: {d}px; height: {d}px; background: #3b82f6; border-radius: 4px;", .{size, size}) catch ""}
+            >
+            </div>
+            <p>Hello, <span id={user_name}>{user_name}</span>!</p>
+        </main>
+    );
+}
+
+const std = @import("std");
+const zx = @import("zx");

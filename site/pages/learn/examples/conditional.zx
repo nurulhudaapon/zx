@@ -1,0 +1,20 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const is_logged_in = true;
+    const is_admin = false;
+
+    return (
+        <main @allocator={allocator}>
+            {if (is_logged_in) (
+                <p>Welcome back!</p>
+            ) else (
+                <p>Please log in.</p>
+            )}
+            {if (is_admin) (
+                <button>Admin Panel</button>
+            )}
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

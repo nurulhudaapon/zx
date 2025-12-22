@@ -1,0 +1,35 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h2>Product Cards</h2>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <ProductCard name="Laptop" price="$999" in_stock={true} />
+                <ProductCard name="Phone" price="$699" in_stock={true} />
+                <ProductCard name="Tablet" price="$499" in_stock={false} />
+            </div>
+        </main>
+    );
+}
+
+const ProductCardProps = struct {
+    name: []const u8,
+    price: []const u8,
+    in_stock: bool,
+};
+
+fn ProductCard(allocator: zx.Allocator, props: ProductCardProps) zx.Component {
+    return (
+        <div style="border: 1px solid #ccc; padding: 1rem; border-radius: 8px; min-width: 150px;" @allocator={allocator}>
+            <h3>{props.name}</h3>
+            <p style="font-size: 1.25rem; font-weight: bold;">{props.price}</p>
+            {if (props.in_stock) (
+                <span style="color: green;">In Stock</span>
+            ) else (
+                <span style="color: red;">Out of Stock</span>
+            )}
+        </div>
+    );
+}
+
+const zx = @import("zx");
+

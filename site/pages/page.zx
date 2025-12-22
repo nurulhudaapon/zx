@@ -42,7 +42,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <a href="/" class="nav-logo">ZX</a>
                     <div class="nav-right">
                         <ul class="nav-links">
-                            <li><a href="/docs" class="nav-link">Docs</a></li>
+                            <li><a href="/learn" class="nav-link">Learn</a></li>
+                            <li><a href="/docs" class="nav-link">Reference</a></li>
                             <li><a href="/examples" class="nav-link">Examples</a></li>
                             <li><a href="/cli" class="nav-link">CLI</a></li>
                         </ul>
@@ -71,7 +72,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         {for (hero_stats) |h| (<HeroStatCard allocator={allocator} value={h.value} label={h.label} />)}
                     </div>
                     <div class="hero-cta">
-                        <a href="/docs" class="btn btn-primary">Get Started</a>
+                        <a href="/learn" class="btn btn-primary">Get Started</a>
                         <a href="/examples" class="btn btn-secondary">Examples</a>
                     </div>
                 </div>

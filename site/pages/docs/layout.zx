@@ -2,20 +2,87 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
 
     return (
         <div  @allocator={ctx.arena}>
-           <Sidebar allocator={ctx.arena} links={&sidebar_links} children={children} />
+           <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} children={children} />
         </div>
         
     );
 }
 
-const sidebar_links = [_]SidebarProps.Link{
-    .{ .href = "/docs#introduction", .text = "Introduction" },
-    .{ .href = "/docs#getting-started", .text = "Getting Started" },
-    .{ .href = "/docs#expressions", .text = "Expressions" },
-    .{ .href = "/docs#control-flow", .text = "Control Flow" },
-    .{ .href = "/docs#components", .text = "Components" },
-    .{ .href = "/docs#routing", .text = "Routing" },
-    .{ .href = "/docs#builtin-attributes", .text = "Builtin Attributes" },
+const categories = [_]SidebarProps.Category{
+    .{
+        .title = "GETTING STARTED",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "Introduction", .href = "/docs#introduction" },
+            .{ .title = "Installation", .href = "/docs#getting-started" },
+        },
+    },
+    .{
+        .title = "CORE CONCEPTS",
+        .sections = &[_]SidebarProps.Section{
+            .{ 
+                .title = "Expressions", 
+                .href = "/docs#expressions",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#text-expressions", .text = "Text Expressions" },
+                    .{ .href = "/docs#format-expressions", .text = "Format Expressions" },
+                    .{ .href = "/docs#component-expressions", .text = "Component Expressions" },
+                },
+            },
+            .{ 
+                .title = "Control Flow", 
+                .href = "/docs#control-flow",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#if-statements", .text = "If Statements" },
+                    .{ .href = "/docs#switch-statements", .text = "Switch Statements" },
+                    .{ .href = "/docs#for-loops", .text = "For Loops" },
+                },
+            },
+            .{ 
+                .title = "Components", 
+                .href = "/docs#components",
+            },
+            .{ 
+                .title = "Routing", 
+                .href = "/docs#routing",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#pages", .text = "Pages" },
+                    .{ .href = "/docs#layouts", .text = "Layouts" },
+                    .{ .href = "/docs#dynamic-routes", .text = "Dynamic Routes" },
+                },
+            },
+        },
+    },
+    .{
+        .title = "ADVANCED",
+        .sections = &[_]SidebarProps.Section{
+            .{ 
+                .title = "Builtin Attributes", 
+                .href = "/docs#builtin-attributes",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#allocator", .text = "@allocator" },
+                    .{ .href = "/docs#escaping", .text = "@escaping" },
+                    .{ .href = "/docs#rendering", .text = "@rendering" },
+                },
+            },
+            .{ .title = "Importing", .href = "/docs#importing" },
+            .{ .title = "Fragments", .href = "/docs#fragments" },
+            .{ .title = "Children Props", .href = "/docs#children-props" },
+        },
+    },
+};
+
+const toc_links = [_]SidebarProps.Link{
+    .{ .href = "#introduction", .text = "Introduction" },
+    .{ .href = "#getting-started", .text = "Getting Started" },
+    .{ .href = "#expressions", .text = "Expressions" },
+    .{ .href = "#control-flow", .text = "Control Flow" },
+    .{ .href = "#components", .text = "Components" },
+    .{ .href = "#routing", .text = "Routing" },
+    .{ .href = "#builtin-attributes", .text = "Builtin Attributes" },
+    .{ .href = "#importing", .text = "Importing" },
+    .{ .href = "#dynamic-routes", .text = "Dynamic Routes" },
+    .{ .href = "#fragments", .text = "Fragments" },
+    .{ .href = "#children-props", .text = "Children Props" },
 };
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;

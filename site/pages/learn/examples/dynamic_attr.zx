@@ -1,0 +1,19 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const class_name = "primary-btn";
+    const user_id = "user-123";
+    const is_active = true;
+
+    return (
+        <main @allocator={allocator}>
+            <button class={class_name} id={user_id}>
+                Submit
+            </button>
+            <div class={if (is_active) "active" else "inactive"}>
+                Dynamic class
+            </div>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+

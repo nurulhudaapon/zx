@@ -1,0 +1,17 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h1>Welcome to my app</h1>
+            <Greeting />
+        </main>
+    );
+}
+
+fn Greeting(allocator: zx.Allocator) zx.Component {
+    return (
+        <p @allocator={allocator}>Hello, World!</p>
+    );
+}
+
+const zx = @import("zx");
+

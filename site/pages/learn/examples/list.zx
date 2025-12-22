@@ -1,0 +1,16 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const products = [_][]const u8{ "Apple", "Banana", "Orange" };
+
+    return (
+        <main @allocator={allocator}>
+            <h2>Products</h2>
+            <ul>
+                {for (products) |product| (
+                    <li>{product}</li>
+                )}
+            </ul>
+        </main>
+    );
+}
+
+const zx = @import("zx");

@@ -1,0 +1,14 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const user_name = "Alice";
+    const greeting = "Welcome back";
+
+    return (
+        <main @allocator={allocator}>
+            <h1>{greeting}, {user_name}!</h1>
+            <p>Your profile is ready.</p>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+
