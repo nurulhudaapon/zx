@@ -482,14 +482,37 @@ fn renderFragment(
 
     // Render content
     var rendered_any = false;
+    var last_content_end: usize = node.startByte() + 2; // After "<>"
     for (content_nodes.items) |child| {
         if (!hasMeaningfulContent(self, child)) continue;
 
         if (is_vertical) {
+            // Check for blank lines between last content and this child
+            const child_start = child.startByte();
+            const has_blank_line = blk: {
+                if (last_content_end < child_start and child_start <= self.source.len) {
+                    const between = self.source[last_content_end..child_start];
+                    // Count newlines - if more than 1, there's a blank line
+                    var newline_count: usize = 0;
+                    for (between) |c| {
+                        if (c == '\n') {
+                            newline_count += 1;
+                            if (newline_count > 1) break :blk true;
+                        }
+                    }
+                }
+                break :blk false;
+            };
+
             try w.writeAll("\n");
+            // Add one extra newline if there was a blank line in source
+            if (has_blank_line and rendered_any) {
+                try w.writeAll("\n");
+            }
             try ctx.writeIndent(w);
         }
         try renderChild(self, child, w, ctx);
+        last_content_end = child.endByte();
         rendered_any = true;
     }
 
@@ -587,6 +610,7 @@ fn renderElement(
 
     // Render content - skip whitespace-only children
     var rendered_any = false;
+    var last_content_end: usize = if (start_tag_node) |st| st.endByte() else node.startByte();
     for (content_nodes.items) |child| {
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_child) {
@@ -595,13 +619,36 @@ fn renderElement(
 
             // Check if this child should be on a new line
             if (is_vertical) {
+                // Check for blank lines between last content and this child
+                const child_start = child.startByte();
+                const has_blank_line = blk: {
+                    if (last_content_end < child_start and child_start <= self.source.len) {
+                        const between = self.source[last_content_end..child_start];
+                        // Count newlines - if more than 1, there's a blank line
+                        var newline_count: usize = 0;
+                        for (between) |c| {
+                            if (c == '\n') {
+                                newline_count += 1;
+                                if (newline_count > 1) break :blk true;
+                            }
+                        }
+                    }
+                    break :blk false;
+                };
+
                 try w.writeAll("\n");
+                // Add one extra newline if there was a blank line in source
+                if (has_blank_line and rendered_any) {
+                    try w.writeAll("\n");
+                }
                 try ctx.writeIndent(w);
             }
             try renderChild(self, child, w, ctx);
+            last_content_end = child.endByte();
             rendered_any = true;
         } else {
             try renderNodeWithContext(self, child, w, ctx);
+            last_content_end = child.endByte();
             rendered_any = true;
         }
     }
@@ -820,6 +867,7 @@ fn renderIfExpression(
     var payload_node: ?ts.Node = null;
     var then_node: ?ts.Node = null;
     var else_node: ?ts.Node = null;
+    var last_token_before_then: ?ts.Node = null;
 
     const child_count = node.childCount();
     var in_condition = false;
@@ -838,6 +886,7 @@ fn renderIfExpression(
         } else if (std.mem.eql(u8, child_type, ")") and in_condition) {
             in_condition = false;
             in_then = true;
+            last_token_before_then = child;
         } else if (std.mem.eql(u8, child_type, "else")) {
             in_then = false;
         } else if (in_condition and condition_node == null) {
@@ -845,12 +894,29 @@ fn renderIfExpression(
         } else if (in_then and child_kind == .payload) {
             // Capture payload like |un|
             payload_node = child;
+            last_token_before_then = child;
         } else if (in_then and then_node == null) {
             then_node = child;
         } else if (!in_condition and !in_then and then_node != null) {
             else_node = child;
         }
     }
+
+    // Determine if branches should be multiline based on preceding newline before first branch
+    const is_multiline = blk: {
+        if (then_node) |then_b| {
+            // Check for newline between last token before then and the then branch
+            const prev_end = if (last_token_before_then) |t| t.endByte() else node.startByte();
+            const then_start = then_b.startByte();
+            if (prev_end < then_start and then_start <= self.source.len) {
+                const between = self.source[prev_end..then_start];
+                if (std.mem.indexOf(u8, between, "\n") != null) {
+                    break :blk true;
+                }
+            }
+        }
+        break :blk false;
+    };
 
     try w.writeAll("{if ");
 
@@ -879,13 +945,19 @@ fn renderIfExpression(
     ctx.indent_level -= 1;
     // Then branch
     if (then_node) |then_b| {
-        try renderBranch(self, then_b, w, ctx);
+        try renderBranchWithMultiline(self, then_b, w, ctx, is_multiline);
     }
 
     // Else branch
     if (else_node) |else_b| {
-        try w.writeAll(" else ");
-        try renderBranch(self, else_b, w, ctx);
+        if (is_multiline) {
+            try w.writeAll("\n");
+            try ctx.writeIndent(w);
+            try w.writeAll("else ");
+        } else {
+            try w.writeAll(" else ");
+        }
+        try renderBranchWithMultiline(self, else_b, w, ctx, is_multiline);
     }
 
     try w.writeAll("}");
@@ -900,14 +972,26 @@ fn renderBranch(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
+    try renderBranchWithMultiline(self, node, w, ctx, false);
+}
+
+/// Helper to render if/else branches with explicit multiline control
+/// When force_multiline is true, branches will be formatted on separate lines
+fn renderBranchWithMultiline(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+    force_multiline: bool,
+) anyerror!void {
     const node_kind = NodeKind.fromNode(node);
     switch (node_kind) {
         .zx_block => {
-            try renderBlockInline(self, node, w, ctx);
+            try renderBlockInlineWithMultiline(self, node, w, ctx, force_multiline);
         },
         .if_expression => {
             // Handle else-if chains - render without outer braces
-            try renderIfExpressionInner(self, node, w, ctx);
+            try renderIfExpressionInnerWithMultiline(self, node, w, ctx, force_multiline);
         },
         .parenthesized_expression => {
             try w.writeAll(try self.getNodeText(node));
@@ -924,6 +1008,17 @@ fn renderIfExpressionInner(
     node: ts.Node,
     w: *std.io.Writer,
     ctx: *FormatContext,
+) anyerror!void {
+    try renderIfExpressionInnerWithMultiline(self, node, w, ctx, false);
+}
+
+/// Render if expression without outer braces with explicit multiline control
+fn renderIfExpressionInnerWithMultiline(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+    force_multiline: bool,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
@@ -986,13 +1081,19 @@ fn renderIfExpressionInner(
 
     // Then branch
     if (then_node) |then_b| {
-        try renderBranch(self, then_b, w, ctx);
+        try renderBranchWithMultiline(self, then_b, w, ctx, force_multiline);
     }
 
     // Else branch
     if (else_node) |else_b| {
-        try w.writeAll(" else ");
-        try renderBranch(self, else_b, w, ctx);
+        if (force_multiline) {
+            try w.writeAll("\n");
+            try ctx.writeIndent(w);
+            try w.writeAll("else ");
+        } else {
+            try w.writeAll(" else ");
+        }
+        try renderBranchWithMultiline(self, else_b, w, ctx, force_multiline);
     }
 }
 
@@ -1022,7 +1123,7 @@ fn renderForExpression(
             .payload => {
                 payload_node = child;
             },
-            .zx_block, .parenthesized_expression => {
+            .zx_block, .parenthesized_expression, .if_expression, .for_expression, .while_expression, .switch_expression => {
                 body_node = child;
             },
             else => {},
@@ -1053,7 +1154,21 @@ fn renderForExpression(
                 try renderBlockInline(self, body, w, ctx);
             },
             .parenthesized_expression => {
-                try renderExpressionBlock(self, body, w, ctx);
+                // Render parenthesized expression as (content) - check for control flow inside
+                try renderParenthesizedBody(self, body, w, ctx);
+            },
+            .if_expression => {
+                // If the body is a direct if_expression, render it without extra braces
+                try renderIfExpressionInner(self, body, w, ctx);
+            },
+            .for_expression => {
+                try renderForExpressionInner(self, body, w, ctx);
+            },
+            .while_expression => {
+                try renderWhileExpressionInner(self, body, w, ctx);
+            },
+            .switch_expression => {
+                try renderSwitchExpressionInner(self, body, w, ctx);
             },
             else => {},
         }
@@ -1061,6 +1176,98 @@ fn renderForExpression(
     }
 
     try w.writeAll("}");
+}
+
+/// Render a parenthesized expression body as (...) - handles control flow inside
+fn renderParenthesizedBody(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) anyerror!void {
+    const child_count = node.childCount();
+    var content_node: ?ts.Node = null;
+    var is_control_flow = false;
+
+    // Find the content inside the parentheses
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+        switch (child_kind) {
+            .if_expression, .for_expression, .while_expression, .switch_expression => {
+                content_node = child;
+                is_control_flow = true;
+                break;
+            },
+            .zx_element, .zx_self_closing_element, .zx_fragment => {
+                content_node = child;
+                break;
+            },
+            else => {},
+        }
+    }
+
+    // Check for multiline
+    const content_start = if (content_node) |c| c.startByte() else node.startByte();
+    const content_end = if (content_node) |c| c.endByte() else node.endByte();
+    const block_start = node.startByte();
+    const block_end = node.endByte();
+
+    const has_preceding_newline = if (block_start < content_start and content_start <= self.source.len)
+        std.mem.indexOf(u8, self.source[block_start..content_start], "\n") != null
+    else
+        false;
+
+    const has_trailing_newline = if (content_end < block_end and block_end <= self.source.len)
+        std.mem.indexOf(u8, self.source[content_end..block_end], "\n") != null
+    else
+        false;
+
+    const is_multiline = has_preceding_newline or has_trailing_newline;
+
+    try w.writeAll("(");
+
+    if (content_node) |content| {
+        const content_kind = NodeKind.fromNode(content);
+
+        if (is_multiline) {
+            try w.writeAll("\n");
+            ctx.indent_level += 2;
+            try ctx.writeIndent(w);
+        }
+
+        // For control flow expressions, we need to adjust indent before calling
+        // because their branch renderers expect a pre-decremented level
+        if (is_control_flow) {
+            ctx.indent_level -= 1;
+        }
+
+        switch (content_kind) {
+            .if_expression => try renderIfExpressionInner(self, content, w, ctx),
+            .for_expression => try renderForExpressionInner(self, content, w, ctx),
+            .while_expression => try renderWhileExpressionInner(self, content, w, ctx),
+            .switch_expression => try renderSwitchExpressionInner(self, content, w, ctx),
+            .zx_element => try renderElement(self, content, w, ctx),
+            .zx_self_closing_element => try renderSelfClosingElement(self, content, w, ctx),
+            .zx_fragment => try renderFragment(self, content, w, ctx),
+            else => try renderNodeWithContext(self, content, w, ctx),
+        }
+
+        if (is_control_flow) {
+            ctx.indent_level += 1;
+        }
+
+        if (is_multiline) {
+            ctx.indent_level -= 2;
+            try w.writeAll("\n");
+            ctx.indent_level += 1;
+            try ctx.writeIndent(w);
+            ctx.indent_level -= 1;
+        }
+    }
+
+    try w.writeAll(")");
 }
 
 /// Render while expression: {while (cond) : (continue_expr) (<body>)}
@@ -1231,7 +1438,9 @@ fn renderCaseValue(
             try renderBlockInline(self, node, w, ctx);
         },
         .if_expression => {
-            try renderIfExpressionInner(self, node, w, ctx);
+            // Detect if branches should be multiline based on preceding newline
+            const is_multiline = detectIfMultiline(self, node);
+            try renderIfExpressionInnerWithMultiline(self, node, w, ctx, is_multiline);
         },
         .for_expression => {
             try renderForExpressionInner(self, node, w, ctx);
@@ -1255,6 +1464,53 @@ fn renderCaseValue(
             try w.writeAll(try self.getNodeText(node));
         },
     }
+}
+
+/// Detect if an if expression should be rendered multiline based on preceding newline before first branch
+fn detectIfMultiline(self: *Ast, node: ts.Node) bool {
+    var last_token_before_then: ?ts.Node = null;
+    var then_node: ?ts.Node = null;
+
+    const child_count = node.childCount();
+    var in_condition = false;
+    var in_then = false;
+
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_type = child.kind();
+        const child_kind = NodeKind.fromNode(child);
+
+        if (std.mem.eql(u8, child_type, "if")) {
+            in_condition = true;
+        } else if (std.mem.eql(u8, child_type, "(") and in_condition) {
+            // Start of condition
+        } else if (std.mem.eql(u8, child_type, ")") and in_condition) {
+            in_condition = false;
+            in_then = true;
+            last_token_before_then = child;
+        } else if (std.mem.eql(u8, child_type, "else")) {
+            in_then = false;
+        } else if (in_then and child_kind == .payload) {
+            last_token_before_then = child;
+        } else if (in_then and then_node == null) {
+            then_node = child;
+        }
+    }
+
+    // Check for newline between last token before then and the then branch
+    if (then_node) |then_b| {
+        const prev_end = if (last_token_before_then) |t| t.endByte() else node.startByte();
+        const then_start = then_b.startByte();
+        if (prev_end < then_start and then_start <= self.source.len) {
+            const between = self.source[prev_end..then_start];
+            if (std.mem.indexOf(u8, between, "\n") != null) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /// Find control flow or zx_block inside a node
@@ -1479,17 +1735,36 @@ fn renderBlockInline(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) !void {
-    const child_count = node.childCount();
-    var element_node: ?ts.Node = null;
+    try renderBlockInlineWithMultiline(self, node, w, ctx, false);
+}
 
-    // Find the main element
+/// Render zx_block inline with explicit multiline control
+/// When force_multiline is true, the block will be rendered on multiple lines
+fn renderBlockInlineWithMultiline(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+    force_multiline: bool,
+) anyerror!void {
+    const child_count = node.childCount();
+    var content_node: ?ts.Node = null;
+    var content_type: enum { element, control_flow } = .element;
+
+    // Find the main content (element or control flow expression)
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
         switch (child_kind) {
             .zx_element, .zx_self_closing_element, .zx_fragment => {
-                element_node = child;
+                content_node = child;
+                content_type = .element;
+                break;
+            },
+            .if_expression, .for_expression, .while_expression, .switch_expression => {
+                content_node = child;
+                content_type = .control_flow;
                 break;
             },
             else => {},
@@ -1498,27 +1773,57 @@ fn renderBlockInline(
 
     try w.writeAll("(");
 
-    if (element_node) |elem| {
-        const elem_kind = NodeKind.fromNode(elem);
+    if (content_node) |content| {
+        const content_kind = NodeKind.fromNode(content);
 
-        // Check if element is multiline
-        const elem_start = elem.startByte();
-        const elem_end = elem.endByte();
-        const is_multiline = if (elem_start < elem_end and elem_end <= self.source.len)
-            std.mem.indexOf(u8, self.source[elem_start..elem_end], "\n") != null
+        // Check if content is multiline:
+        // 1. Content has newlines inside itself
+        // 2. OR there's a newline between the block start and the content (preceding newline)
+        // 3. OR there's a newline between the content end and the block end (trailing newline)
+        // 4. OR force_multiline is set
+        const content_start = content.startByte();
+        const content_end = content.endByte();
+        const block_start = node.startByte();
+        const block_end = node.endByte();
+
+        const content_is_multiline = if (content_start < content_end and content_end <= self.source.len)
+            std.mem.indexOf(u8, self.source[content_start..content_end], "\n") != null
         else
             false;
+
+        const has_preceding_newline = if (block_start < content_start and content_start <= self.source.len)
+            std.mem.indexOf(u8, self.source[block_start..content_start], "\n") != null
+        else
+            false;
+
+        const has_trailing_newline = if (content_end < block_end and block_end <= self.source.len)
+            std.mem.indexOf(u8, self.source[content_end..block_end], "\n") != null
+        else
+            false;
+
+        const is_multiline = content_is_multiline or has_preceding_newline or has_trailing_newline or force_multiline;
 
         if (is_multiline) {
             try w.writeAll("\n");
             ctx.indent_level += 2;
             try ctx.writeIndent(w);
-            switch (elem_kind) {
-                .zx_element => try renderElement(self, elem, w, ctx),
-                .zx_self_closing_element => try renderSelfClosingElement(self, elem, w, ctx),
-                .zx_fragment => try renderFragment(self, elem, w, ctx),
-                else => try renderNodeWithContext(self, elem, w, ctx),
+
+            switch (content_type) {
+                .element => switch (content_kind) {
+                    .zx_element => try renderElement(self, content, w, ctx),
+                    .zx_self_closing_element => try renderSelfClosingElement(self, content, w, ctx),
+                    .zx_fragment => try renderFragment(self, content, w, ctx),
+                    else => try renderNodeWithContext(self, content, w, ctx),
+                },
+                .control_flow => switch (content_kind) {
+                    .if_expression => try renderIfExpressionInner(self, content, w, ctx),
+                    .for_expression => try renderForExpressionInner(self, content, w, ctx),
+                    .while_expression => try renderWhileExpressionInner(self, content, w, ctx),
+                    .switch_expression => try renderSwitchExpressionInner(self, content, w, ctx),
+                    else => try renderNodeWithContext(self, content, w, ctx),
+                },
             }
+
             ctx.indent_level -= 2;
             try w.writeAll("\n");
             ctx.indent_level += 1;
@@ -1526,11 +1831,20 @@ fn renderBlockInline(
             try w.writeAll(")");
             ctx.indent_level -= 1;
         } else {
-            switch (elem_kind) {
-                .zx_element => try renderElement(self, elem, w, ctx),
-                .zx_self_closing_element => try renderSelfClosingElement(self, elem, w, ctx),
-                .zx_fragment => try renderFragment(self, elem, w, ctx),
-                else => try renderNodeWithContext(self, elem, w, ctx),
+            switch (content_type) {
+                .element => switch (content_kind) {
+                    .zx_element => try renderElement(self, content, w, ctx),
+                    .zx_self_closing_element => try renderSelfClosingElement(self, content, w, ctx),
+                    .zx_fragment => try renderFragment(self, content, w, ctx),
+                    else => try renderNodeWithContext(self, content, w, ctx),
+                },
+                .control_flow => switch (content_kind) {
+                    .if_expression => try renderIfExpressionInner(self, content, w, ctx),
+                    .for_expression => try renderForExpressionInner(self, content, w, ctx),
+                    .while_expression => try renderWhileExpressionInner(self, content, w, ctx),
+                    .switch_expression => try renderSwitchExpressionInner(self, content, w, ctx),
+                    else => try renderNodeWithContext(self, content, w, ctx),
+                },
             }
             try w.writeAll(")");
         }

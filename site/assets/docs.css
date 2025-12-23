@@ -1460,7 +1460,7 @@ code.hljs {
 }
 
 pre[class*="language-"] {
-    background: var(--code-bg) !important;
+    background: var(--sandbox-bg) !important;
     border-radius: 8px;
 }
 
@@ -1470,7 +1470,7 @@ pre[class*="language-"] {
 
 
 code[class*="language-"] {
-    background: var(--code-bg) !important;
+    background: var(--sandbox-bg) !important;
     /* Don't override text color - let tokens handle it */
 }
 
@@ -2447,6 +2447,7 @@ code[class*="language-"] {
     border: none;
     border-radius: 0;
     background: transparent;
+    height: -webkit-fill-available;
 }
 
 .sandbox-code-content code {

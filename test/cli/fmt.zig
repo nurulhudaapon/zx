@@ -63,19 +63,12 @@ test "if_capture" {
 test "for" {
     try test_fmt("control_flow/for");
 }
-test "for_capture" {
-    if (true) return error.Todo;
-    try test_fmt("control_flow/for_capture");
-}
-test "for_capture_to_component" {
-    if (true) return error.Todo;
-    try test_fmt("control_flow/for_capture_to_component");
-}
+
 test "for_block" {
     try test_fmt("control_flow/for_block");
 }
 test "for_if" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/for_if");
 }
 test "for_for" {

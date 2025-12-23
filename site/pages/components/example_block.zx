@@ -25,7 +25,7 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
         \\    padding: 1rem;
         \\  }
         \\  @media (prefers-color-scheme: dark) {
-        \\    body { background: #23272f !important; color: #f6f7f9 !important; }
+        \\    body { background: #16181d !important; color: #f6f7f9 !important; }
         \\    * { color: inherit; }
         \\  }
         \\  @media (prefers-color-scheme: light) {
