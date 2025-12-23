@@ -87,24 +87,10 @@ pub const PluginOptions = struct {
             after_transpile,
         },
 
-        /// Command arguments to execute.
+        /// Command to execute.
         ///
-        /// The first element should be the executable name or path.
-        /// Subsequent elements are arguments passed to that executable.
-        ///
-        /// ## Output Directory Placeholder
-        /// Use `{outdir}` in any argument to reference the transpile output directory.
-        /// You can append a subpath after `{outdir}`, e.g., `{outdir}/assets/styles.css`
-        ///
-        /// ## Example
-        /// ```zig
-        /// .args = &.{
-        ///     "node_modules/.bin/tailwindcss",
-        ///     "-i", "site/styles.css",
-        ///     "-o", "{outdir}/assets/styles.css"
-        /// }
-        /// ```
-        args: []const []const u8,
+        /// Use `{outdir}` in `LazyPath` arguments to reference the transpile output directory.
+        run: *std.Build.Step.Run,
     };
 
     /// A plugin step that can be executed during the build.

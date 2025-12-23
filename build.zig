@@ -85,7 +85,7 @@ pub fn build(b: *std.Build) !void {
                 .experimental_ts_based_transpile = true,
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
                 .plugins = &.{
-                    plugins.typescript(.{}),
+                    plugins.typescript(b, .{}),
                     // plugins.tailwind(.{}),
                 },
             });
