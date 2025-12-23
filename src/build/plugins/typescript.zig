@@ -10,7 +10,7 @@ pub fn typescript(b: *std.Build, options: ReactPluginOptions) ZxInitOptions.Plug
     cmd.addArgs(&.{ "--bundle", "--log-level=silent" });
     cmd.addPrefixedFileArg("--outfile=", b.path("site/.zx/assets/main.js"));
 
-    if (!builtin.mode == .Debug) {
+    if (builtin.mode != .Debug) {
         cmd.addArgs(&.{
             "--minify",
             "--define:__DEV__=false",
