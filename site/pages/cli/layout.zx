@@ -1,7 +1,8 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     return (
         <div @allocator={ctx.arena}>
-            <Sidebar allocator={ctx.arena} links={&sidebar_links} children={children} />
+            <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} children={children} />
+            <script type="module" src="/assets/docs.js"></script>
         </div>
     );
 }
@@ -9,10 +10,43 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 
-const sidebar_links = [_]SidebarProps.Link{
-    .{ .href = "/cli#overview", .text = "Overview" },
-    .{ .href = "/cli#installation", .text = "Installation" },
-    .{ .href = "/cli#commands", .text = "Commands" },
+const categories = [_]SidebarProps.Category{
+    .{
+        .title = "GET STARTED",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "Overview", .href = "/cli" },
+            .{ .title = "Installation", .href = "#installation" },
+        },
+    },
+    .{
+        .title = "COMMANDS",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "init", .href = "#init" },
+            .{ .title = "dev", .href = "#dev" },
+            .{ .title = "serve", .href = "#serve" },
+            .{ .title = "transpile", .href = "#transpile" },
+            .{ .title = "fmt", .href = "#fmt" },
+            .{ .title = "export", .href = "#export" },
+            .{ .title = "bundle", .href = "#bundle" },
+            .{ .title = "update", .href = "#update" },
+            .{ .title = "upgrade", .href = "#upgrade" },
+            .{ .title = "version", .href = "#version" },
+        },
+    },
+};
+
+const toc_links = [_]SidebarProps.Link{
+    .{ .href = "#installation", .text = "Installation" },
+    .{ .href = "#init", .text = "init" },
+    .{ .href = "#dev", .text = "dev" },
+    .{ .href = "#serve", .text = "serve" },
+    .{ .href = "#transpile", .text = "transpile" },
+    .{ .href = "#fmt", .text = "fmt" },
+    .{ .href = "#export", .text = "export" },
+    .{ .href = "#bundle", .text = "bundle" },
+    .{ .href = "#update", .text = "update" },
+    .{ .href = "#upgrade", .text = "upgrade" },
+    .{ .href = "#version", .text = "version" },
 };
 
 const zx = @import("zx");

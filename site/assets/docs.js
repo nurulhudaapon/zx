@@ -150,85 +150,21 @@ function setupCopyButtons() {
   });
 }
 
-// Setup "ON THIS PAGE" navigation for docs and CLI pages
-function setupOnThisPage() {
-  const content = document.querySelector('.content');
-  const nav = document.getElementById('on-this-page-nav');
-  if (!content || !nav) return;
-
-  // Get all headings, but filter out those inside code examples or code blocks
-  const allHeadings = content.querySelectorAll('h1, h2, h3, h4');
-  const items = [];
-
-  allHeadings.forEach(function(heading) {
-    // Skip headings inside code blocks, example blocks, or pre elements
-    if (heading.closest('pre') || 
-        heading.closest('.code-example') || 
-        heading.closest('.example-code') ||
-        heading.closest('code') ||
-        heading.closest('.code-wrapper') ||
-        heading.closest('iframe')) {
-      return;
-    }
-
-    const id = heading.id || heading.textContent.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-    if (!heading.id) {
-      heading.id = id;
-    }
-
-    const level = parseInt(heading.tagName.charAt(1));
-    const text = heading.textContent.trim();
-    
-    items.push({ level: level, id: id, text: text });
-  });
-
-  if (items.length === 0) {
-    const sidebar = document.getElementById('on-this-page');
-    if (sidebar) sidebar.style.display = 'none';
-    return;
+function getOS() {
+  const userAgent = navigator.userAgent;
+  if (/Windows NT/i.test(userAgent)) {
+      return 'windows';
+  } else if (/Macintosh|Mac OS X/i.test(userAgent)) {
+      return 'macos';
+  } else if (/Android/i.test(userAgent)) {
+      return 'android';
+  } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      return 'ios';
+  } else if (/Linux/i.test(userAgent)) {
+      return 'linux';
   }
-
-  items.forEach(function(item) {
-    const link = document.createElement('a');
-    link.href = '#' + item.id;
-    link.textContent = item.text;
-    link.className = 'right-sidebar-link';
-    if (item.level > 2) {
-      link.className += ' right-sidebar-link-nested';
-      link.style.paddingLeft = ((item.level - 2) * 1) + 'rem';
-    }
-    nav.appendChild(link);
-  });
-
-  // Highlight active section on scroll
-  function updateActiveLink() {
-    const scrollPos = window.scrollY + 100;
-    let current = '';
-    
-    items.forEach(function(item) {
-      const element = document.getElementById(item.id);
-      if (element && element.offsetTop <= scrollPos) {
-        current = item.id;
-      }
-    });
-
-    nav.querySelectorAll('.right-sidebar-link').forEach(function(link) {
-      link.classList.remove('active');
-      if (link.getAttribute('href') === '#' + current) {
-        link.classList.add('active');
-      }
-    });
-  }
-
-  window.addEventListener('scroll', updateActiveLink);
-  updateActiveLink();
+  return 'unknown';
 }
 
-// Initialize ON THIS PAGE navigation when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupOnThisPage);
-} else {
-  setupOnThisPage();
-}
+// Add a class to the body element
+document.body.classList.add(getOS());

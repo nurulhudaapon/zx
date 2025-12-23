@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "version_string", build_zon.version);
     options.addOption([]const u8, "description", build_zon.description);
     options.addOption([]const u8, "repository", build_zon.repository);
+    options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
 
     // --- ZX App Module --- //
     const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });

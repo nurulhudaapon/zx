@@ -799,6 +799,20 @@ body {
     margin: 0;
 }
 
+.cli-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--link-color);
+    color: var(--bg-color);
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
 .cli-command-syntax {
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     font-size: 0.875rem;
@@ -1978,6 +1992,21 @@ code[class*="language-"] {
     margin-bottom: 0;
 }
 
+/* Inline badge */
+.badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--link-color);
+    color: var(--bg-color);
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
 /* Callout boxes */
 .callout {
     background: var(--code-bg);
@@ -2172,6 +2201,48 @@ code[class*="language-"] {
 .install-box-header:has(#tab-zig-win:checked) + .install-box-content #content-zig-win,
 .install-box-header:has(#tab-zig-other:checked) + .install-box-content #content-zig-other {
     display: block;
+}
+
+/* OS-based auto-selection - Windows */
+body.windows .install-box-header:has(#tab-unix:checked) + .install-box-content #content-unix,
+body.windows .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac {
+    display: none;
+}
+
+body.windows .install-box-header:has(#tab-unix:checked) + .install-box-content #content-windows,
+body.windows .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-win {
+    display: block;
+}
+
+body.windows .install-box-header:has(#tab-unix:checked) label[for="tab-unix"],
+body.windows .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-mac"] {
+    color: var(--subtitle-color);
+    border-bottom-color: transparent;
+}
+
+body.windows .install-box-header:has(#tab-unix:checked) label[for="tab-windows"],
+body.windows .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-win"] {
+    color: var(--text-color);
+    border-bottom-color: var(--link-color);
+}
+
+/* OS-based auto-selection - Linux (use Other for Zig) */
+body.linux .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac {
+    display: none;
+}
+
+body.linux .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-other {
+    display: block;
+}
+
+body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-mac"] {
+    color: var(--subtitle-color);
+    border-bottom-color: transparent;
+}
+
+body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-other"] {
+    color: var(--text-color);
+    border-bottom-color: var(--link-color);
 }
 
 /* Next steps grid */
