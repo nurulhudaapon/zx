@@ -9,16 +9,17 @@ pub fn tailwind(b: *std.Build, options: TailwindPluginOptions) ZxInitOptions.Plu
     cmd.addPrefixedFileArg("-i ", input);
     cmd.addPrefixedFileArg("-o ", output);
 
+    const steps = b.allocator.alloc(ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
+    steps[0] = .{
+        .command = .{
+            .type = .after_transpile,
+            .run = cmd,
+        },
+    };
+
     return .{
         .name = "tailwindcss",
-        .steps = &.{
-            .{
-                .command = .{
-                    .type = .after_transpile,
-                    .run = cmd,
-                },
-            },
-        },
+        .steps = steps,
     };
 }
 

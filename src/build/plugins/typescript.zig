@@ -24,25 +24,17 @@ pub fn typescript(b: *std.Build, options: ReactPluginOptions) ZxInitOptions.Plug
         });
     }
 
+    const steps = b.allocator.alloc(ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
+    steps[0] = .{
+        .command = .{
+            .type = .after_transpile,
+            .run = cmd,
+        },
+    };
+
     return .{
         .name = "typescript",
-        .steps = &.{
-            // .{
-            //     .command = .{
-            //         .type = .after_transpile,
-            //         .args = &.{
-            //             "bun",
-            //             "install",
-            //         },
-            //     },
-            // },
-            .{
-                .command = .{
-                    .type = .after_transpile,
-                    .run = cmd,
-                },
-            },
-        },
+        .steps = steps,
     };
 }
 

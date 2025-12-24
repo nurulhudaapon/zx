@@ -94,7 +94,7 @@ pub const PluginOptions = struct {
     };
 
     /// A plugin step that can be executed during the build.
-    const PluginStep = union(enum) {
+    pub const PluginStep = union(enum) {
         /// Execute a shell command
         command: PluginStepCommand,
     };
