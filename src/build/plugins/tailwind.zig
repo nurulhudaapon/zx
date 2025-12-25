@@ -6,8 +6,12 @@ pub fn tailwind(b: *std.Build, options: TailwindPluginOptions) ZxInitOptions.Plu
     const cmd: *std.Build.Step.Run = .create(b, "tailwind");
     cmd.addFileArg(bin);
     cmd.addArg("--map");
-    cmd.addPrefixedFileArg("-i ", input);
-    cmd.addPrefixedFileArg("-o ", output);
+
+    cmd.addArg("-i");
+    cmd.addFileArg(input);
+
+    cmd.addArg("-o");
+    cmd.addFileArg(output);
 
     const steps = b.allocator.alloc(ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
     steps[0] = .{

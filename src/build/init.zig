@@ -213,22 +213,20 @@ pub fn initInner(
                                 // if path starts with placeholder, replace with the actual location
                                 const outdir_placeholder = "{outdir}";
 
-                                const input = path.lazy_path.getPath3(b, null).sub_path;
-                                std.debug.print("input path: {s}\n", .{input});
+                                const template = path.lazy_path.getPath3(b, null).sub_path;
 
-                                if (std.mem.startsWith(u8, input, outdir_placeholder)) {
-                                    const outdir_path = if (outdir_placeholder.len == input.len)
+                                if (std.mem.startsWith(u8, template, outdir_placeholder)) {
+                                    const sub_path = if (outdir_placeholder.len == template.len)
                                         ""
                                     else
-                                        input[(outdir_placeholder.len + 1)..];
+                                        template[outdir_placeholder.len + 1..];
 
-                                    const translated = transpile_outdir.path(b, outdir_path);
-                                    std.debug.print("outputh path: {s}\n", .{translated.getPath(b)});
+                                    const replaced = transpile_outdir.path(b, sub_path);
 
                                     arg.* = .{
                                         .lazy_path = .{
                                             .prefix = "",
-                                            .lazy_path = translated,
+                                            .lazy_path = replaced,
                                         },
                                     };
                                 }
