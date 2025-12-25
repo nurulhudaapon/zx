@@ -3,7 +3,7 @@ pub const Client = @This();
 pub const bom = @import("bom.zig");
 
 pub const ComponentMeta = struct {
-    type: zx.Ast.ClientComponentMetadata.Type,
+    type: zx.Attribute.Rendering,
     id: []const u8,
     name: []const u8,
     path: []const u8,

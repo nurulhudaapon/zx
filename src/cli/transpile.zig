@@ -432,7 +432,7 @@ fn copyDirectory(
 // ============================================================================
 
 const ClientComponentSerializable = struct {
-    type: zx.Ast.ClientComponentMetadata.Type,
+    type: zx.Attribute.Rendering,
     id: []const u8,
     name: []const u8,
     path: []const u8,

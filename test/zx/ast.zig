@@ -244,8 +244,6 @@ test "element_nested" {
     try test_render("element/nested", @import("./../data/element/nested.zig").Page);
 }
 test "element_fragment" {
-    // TODO: Fragment transpilation generates invalid Zig code (trailing comma in empty children)
-    // if (true) return error.SkipZigTest;
     try test_transpile("element/fragment");
     try test_render("element/fragment", @import("./../data/element/fragment.zig").Page);
 }
