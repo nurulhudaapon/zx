@@ -138,7 +138,7 @@ const zx = @import("zx");
 
 ### Rust
 
-* [Leptos](https://github.com/leptos-dev/leptos) - Full-stack, isomorphic Rust web framework with fine-grained reactivity and JSX-like syntax
+* [Leptos](https://github.com/leptos-rs/leptos) - Full-stack, isomorphic Rust web framework with fine-grained reactivity and JSX-like syntax
 * [Dioxus](https://github.com/DioxusLabs/dioxus) - Cross-platform GUI framework with React-like API, supporting web, desktop, mobile, and SSR
 * [Yew](https://github.com/yewstack/yew) - Rust / Wasm framework for creating reliable and efficient web applications with component-based architecture
 * [Sycamore](https://github.com/sycamore-rs/sycamore) - Reactive web framework with fine-grained reactivity and minimal bundle sizes
