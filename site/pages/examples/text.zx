@@ -1,18 +1,35 @@
-pub fn TextDemo(allocator: zx.Allocator) zx.Component {
-    const user_name = "Alice & Bob";
-    const html_content = "<script>alert('XSS')</script>";
-    const unsafe_html = "<span>Test</span>";
+pub fn Expressions(allocator: zx.Allocator) zx.Component {
+    const string_val = "hello";
+    const int_val: i32 = 42;
+    const float_val: f32 = 3.14;
+    const bool_true = true;
+    const bool_false = false;
+    const optional_val: ?[]const u8 = "present";
+    const optional_null: ?[]const u8 = null;
+    
+    const InputType = enum { text, number, checkbox };
+    const enum_val = InputType.text;
+
+    const component_val = (<p>hi</p>);
+
+    const component_array_val = allocator.alloc(zx.Component, 2) catch unreachable;
+    component_array_val[0] = (<li>hi</li>);
+    component_array_val[1] = (<li>hello</li>);
 
     return (
-        <main @allocator={allocator}>
-            <section>
-                <p>User: {user_name}</p>
-                <p>Safe HTML: {html_content}</p>
-                <p>Unsafe HTML: {[unsafe_html:s]}</p>
-            </section>
-        </main>
+        <form @allocator={allocator}>
+            <p>String: {string_val}</p>
+            <p>Integer: {int_val}</p>
+            <p>Float: {float_val}</p>
+            <p>Boolean: {bool_true}</p>
+            <p>Boolean: {bool_false}</p>
+            <p>Optional: {optional_val}</p>
+            <p>Optional: {optional_null}</p>
+            <p>Enum: {enum_val}</p>
+            <p>Component: {component_val}</p>
+            <p>Component Array: {component_array_val}</p>
+        </form>
     );
 }
 
 const zx = @import("zx");
-

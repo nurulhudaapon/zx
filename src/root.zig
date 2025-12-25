@@ -745,8 +745,8 @@ const ZxContext = struct {
             else
                 self.fmt("{d}", .{val}),
             .bool => self.fmt("{s}", .{if (val) "true" else "false"}),
-            .null => .{ .element = null }, // Render nothing for null
-            .optional => if (val) |inner| self.expr(inner) else .{ .element = null },
+            .null => self.ele(.fragment, .{}), // Render nothing for null
+            .optional => if (val) |inner| self.expr(inner) else self.ele(.fragment, .{}),
             .@"enum", .enum_literal => self.txt(@tagName(val)),
             .pointer => |ptr_info| switch (ptr_info.size) {
                 .one => switch (@typeInfo(ptr_info.child)) {
