@@ -69,6 +69,23 @@ const categories = [_]SidebarProps.Category{
             .{ .title = "Children Props", .href = "/docs#children-props" },
         },
     },
+    .{
+        .title = "BUILD & TOOLS",
+        .sections = &[_]SidebarProps.Section{
+            .{ 
+                .title = "Plugins", 
+                .href = "/docs#plugins",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#plugin-overview", .text = "Overview" },
+                    .{ .href = "/docs#builtin-plugins", .text = "Builtin Plugins" },
+                    .{ .href = "/docs#tailwind-plugin", .text = "Tailwind CSS" },
+                    .{ .href = "/docs#esbuild-plugin", .text = "esbuild" },
+                    .{ .href = "/docs#combining-plugins", .text = "Combining Plugins" },
+                    .{ .href = "/docs#custom-plugins", .text = "Custom Plugins" },
+                },
+            },
+        },
+    },
 };
 
 const toc_links = [_]SidebarProps.Link{
@@ -82,6 +99,7 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "#dynamic-routes", .text = "Dynamic Routes" },
     .{ .href = "#fragments", .text = "Fragments" },
     .{ .href = "#children-props", .text = "Children Props" },
+    .{ .href = "#plugins", .text = "Plugins" },
 };
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;

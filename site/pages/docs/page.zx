@@ -285,7 +285,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h2>Children Props</h2>
                 <p>Components can accept child elements through a <code>children</code> prop, enabling wrapper and container patterns. Any elements between the opening and closing tags are passed as the <code>children</code> prop:</p>
                 <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} />
-            </section>            
+            </section>
+            <PluginsSection />
             // <ExamplesSection />
       
         </div>
@@ -300,3 +301,348 @@ const util = @import("util.zig");
 const Introduction = @import("../components/introduction.zig").Introduction;
 const ExamplesSection = @import("../components/examples_section.zig").ExamplesSection;
 const ExampleBlock = @import("../components/example_block.zig").ExampleBlock;
+const CodeBlock = @import("../components/code_block.zig").CodeBlock;
+
+fn PluginsSection(allocator: zx.Allocator) zx.Component {
+    const tailwind_full_example =
+        \\const zx = @import("zx");
+        \\const std = @import("std");
+        \\
+        \\pub fn build(b: *std.Build) !void {
+        \\    const target = b.standardTargetOptions(.{});
+        \\    const optimize = b.standardOptimizeOption(.{});
+        \\    
+        \\    const zx_dep = b.dependency("zx", .{ .target = target, .optimize = optimize });
+        \\    const exe = b.addExecutable(.{
+        \\        .name = "my-app",
+        \\        .root_module = b.createModule(.{
+        \\            .root_source_file = b.path("site/main.zig"),
+        \\            .target = target,
+        \\            .optimize = optimize,
+        \\        }),
+        \\    });
+        \\
+        \\    try zx.init(b, exe, .{
+        \\        .plugins = &.{
+        \\            zx.plugins.tailwind(b, .{
+        \\                .bin = b.path("node_modules/.bin/tailwindcss"),
+        \\                .input = b.path("site/assets/styles.css"),
+        \\                .output = b.path("{outdir}/assets/styles.css"),
+        \\                .minify = optimize != .Debug,
+        \\            }),
+        \\        },
+        \\    });
+        \\}
+    ;
+    const esbuild_full_example =
+        \\const zx = @import("zx");
+        \\const std = @import("std");
+        \\
+        \\pub fn build(b: *std.Build) !void {
+        \\    // ... setup code ...
+        \\
+        \\    try zx.init(b, exe, .{
+        \\        .plugins = &.{
+        \\            zx.plugins.esbuild(b, .{
+        \\                .bin = b.path("node_modules/.bin/esbuild"),
+        \\                .input = b.path("site/main.ts"),
+        \\                .output = b.path("{outdir}/assets/main.js"),
+        \\                .bundle = true,
+        \\                .format = .esm,
+        \\                .platform = .browser,
+        \\                .target = "es2020",
+        \\                .external = &.{ "react", "react-dom" },
+        \\                .define = &.{
+        \\                    .{ .key = "API_URL", .value = "\"https://api.example.com\"" },
+        \\                },
+        \\            }),
+        \\        },
+        \\    });
+        \\}
+    ;
+    const combined_example =
+        \\try zx.init(b, exe, .{
+        \\    .plugins = &.{
+        \\        zx.plugins.esbuild(b, .{
+        \\            .input = b.path("site/main.ts"),
+        \\            .output = b.path("{outdir}/assets/main.js"),
+        \\        }),
+        \\        zx.plugins.tailwind(b, .{
+        \\            .input = b.path("site/assets/styles.css"),
+        \\            .output = b.path("{outdir}/assets/styles.css"),
+        \\        }),
+        \\    },
+        \\});
+    ;
+    const custom_plugin_example =
+        \\const zx = @import("zx");
+        \\const std = @import("std");
+        \\
+        \\pub fn build(b: *std.Build) !void {
+        \\    // ... setup code ...
+        \\
+        \\    try zx.init(b, exe, .{
+        \\        .plugins = &.{
+        \\            // Custom plugin using PluginOptions directly
+        \\            createImageOptimizer(b),
+        \\        },
+        \\    });
+        \\}
+        \\
+        \\fn createImageOptimizer(b: *std.Build) zx.ZxInitOptions.PluginOptions {
+        \\    const cmd = std.Build.Step.Run.create(b, "optimize-images");
+        \\    
+        \\    // Add your custom command
+        \\    cmd.addArgs(&.{ "npx", "imagemin", "site/public/**/*", "--out-dir={outdir}/public" });
+        \\    
+        \\    // Allocate steps array
+        \\    const steps = b.allocator.alloc(zx.ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
+        \\    steps[0] = .{
+        \\        .command = .{
+        \\            .type = .after_transpile,  // Run after ZX transpilation
+        \\            .run = cmd,
+        \\        },
+        \\    };
+        \\    
+        \\    return .{
+        \\        .name = "image-optimizer",
+        \\        .steps = steps,
+        \\    };
+        \\}
+    ;
+    const plugin_options_struct =
+        \\/// Configuration for build plugins
+        \\pub const PluginOptions = struct {
+        \\    /// Human-readable name for this plugin
+        \\    name: []const u8,
+        \\    
+        \\    /// List of steps this plugin should execute
+        \\    steps: []const PluginStep,
+        \\    
+        \\    pub const PluginStep = union(enum) {
+        \\        command: PluginStepCommand,
+        \\    };
+        \\    
+        \\    pub const PluginStepCommand = struct {
+        \\        /// When to execute: before_transpile or after_transpile
+        \\        type: enum { before_transpile, after_transpile },
+        \\        
+        \\        /// The command to run (use {outdir} for output directory)
+        \\        run: *std.Build.Step.Run,
+        \\    };
+        \\};
+    ;
+
+    return (
+        <section id="plugins" class="section" @allocator={allocator}>
+            <h2>Plugins</h2>
+            <p>ZX provides a plugin system to extend the build process with additional tools. Plugins run as build steps and integrate seamlessly with <code>zig build</code>.</p>
+            
+            <h3 id="plugin-overview">Overview</h3>
+            <p>Plugins are configured in your <code>build.zig</code> file and passed to <code>zx.init()</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
+            <p>ZX provides <strong>builtin plugins</strong> for common tasks, and you can also <strong>create custom plugins</strong> for your specific needs.</p>
+
+            <h3 id="builtin-plugins">Builtin Plugins</h3>
+            <p>ZX ships with the following builtin plugins available via <code>zx.plugins</code>:</p>
+            <ul>
+                <li><strong><code>zx.plugins.tailwind</code></strong> — Compile Tailwind CSS styles</li>
+                <li><strong><code>zx.plugins.esbuild</code></strong> — Bundle TypeScript/JavaScript for client-side code</li>
+            </ul>
+
+            <h3 id="tailwind-plugin">Tailwind CSS Plugin</h3>
+            <p>The <code>tailwind</code> builtin plugin compiles your CSS using the Tailwind CSS CLI. It automatically runs after ZX transpiles your pages.</p>
+            
+            <h4>Options</h4>
+            <table class="options-table">
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Type</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>bin</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>node_modules/.bin/tailwindcss</code></td>
+                        <td>Path to the Tailwind CLI binary</td>
+                    </tr>
+                    <tr>
+                        <td><code>input</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>site/assets/styles.css</code></td>
+                        <td>Input CSS file with Tailwind directives</td>
+                    </tr>
+                    <tr>
+                        <td><code>output</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>{"{outdir}"}/assets/styles.css</code></td>
+                        <td>Output path for compiled CSS</td>
+                    </tr>
+                    <tr>
+                        <td><code>minify</code></td>
+                        <td><code>bool</code></td>
+                        <td><code>false</code></td>
+                        <td>Optimize and minify the output</td>
+                    </tr>
+                    <tr>
+                        <td><code>optimize</code></td>
+                        <td><code>bool</code></td>
+                        <td><code>false</code></td>
+                        <td>Optimize output without minifying</td>
+                    </tr>
+                    <tr>
+                        <td><code>cwd</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>null</code></td>
+                        <td>Working directory for Tailwind</td>
+                    </tr>
+                    <tr>
+                        <td><code>map</code></td>
+                        <td><code>bool</code></td>
+                        <td><code>false</code></td>
+                        <td>Generate a source map</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <h4>Example</h4>
+            <CodeBlock code={tailwind_full_example} filename="build.zig" />
+
+            <h3 id="esbuild-plugin">esbuild Plugin</h3>
+            <p>The <code>esbuild</code> builtin plugin bundles TypeScript or JavaScript files for client-side code. It supports modern JavaScript features and can bundle dependencies.</p>
+            
+            <h4>Options</h4>
+            <table class="options-table">
+                <thead>
+                    <tr>
+                        <th>Option</th>
+                        <th>Type</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>bin</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>node_modules/.bin/esbuild</code></td>
+                        <td>Path to the esbuild binary</td>
+                    </tr>
+                    <tr>
+                        <td><code>input</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>site/main.ts</code></td>
+                        <td>Entry point file</td>
+                    </tr>
+                    <tr>
+                        <td><code>output</code></td>
+                        <td><code>?LazyPath</code></td>
+                        <td><code>{"{outdir}"}/assets/main.js</code></td>
+                        <td>Output file path</td>
+                    </tr>
+                    <tr>
+                        <td><code>bundle</code></td>
+                        <td><code>bool</code></td>
+                        <td><code>true</code></td>
+                        <td>Bundle all dependencies</td>
+                    </tr>
+                    <tr>
+                        <td><code>minify</code></td>
+                        <td><code>?bool</code></td>
+                        <td><code>true</code> in release</td>
+                        <td>Minify the output</td>
+                    </tr>
+                    <tr>
+                        <td><code>sourcemap</code></td>
+                        <td><code>?enum</code></td>
+                        <td><code>inline</code> in debug</td>
+                        <td>Source map mode: <code>none</code>, <code>inline</code>, <code>external</code>, <code>linked</code>, <code>both</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>log_level</code></td>
+                        <td><code>?enum</code></td>
+                        <td><code>silent</code></td>
+                        <td>Log level: <code>verbose</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>silent</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>format</code></td>
+                        <td><code>?enum</code></td>
+                        <td>inferred</td>
+                        <td>Output format: <code>iife</code>, <code>cjs</code>, <code>esm</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>platform</code></td>
+                        <td><code>?enum</code></td>
+                        <td><code>browser</code></td>
+                        <td>Target platform: <code>browser</code>, <code>node</code>, <code>neutral</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>target</code></td>
+                        <td><code>?[]const u8</code></td>
+                        <td><code>esnext</code></td>
+                        <td>Environment target (e.g., <code>es2017</code>, <code>chrome58</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><code>splitting</code></td>
+                        <td><code>bool</code></td>
+                        <td><code>false</code></td>
+                        <td>Enable code splitting (ESM only)</td>
+                    </tr>
+                    <tr>
+                        <td><code>external</code></td>
+                        <td><code>[]const []const u8</code></td>
+                        <td><code>&.{"{}"}</code></td>
+                        <td>Modules to exclude from bundle</td>
+                    </tr>
+                    <tr>
+                        <td><code>define</code></td>
+                        <td><code>[]const struct</code></td>
+                        <td><code>&.{"{}"}</code></td>
+                        <td>Custom substitutions (key-value pairs)</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <p><strong>Automatic defines:</strong> The esbuild plugin automatically sets <code>__DEV__</code> and <code>process.env.NODE_ENV</code> based on the build mode.</p>
+            
+            <h4>Example</h4>
+            <CodeBlock code={esbuild_full_example} filename="build.zig" />
+
+            <h3 id="combining-plugins">Combining Plugins</h3>
+            <p>You can use multiple plugins together. They run in order after ZX transpilation:</p>
+            <CodeBlock code={combined_example} />
+
+            <div class="callout note">
+                <strong>Prerequisites:</strong> Install the required CLI tools before using builtin plugins:
+                <code>npm install tailwindcss esbuild</code>
+            </div>
+
+            <h3 id="custom-plugins">Creating Custom Plugins</h3>
+            <p>You can create your own plugins by returning a <code>zx.ZxInitOptions.PluginOptions</code> struct. This allows you to integrate any command-line tool into the ZX build process.</p>
+            
+            <h4>Plugin Structure</h4>
+            <p>A plugin consists of a name and a list of steps. Each step specifies when to run (before or after transpilation) and what command to execute:</p>
+            <CodeBlock code={plugin_options_struct} />
+
+            <h4>Example: Custom Image Optimizer Plugin</h4>
+            <p>Here's how to create a custom plugin that optimizes images during the build:</p>
+            <CodeBlock code={custom_plugin_example} filename="build.zig" />
+
+            <h4>Plugin Lifecycle</h4>
+            <ul>
+                <li><strong><code>before_transpile</code></strong> — Runs before ZX transpiles <code>.zx</code> files to Zig. Useful for preprocessing source files.</li>
+                <li><strong><code>after_transpile</code></strong> — Runs after ZX transpilation. Useful for post-processing like CSS compilation, JS bundling, or asset optimization.</li>
+            </ul>
+
+            <h4>Using <code>{"{outdir}"}</code></h4>
+            <p>In output paths, use <code>{"{outdir}"}</code> as a placeholder for the ZX output directory.</p>
+
+            <div class="callout tip">
+                <strong>Tip:</strong> Look at the builtin plugins (<code>tailwind.zig</code> and <code>esbuild.zig</code> in the ZX source) for examples of how to structure complex plugins with many options.
+            </div>
+        </section>
+    );
+}

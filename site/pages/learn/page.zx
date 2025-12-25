@@ -158,6 +158,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         .{ .href = "#pages-layouts", .text = "Pages and Layouts" },
                     },
                 },
+                .{ 
+                    .title = "Plugins", 
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#plugins", .text = "Using Plugins" },
+                    },
+                },
             },
         },
     };
@@ -178,6 +184,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         .{ .href = "#passing-props", .text = "Passing Props" },
         .{ .href = "#children", .text = "Children Props" },
         .{ .href = "#pages-layouts", .text = "Pages and Layouts" },
+        .{ .href = "#plugins", .text = "Using Plugins" },
         .{ .href = "#next-steps", .text = "Next Steps" },
     };
 
@@ -208,6 +215,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 zx_layout={zx_layout}
                 zx_dynamic={zx_dynamic} zig_dynamic={zig_dynamic} html_dynamic={html_dynamic}
             />
+            <Plugins />
             <NextSteps />
         </Sidebar>
     );
@@ -601,6 +609,79 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
     );
 }
 
+fn Plugins(allocator: zx.Allocator) zx.Component {
+    const tailwind_example =
+        \\const zx = @import("zx");
+        \\
+        \\pub fn build(b: *std.Build) !void {
+        \\    // ... other setup ...
+        \\
+        \\    try zx.init(b, exe, .{
+        \\        .plugins = &.{
+        \\            zx.plugins.tailwind(b, .{
+        \\                .input = b.path("site/assets/styles.css"),
+        \\                .output = b.path("{outdir}/assets/styles.css"),
+        \\            }),
+        \\        },
+        \\    });
+        \\}
+    ;
+    const esbuild_example =
+        \\const zx = @import("zx");
+        \\
+        \\pub fn build(b: *std.Build) !void {
+        \\    // ... other setup ...
+        \\
+        \\    try zx.init(b, exe, .{
+        \\        .plugins = &.{
+        \\            zx.plugins.esbuild(b, .{
+        \\                .input = b.path("site/main.ts"),
+        \\                .output = b.path("{outdir}/assets/main.js"),
+        \\            }),
+        \\        },
+        \\    });
+        \\}
+    ;
+    const link_css_example = "<link rel=\"stylesheet\" href=\"/assets/styles.css\" />";
+    const link_js_example = "<script src=\"/assets/main.js\"></script>";
+
+    return (
+        <section id="plugins" class="section" @allocator={allocator}>
+            <h2>Using Plugins</h2>
+            <p>ZX provides a plugin system to extend your build process. Plugins run as additional build steps and integrate with tools like Tailwind CSS and esbuild.</p>
+            
+            <h3>Builtin Plugins</h3>
+            <p>ZX ships with the following builtin plugins available via <code>zx.plugins</code>:</p>
+            <ul>
+                <li><strong><code>zx.plugins.tailwind</code></strong> — Compile Tailwind CSS styles</li>
+                <li><strong><code>zx.plugins.esbuild</code></strong> — Bundle TypeScript/JavaScript for client-side code</li>
+            </ul>
+
+            <h3>Tailwind CSS Plugin</h3>
+            <p>The Tailwind builtin plugin compiles your CSS using the Tailwind CLI. Add it to your <code>build.zig</code>:</p>
+            <CodeBlock code={tailwind_example} filename="build.zig" />
+            <p>Then link the compiled CSS in your layout:</p>
+            <CodeBlock code={link_css_example} />
+            <div class="callout note">
+                <strong>Prerequisites:</strong> Install the required CLI tools before using builtin plugins:
+                <code>npm install tailwindcss</code>
+            </div>
+
+            <h3>esbuild Plugin</h3>
+            <p>The esbuild builtin plugin bundles TypeScript or JavaScript for client-side interactivity:</p>
+            <CodeBlock code={esbuild_example} filename="build.zig" />
+            <p>Then include the bundled script in your layout:</p>
+            <CodeBlock code={link_js_example} />
+            <div class="callout note">
+                <strong>Prerequisites:</strong> Install the required CLI tools before using builtin plugins:
+                <code>npm install esbuild</code>
+            </div>
+
+            <p>See the <a href="/docs#plugins">Plugins documentation</a> for all available options and how to create your own custom plugins.</p>
+        </section>
+    );
+}
+
 fn NextSteps(allocator: zx.Allocator) zx.Component {
     return (
         <section id="next-steps" class="section" @allocator={allocator}>
@@ -629,6 +710,7 @@ const std = @import("std");
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 const ExampleBlock = @import("../components/example_block.zx").ExampleBlock;
+const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
 const util = @import("../docs/util.zig");
