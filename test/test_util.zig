@@ -49,6 +49,7 @@ pub const TestFileCache = struct {
 
         // Deeply Nested Control Flow (3-level nesting)
         "control_flow/if_for_if",
+        "control_flow/if_while_if",
 
         // Expression
         "expression/text",

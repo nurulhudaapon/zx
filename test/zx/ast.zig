@@ -200,6 +200,11 @@ test "if_for_if" {
     try test_render("control_flow/if_for_if", @import("./../data/control_flow/if_for_if.zig").Page);
 }
 
+test "if_while_if" {
+    try test_transpile("control_flow/if_while_if");
+    try test_render("control_flow/if_while_if", @import("./../data/control_flow/if_while_if.zig").Page);
+}
+
 // === Miscellaneous ===
 test "attribute_builtin" {
     // if (true) return error.Todo;

@@ -144,8 +144,13 @@ test "while_error" {
 
 // === Deeply Nested Control Flow (3-level) ===
 test "if_for_if" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/if_for_if");
+}
+
+test "if_while_if" {
+    // if (true) return error.Todo;
+    try test_fmt("control_flow/if_while_if");
 }
 
 // === Miscellaneous ===
