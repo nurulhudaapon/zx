@@ -155,7 +155,7 @@ test "init → build" {
 }
 
 test "export" {
-    if (builtin.os.tag == .windows or !sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
     try test_cmd(.{
         .args = &.{"export"},
         .expected_exit_code = 0,
