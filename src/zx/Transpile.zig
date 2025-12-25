@@ -2,23 +2,13 @@ const std = @import("std");
 const ts = @import("tree_sitter");
 const sourcemap = @import("sourcemap.zig");
 const Parse = @import("Parse.zig");
+const zx = @import("../root.zig");
 
 const Ast = Parse.Parse;
 const NodeKind = Parse.NodeKind;
 
 pub const ClientComponentMetadata = struct {
-    pub const Type = enum {
-        react, // Client-side React.js
-        client, // Client-side Zig
-        pub fn from(value: []const u8) Type {
-            const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
-
-            return std.meta.stringToEnum(Type, v) orelse {
-                std.debug.print("Invalid rendering type: {s}\n", .{value});
-                return .client;
-            };
-        }
-    };
+    pub const Type = zx.Attribute.Rendering;
 
     type: Type,
     name: []const u8,

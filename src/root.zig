@@ -2,10 +2,10 @@
 //! This module provides the core component system, rendering engine, and utilities
 //! for creating type-safe, high-performance web applications with server-side rendering.
 const std = @import("std");
-
 pub const Ast = @import("zx/Ast.zig");
 pub const Parse = @import("zx/Parse.zig");
-pub const Allocator = std.mem.Allocator;
+
+/// Client component rendering type - available on all targets
 
 // HTML Tags
 const ElementTag = enum {
@@ -653,7 +653,7 @@ pub const Element = struct {
 
     tag: ElementTag,
     children: ?[]const Component = null,
-    attributes: ?[]const Attribute = null,
+    attributes: ?[]const Element.Attribute = null,
 };
 
 const ZxOptions = struct {
@@ -695,9 +695,6 @@ const ZxContext = struct {
         escapeAttributeValueToWriter(&aw.writer, text) catch @panic("OOM");
         return aw.written();
     }
-
-    /// TODO: Remove once we've migrated to new transpiler
-    pub const zx = ele;
 
     pub fn ele(self: *ZxContext, tag: ElementTag, options: ZxOptions) Component {
         // Set allocator from @allocator option if provided
@@ -899,9 +896,6 @@ const ZxContext = struct {
         @compileError("attrs() expects a tuple of attributes");
     }
 
-    /// TODO: Remove once we've migrated to new transpiler
-    pub const lazy = cmp;
-
     pub fn cmp(self: *ZxContext, comptime func: anytype, props: anytype) Component {
         const allocator = self.getAlloc();
         const FuncInfo = @typeInfo(@TypeOf(func));
@@ -938,11 +932,6 @@ const ZxContext = struct {
     }
 };
 
-const ClientComponentOptions = struct {
-    name: []const u8,
-    path: []const u8,
-    id: []const u8,
-};
 /// Initialize a ZxContext without an allocator
 /// The allocator must be provided via @allocator attribute on the parent element
 pub fn init() ZxContext {
@@ -954,13 +943,41 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-/// TODO: Remove once we've migrated to new transpiler
-pub const initWithAllocator = allocInit;
-
 pub const info = @import("zx_info");
 const routing = @import("routing.zig");
 pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
 
+pub const Allocator = std.mem.Allocator;
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
+pub const Attribute = struct {
+    pub const Rendering = enum {
+        /// Client-side React.js
+        react,
+        /// Client-side Zig
+        client,
+        /// Server-side rendering (default)
+        server,
+
+        pub fn from(value: []const u8) Rendering {
+            const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
+            return std.meta.stringToEnum(Rendering, v) orelse {
+                std.debug.print("Invalid rendering type: {s}\n", .{value});
+                return .client;
+            };
+        }
+    };
+
+    pub const Escaping = enum {
+        /// HTML escaping (default behavior)
+        html,
+        /// No escaping; outputs raw HTML. Use with caution for trusted content only.
+        raw,
+    };
+};
+const ClientComponentOptions = struct {
+    name: []const u8,
+    path: []const u8,
+    id: []const u8,
+};
