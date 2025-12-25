@@ -1,13 +1,13 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+pub fn ButtonDemo(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.lazy(Button, .{ .title = "Submit", .class = "primary" }),
-                _zx.lazy(Button, .{ .title = "Cancel" }),
-                _zx.lazy(Button, .{}),
+                _zx.cmp(Button, .{ .title = "Submit", .class = "primary" }),
+                _zx.cmp(Button, .{ .title = "Cancel" }),
+                _zx.cmp(Button, .{}),
             },
         },
     );
@@ -19,16 +19,16 @@ const ButtonProps = struct {
 };
 
 fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .button,
         .{
             .allocator = allocator,
-            .attributes = &.{
-                .{ .name = "class", .value = props.class },
-            },
+            .attributes = _zx.attrs(.{
+                _zx.attr("class", props.class),
+            }),
             .children = &.{
-                _zx.txt(props.title),
+                _zx.expr(props.title),
             },
         },
     );

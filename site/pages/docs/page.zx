@@ -56,16 +56,16 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_routing: std.io.Writer.Allocating = .init(allocator);
     const zx_example_routing = @embedFile("../../../pages/examples/routing.zx");
     const zig_example_routing = @embedFile("../examples/routing.zig");
-    const html_page_routing = @import("../examples/routing.zig").HomePage(ctx);
+    const html_page_routing = @import("../examples/routing.zig").Page(ctx);
     html_page_routing.render(&aw_routing.writer) catch unreachable;
     const html_example_routing = allocator.dupe(u8, aw_routing.written()) catch unreachable;
 
-    // Layout example
+    // Layout example - use simple example like learn page
     var aw_layout: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_layout = @embedFile("../../../pages/layout.zx");
-    const zig_example_layout = @embedFile("../examples/layout.zig");
+    const zx_example_layout = @embedFile("../../../pages/learn/examples/layout_example.zx");
+    const zig_example_layout = @embedFile("../../../pages/learn/examples/.zx/layout_example.zig");
     const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
-    const html_page_layout = @import("../examples/layout.zig").Layout(layoutctx, html_page_routing);
+    const html_page_layout = @import("../learn/examples/.zx/layout_example.zig").Layout(layoutctx, zx.Component{ .text = "Hello, World!" });
     html_page_layout.render(&aw_layout.writer) catch unreachable;
     const html_example_layout = allocator.dupe(u8, aw_layout.written()) catch unreachable;
 
@@ -178,6 +178,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     // const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
     // std.log.info("\x1b[1;36m[DOCS PAGE] Setup phase completed: {d:.3}ms\x1b[0m", .{setup_elapsed_ms});
 
+
+    // Allocate files on heap to avoid stack lifetime issues
+    const layout_files = blk: {
+        const files = allocator.alloc(File, 2) catch unreachable;
+        files[0] = .{ .filename = "layout.zx", .code = zx_example_layout };
+        files[1] = .{ .filename = "page.zx", .code = zx_example_routing };
+        break :blk files;
+    };
     return (
         <div @allocator={allocator}>
             <Introduction />
@@ -271,7 +279,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Return a <code>zx.Component</code></li>
                     <li>Be exported as <code>pub fn Layout</code></li>
                 </ul>
-                <ExampleBlock id="layout" zx_code={zx_example_layout} zig_code={zig_example_layout} html_code={html_example_layout} filename="layout.zx" />
+                <ExampleBlock id="layout" files={layout_files} zig_code={zig_example_layout} html_code={html_example_layout} />
                 <h3>PageContext and LayoutContext</h3>
                 <p>Both <code>PageContext</code> and <code>LayoutContext</code> provide access to:</p>
                 <ul>
@@ -368,7 +376,9 @@ const util = @import("util.zig");
 
 const Introduction = @import("../components/introduction.zig").Introduction;
 const ExamplesSection = @import("../components/examples_section.zig").ExamplesSection;
-const ExampleBlock = @import("../components/example_block.zig").ExampleBlock;
+const example_block = @import("../components/example_block.zig");
+const ExampleBlock = example_block.ExampleBlock;
+const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zig").CodeBlock;
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {

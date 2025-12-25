@@ -1,24 +1,42 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx= zx.initWithAllocator (allocator);
-return _zx.zx (
+pub fn FragmentDemo(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
-            .allocator= allocator,
-            .children=&.{
-                _zx.lazy (Header, .{}),
+            .allocator = allocator,
+            .children = &.{
+                _zx.cmp(Header, .{}),
             },
         },
     );
 }
 
 fn Header(allocator: zx.Allocator) zx.Component {
-    return (
-        <>
-            <h1 @allocator={allocator}>Welcome</h1>
-            <p>Multiple elements without a wrapper</p>
-        </>
+    var _zx = zx.init();
+    return _zx.ele(
+        .fragment,
+        .{
+            .children = &.{
+                _zx.ele(
+                    .h1,
+                    .{
+                        .allocator = allocator,
+                        .children = &.{
+                            _zx.txt("Welcome"),
+                        },
+                    },
+                ),
+                _zx.ele(
+                    .p,
+                    .{
+                        .children = &.{
+                            _zx.txt("Multiple elements without a wrapper"),
+                        },
+                    },
+                ),
+            },
+        },
     );
 }
 
 const zx = @import("zx");
-

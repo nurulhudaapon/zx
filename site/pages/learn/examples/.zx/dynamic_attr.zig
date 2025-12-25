@@ -1,34 +1,34 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn DynamicAttrs(allocator: zx.Allocator) zx.Component {
     const class_name = "primary-btn";
     const user_id = "user-123";
     const is_active = true;
 
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .button,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = class_name },
-                            .{ .name = "id", .value = user_id },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", class_name),
+                            _zx.attr("id", user_id),
+                        }),
                         .children = &.{
-                            _zx.txt("\n                Submit\n            "),
+                            _zx.txt(" Submit"),
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .div,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = if (is_active) "active" else "inactive" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", if (is_active) "active" else "inactive"),
+                        }),
                         .children = &.{
-                            _zx.txt("\n                Dynamic class\n            "),
+                            _zx.txt(" Dynamic class"),
                         },
                     },
                 ),

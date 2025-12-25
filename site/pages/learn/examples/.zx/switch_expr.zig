@@ -1,21 +1,21 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn RoleBadge(allocator: zx.Allocator) zx.Component {
     const role: Role = .admin;
 
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .span,
                     .{
-                        .attributes = &.{
-                            .{ .name = "class", .value = "badge" },
-                        },
+                        .attributes = _zx.attrs(.{
+                            _zx.attr("class", "badge"),
+                        }),
                         .children = &.{
                             switch (role) {
-                                .admin => _zx.zx(
+                                .admin => _zx.ele(
                                     .strong,
                                     .{
                                         .children = &.{

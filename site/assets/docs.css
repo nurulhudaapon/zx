@@ -2781,3 +2781,84 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
         min-height: 120px;
     }
 }
+
+/* Multi-file tabs support */
+.file-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sandbox-file-tabs {
+    flex-wrap: wrap;
+}
+
+.sandbox-file-tabs .sandbox-tab {
+    cursor: pointer;
+    position: relative;
+}
+
+.sandbox-file-tabs .sandbox-tab:hover {
+    color: var(--sandbox-tab-active);
+}
+
+/* Hide all file contents by default */
+.file-content {
+    display: none;
+}
+
+/* Show first file content by default */
+.file-content:first-of-type {
+    display: block;
+}
+
+/* File tab active states using :has() */
+.sandbox-editor:has(.file-radio:checked) .file-content {
+    display: none;
+}
+
+.sandbox-editor:has(.file-radio[id$="-0"]:checked) .file-content[id$="-0"] {
+    display: block;
+}
+
+.sandbox-editor:has(.file-radio[id$="-1"]:checked) .file-content[id$="-1"] {
+    display: block;
+}
+
+.sandbox-editor:has(.file-radio[id$="-2"]:checked) .file-content[id$="-2"] {
+    display: block;
+}
+
+.sandbox-editor:has(.file-radio[id$="-3"]:checked) .file-content[id$="-3"] {
+    display: block;
+}
+
+.sandbox-editor:has(.file-radio[id$="-4"]:checked) .file-content[id$="-4"] {
+    display: block;
+}
+
+/* File tab label styling */
+.sandbox-file-tabs label.sandbox-tab {
+    color: var(--sandbox-tab-text);
+}
+
+/* Active file tab styling */
+.file-radio:checked + label.sandbox-tab {
+    color: var(--sandbox-tab-active);
+    background: var(--sandbox-bg);
+}
+
+.file-radio:checked + label.sandbox-tab::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+}
+
+.file-radio:checked + label.sandbox-tab svg {
+    opacity: 1;
+    color: var(--sandbox-tab-active);
+}

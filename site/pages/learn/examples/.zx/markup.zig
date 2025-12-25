@@ -1,11 +1,11 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+pub fn AboutSection(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .h1,
                     .{
                         .children = &.{
@@ -13,12 +13,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .p,
                     .{
                         .children = &.{
                             _zx.txt("Hello there."),
-                            _zx.zx(
+                            _zx.ele(
                                 .br,
                                 .{},
                             ),
@@ -26,23 +26,23 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
-                _zx.lazy(Card, .{}),
+                _zx.cmp(Card, .{}),
             },
         },
     );
 }
 
 fn Card(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .div,
         .{
             .allocator = allocator,
-            .attributes = &.{
-                .{ .name = "class", .value = "card" },
-            },
+            .attributes = _zx.attrs(.{
+                _zx.attr("class", "card"),
+            }),
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .h2,
                     .{
                         .children = &.{
@@ -50,7 +50,7 @@ fn Card(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .p,
                     .{
                         .children = &.{

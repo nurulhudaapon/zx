@@ -69,7 +69,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_page: std.io.Writer.Allocating = .init(allocator);
     const zx_page = @embedFile("../../../pages/learn/examples/page_example.zx");
     const zig_page = @embedFile("./examples/page_example.zig");
-    const html_page_page = @import("./examples/page_example.zig").AboutPage(ctx);
+    const html_page_page = @import("./examples/page_example.zig").Page(ctx);
     html_page_page.render(&aw_page.writer) catch unreachable;
     const html_page = allocator.dupe(u8, aw_page.written()) catch unreachable;
 
@@ -578,7 +578,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
         <section id="pages-layouts" class="section" @allocator={allocator}>
             <h2>Pages and Layouts</h2>
             <p>ZX uses file-based routing. Create <code>page.zx</code> files in the <code>site/pages/</code> directory:</p>
-            <ExampleBlock id="page-example" zx_code={props.zx_page} zig_code={props.zig_page} html_code={props.html_page} filename="about_page.zx" />
+            <ExampleBlock id="page-example" zx_code={props.zx_page} zig_code={props.zig_page} html_code={props.html_page} filename="page.zx" />
             <p>The file path determines the URL: <code>site/pages/about/page.zx</code> → <code>/about</code></p>
             
             <h3>Dynamic routes</h3>
@@ -592,7 +592,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
             
             <h3>Creating layouts</h3>
             <p>Layouts wrap pages with common UI. Create a <code>layout.zx</code> file:</p>
-            <ExampleBlock id="layout-example" zx_code={layout_code} zig_code={layout_code} html_code={layout_html} filename="layout.zx" />
+            <ExampleBlock id="layout-example" files={layoutFiles(allocator, layout_code, props.zx_page)} zig_code={layout_code} html_code={layout_html} />
             
             <h3>PageContext and LayoutContext</h3>
             <p>Both contexts provide:</p>
@@ -709,8 +709,18 @@ const zx = @import("zx");
 const std = @import("std");
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
-const ExampleBlock = @import("../components/example_block.zx").ExampleBlock;
+const example_block = @import("../components/example_block.zx");
+const ExampleBlock = example_block.ExampleBlock;
+const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
 const util = @import("../docs/util.zig");
+
+// Helper to allocate files on heap to avoid stack lifetime issues
+fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {
+    const files = allocator.alloc(File, 2) catch unreachable;
+    files[0] = .{ .filename = "layout.zx", .code = layout_code };
+    files[1] = .{ .filename = "page.zx", .code = page_code };
+    return files;
+}

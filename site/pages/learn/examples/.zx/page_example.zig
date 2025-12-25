@@ -1,11 +1,11 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    var _zx = zx.initWithAllocator(ctx.arena);
-    return _zx.zx(
+    var _zx = zx.allocInit(ctx.arena);
+    return _zx.ele(
         .main,
         .{
             .allocator = ctx.arena,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .h1,
                     .{
                         .children = &.{
@@ -13,7 +13,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .p,
                     .{
                         .children = &.{
@@ -21,12 +21,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .p,
                     .{
                         .children = &.{
                             _zx.txt("Path: "),
-                            _zx.txt(ctx.request.url.path),
+                            _zx.expr(ctx.request.url.path),
                         },
                     },
                 ),

@@ -1,11 +1,11 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+pub fn HelloWorld(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .h1,
                     .{
                         .children = &.{
@@ -13,15 +13,15 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
-                _zx.lazy(Greeting, .{}),
+                _zx.cmp(Greeting, .{}),
             },
         },
     );
 }
 
 fn Greeting(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .p,
         .{
             .allocator = allocator,

@@ -1,13 +1,13 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn ProductList(allocator: zx.Allocator) zx.Component {
     const products = [_][]const u8{ "Apple", "Banana", "Orange" };
 
-    var _zx = zx.initWithAllocator(allocator);
-    return _zx.zx(
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .h2,
                     .{
                         .children = &.{
@@ -15,22 +15,24 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .ul,
                     .{
-                        .children = blk: {
-                            const __zx_children = _zx.getAllocator().alloc(zx.Component, products.len) catch unreachable;
-                            for (products, 0..) |product, _zx_i| {
-                                __zx_children[_zx_i] = _zx.zx(
-                                    .li,
-                                    .{
-                                        .children = &.{
-                                            _zx.txt(product),
+                        .children = &.{
+                            _zx_for_blk_0: {
+                                const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, products.len) catch unreachable;
+                                for (products, 0..) |product, _zx_i_0| {
+                                    __zx_children_0[_zx_i_0] = _zx.ele(
+                                        .li,
+                                        .{
+                                            .children = &.{
+                                                _zx.expr(product),
+                                            },
                                         },
-                                    },
-                                );
-                            }
-                            break :blk __zx_children;
+                                    );
+                                }
+                                break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
+                            },
                         },
                     },
                 ),

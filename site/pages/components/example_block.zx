@@ -1,14 +1,64 @@
+pub const File = struct {
+    filename: []const u8,
+    code: []const u8,
+    // Computed fields (set during processing)
+    highlighted: []const u8 = "",
+    radio_id: []const u8 = "",
+    content_id: []const u8 = "",
+    is_first: bool = false,
+};
+
 pub const ExampleBlockProps = struct {
     id: []const u8,
-    zx_code: []const u8,
-    zig_code: []const u8,
+    files: []const File = &.{},
+    // Legacy single-file support (used if files is empty)
+    zx_code: []const u8 = "",
+    zig_code: []const u8 = "",
     html_code: []const u8,
     filename: []const u8 = "page.zx",
 };
 
 pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Component {
-    // Highlight ZX code with tree-sitter
-    const highlighted_zx = util.highlightZx(allocator, props.zx_code) catch props.zx_code;
+    // Immediately dupe the files array to avoid stack lifetime issues
+    // The props.files slice points to stack memory that may be cleaned up
+    const input_files: []const File = if (props.files.len > 0) blk: {
+        const duped = allocator.alloc(File, props.files.len) catch unreachable;
+        for (props.files, 0..) |file, i| {
+            duped[i] = .{
+                .filename = allocator.dupe(u8, file.filename) catch unreachable,
+                .code = allocator.dupe(u8, file.code) catch unreachable,
+            };
+        }
+        break :blk duped;
+    } else blk: {
+        const fallback = allocator.alloc(File, 1) catch unreachable;
+        fallback[0] = .{ .filename = props.filename, .code = props.zx_code };
+        break :blk fallback;
+    };
+
+    const file_radio_name = std.fmt.allocPrint(allocator, "file-{s}", .{props.id}) catch unreachable;
+
+    // Process files to add computed fields
+    const files: []const File = blk: {
+        const result = allocator.alloc(File, input_files.len) catch unreachable;
+        for (input_files, 0..) |file, i| {
+            // Skip highlighting for empty or very large files (tree-sitter limit)
+            const highlighted = if (file.code.len > 0 and file.code.len < 100_000)
+                util.highlightZx(allocator, file.code) catch file.code
+            else
+                file.code;
+
+            result[i] = .{
+                .filename = file.filename,
+                .code = file.code,
+                .highlighted = highlighted,
+                .radio_id = std.fmt.allocPrint(allocator, "file-{s}-{d}", .{ props.id, i }) catch unreachable,
+                .content_id = std.fmt.allocPrint(allocator, "file-content-{s}-{d}", .{ props.id, i }) catch unreachable,
+                .is_first = i == 0,
+            };
+        }
+        break :blk result;
+    };
 
     // Wrap HTML with dark mode styles for iframe
     const dark_mode_style = 
@@ -42,25 +92,31 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
     const preview_content_id = std.fmt.allocPrint(allocator, "tab-preview-{s}", .{props.id}) catch unreachable;
     const html_content_id = std.fmt.allocPrint(allocator, "tab-html-{s}", .{props.id}) catch unreachable;
     const zig_content_id = std.fmt.allocPrint(allocator, "tab-zig-{s}", .{props.id}) catch unreachable;
-    const zx_code_id = std.fmt.allocPrint(allocator, "zx-code-{s}", .{props.id}) catch unreachable;
 
     return (
     <div class="sandbox" @allocator={allocator}>
         <div class="sandbox-container">
             <div class="sandbox-editor">
                 <div class="sandbox-editor-header">
-                    <div class="sandbox-tabs">
-                        <button class="sandbox-tab sandbox-tab-active">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z"/>
-                            </svg>
-                            {props.filename}
-                        </button>
+                    <div class="sandbox-tabs sandbox-file-tabs">
+                        {for (files) |file| (
+                            <>
+                                <input @allocator={allocator} type="radio" id={file.radio_id} name={file_radio_name} class="file-radio" checked={file.is_first} />
+                                <label for={file.radio_id} class="sandbox-tab">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z"/>
+                                    </svg>
+                                    {file.filename}
+                                </label>
+                            </>
+                        )}
                     </div>
                 </div>
-                <div class="sandbox-code">
-                    <pre class="sandbox-code-pre"><code id={zx_code_id} class="hljs sandbox-code-lines">{[highlighted_zx:s]}</code></pre>
-                </div>
+                {for (files) |file| (
+                    <div @allocator={allocator} class="sandbox-code file-content" id={file.content_id}>
+                        <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines">{[file.highlighted:s]}</code></pre>
+                    </div>
+                )}
             </div>
 
             <div class="sandbox-preview">

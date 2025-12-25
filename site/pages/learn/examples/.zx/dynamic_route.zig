@@ -1,21 +1,18 @@
-pub fn UserGreeting(allocator: zx.Allocator) zx.Component {
-    const user_name = "Alice";
-    const greeting = "Welcome back";
+// site/pages/user/[id]/page.zx
+pub fn UserProfile(ctx: zx.PageContext) zx.Component {
+    const user_id = ctx.request.param("id") orelse "unknown";
 
-    var _zx = zx.allocInit(allocator);
+    var _zx = zx.allocInit(ctx.arena);
     return _zx.ele(
         .main,
         .{
-            .allocator = allocator,
+            .allocator = ctx.arena,
             .children = &.{
                 _zx.ele(
                     .h1,
                     .{
                         .children = &.{
-                            _zx.expr(greeting),
-                            _zx.txt(", "),
-                            _zx.expr(user_name),
-                            _zx.txt("!"),
+                            _zx.txt("User Profile"),
                         },
                     },
                 ),
@@ -23,7 +20,8 @@ pub fn UserGreeting(allocator: zx.Allocator) zx.Component {
                     .p,
                     .{
                         .children = &.{
-                            _zx.txt("Your profile is ready."),
+                            _zx.txt("User ID: "),
+                            _zx.expr(user_id),
                         },
                     },
                 ),

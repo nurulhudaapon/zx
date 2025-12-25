@@ -1,15 +1,15 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-    var _zx = zx.initWithAllocator(ctx.arena);
-    return _zx.zx(
+    var _zx = zx.allocInit(ctx.arena);
+    return _zx.ele(
         .html,
         .{
             .allocator = ctx.arena,
             .children = &.{
-                _zx.zx(
+                _zx.ele(
                     .head,
                     .{
                         .children = &.{
-                            _zx.zx(
+                            _zx.ele(
                                 .title,
                                 .{
                                     .children = &.{
@@ -20,31 +20,31 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                         },
                     },
                 ),
-                _zx.zx(
+                _zx.ele(
                     .body,
                     .{
                         .children = &.{
-                            _zx.zx(
+                            _zx.ele(
                                 .nav,
                                 .{
                                     .children = &.{
-                                        _zx.zx(
+                                        _zx.ele(
                                             .a,
                                             .{
-                                                .attributes = &.{
-                                                    .{ .name = "href", .value = "/" },
-                                                },
+                                                .attributes = _zx.attrs(.{
+                                                    _zx.attr("href", "/"),
+                                                }),
                                                 .children = &.{
                                                     _zx.txt("Home"),
                                                 },
                                             },
                                         ),
-                                        _zx.zx(
+                                        _zx.ele(
                                             .a,
                                             .{
-                                                .attributes = &.{
-                                                    .{ .name = "href", .value = "/about" },
-                                                },
+                                                .attributes = _zx.attrs(.{
+                                                    _zx.attr("href", "/about"),
+                                                }),
                                                 .children = &.{
                                                     _zx.txt("About"),
                                                 },
@@ -53,15 +53,15 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                                     },
                                 },
                             ),
-                            _zx.zx(
+                            _zx.ele(
                                 .main,
                                 .{
                                     .children = &.{
-                                        _zx.txt(children),
+                                        _zx.expr(children),
                                     },
                                 },
                             ),
-                            _zx.zx(
+                            _zx.ele(
                                 .footer,
                                 .{
                                     .children = &.{
