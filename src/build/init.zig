@@ -205,7 +205,8 @@ pub fn initInner(
         for (plugin.steps) |*step| {
             switch (step.*) {
                 .command => {
-                    const run = step.command.run;
+                    var run = step.command.run;
+                    run.setName(plugin.name);
 
                     for (run.argv.items) |*arg| {
                         switch (arg.*) {
@@ -219,13 +220,13 @@ pub fn initInner(
                                     const sub_path = if (outdir_placeholder.len == template.len)
                                         ""
                                     else
-                                        template[outdir_placeholder.len + 1..];
+                                        template[outdir_placeholder.len + 1 ..];
 
                                     const replaced = transpile_outdir.path(b, sub_path);
 
                                     arg.* = .{
                                         .lazy_path = .{
-                                            .prefix = "",
+                                            .prefix = path.prefix, // Preserve the original prefix (e.g. --outfile=)
                                             .lazy_path = replaced,
                                         },
                                     };

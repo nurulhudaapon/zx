@@ -85,8 +85,16 @@ pub fn build(b: *std.Build) !void {
                 .experimental_ts_based_transpile = true,
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
                 .plugins = &.{
-                    plugins.typescript(b, .{}),
-                    // plugins.tailwind(.{}),
+                    plugins.esbuild(b, .{
+                        .bin = b.path("site/node_modules/.bin/esbuild"),
+                        .input = b.path("site/main.ts"),
+                        .output = b.path("{outdir}/assets/main.js"),
+                    }),
+                    plugins.tailwind(b, .{
+                        .bin = b.path("site/node_modules/.bin/tailwindcss"),
+                        .input = b.path("site/assets/styles.css"),
+                        .output = b.path("{outdir}/assets/styles.css"),
+                    }),
                 },
             });
         }
