@@ -22,8 +22,7 @@
             .hash = "zli-4.3.0-LeUjpu_fAABOSVASSCW2fFh8SFVNHrxQGDXGPNzcSE_i",
         },
         .zig_js = .{
-            .url = "git+https://github.com/nurulhudaapon/jsz.git#04db83c617da1956ac5adc1cb9ba1e434c1cb6fd",
-            .hash = "zig_js-0.0.0-rjCAV-6GAADxFug7rDmPH-uM_XcnJ5NmuAMJCAscMjhi",
+            .path = "vendor/jsz",
         },
         .tree_sitter_zx = .{
             .path = "packages/tree-sitter-zx",
@@ -42,5 +41,6 @@
         "src",
         "packages/tree-sitter-zx",
         "vendor/cachez",
+        "vendor/jsz",
     },
 }
