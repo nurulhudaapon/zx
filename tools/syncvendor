@@ -1,0 +1,54 @@
+#!/bin/bash
+# Sync vendored dependencies from upstream
+# Usage: ./tools/syncvendor [name]
+
+VENDOR_DIR="vendor"
+
+update_vendor() {
+    local name=$1
+    local repo=$2
+    local branch=$3
+    local target="$VENDOR_DIR/$name"
+    
+    printf "  %-20s" "$name"
+    
+    rm -rf "$target"
+    
+    if ! git clone --depth 1 --branch "$branch" "$repo" "$target" 2>/dev/null; then
+        echo "✗"
+        return 1
+    fi
+    
+    # Cleanup
+    rm -rf "$target/.git" "$target/.github" "$target/example" "$target/examples"
+    rm -f "$target/.editorconfig" "$target/.envrc" "$target/.gitignore"
+    rm -f "$target/flake.nix" "$target/flake.lock" "$target/shell.nix"
+    rm -f "$target/release.sh" "$target/Makefile"
+    rm -f "$target/RELEASE-NOTES.md" "$target/CONTRIBUTING.md" 
+    rm -f "$target/CODE_OF_CONDUCT.md" "$target/CHANGELOG.md"
+    
+    echo "✓"
+}
+
+main() {
+    local filter=$1
+    local updated=0
+    
+    echo "Syncing vendor/"
+    echo ""
+    
+    [[ -z "$filter" || "$filter" == "cachez" ]] && update_vendor "cachez" "git@github.com:nurulhudaapon/cachez.git" "master" && ((updated++))
+    [[ -z "$filter" || "$filter" == "cliz" ]] && update_vendor "cliz" "git@github.com:nurulhudaapon/cliz.git" "main" && ((updated++))
+    [[ -z "$filter" || "$filter" == "jsz" ]] && update_vendor "jsz" "git@github.com:nurulhudaapon/jsz.git" "main" && ((updated++))
+    [[ -z "$filter" || "$filter" == "zig-tree-sitter" ]] && update_vendor "zig-tree-sitter" "git@github.com:nurulhudaapon/zig-tree-sitter.git" "master" && ((updated++))
+    
+    echo ""
+    if [[ $updated -eq 0 ]]; then
+        echo "Unknown: $filter"
+        echo "Available: cachez, cliz, jsz, zig-tree-sitter"
+        exit 1
+    fi
+    echo "Done. Run: git diff vendor/"
+}
+
+main "$1"
