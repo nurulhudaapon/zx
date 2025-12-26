@@ -5,6 +5,7 @@ const log = std.log.scoped(.cli);
 const util = @import("shared/util.zig");
 const jsutil = @import("shared/js.zig");
 const flags = @import("shared/flag.zig");
+const base64 = std.base64.standard;
 
 // ============================================================================
 // Command Registration
@@ -25,6 +26,13 @@ const copy_only_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
+const map_flag = zli.Flag{
+    .name = "map",
+    .description = "Generate source map",
+    .type = .String,
+    .default_value = .{ .String = "none" },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -34,6 +42,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addFlag(outdir_flag);
     try cmd.addFlag(copy_only_flag);
     try cmd.addFlag(flags.verbose_flag);
+    try cmd.addFlag(map_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -47,6 +56,15 @@ fn transpile(ctx: zli.CommandContext) !void {
     const copy_dirs = [_][]const u8{ "assets", "public" };
     const copy_only = ctx.flag("copy-only", bool);
     const verbose = ctx.flag("verbose", bool);
+    const sourcemap_str = ctx.flag("map", []const u8);
+    const map: zx.Ast.ParseOptions.MapMode = if (std.mem.eql(u8, sourcemap_str, "inline"))
+        .inlined
+    else if (std.mem.eql(u8, sourcemap_str, "none"))
+        .none
+    else if (sourcemap_str.len > 0 and !std.mem.eql(u8, sourcemap_str, "none"))
+        .{ .file = sourcemap_str }
+    else
+        .none;
     const path = ctx.getArg("path") orelse {
         try ctx.writer.print("Missing path arg\n", .{});
         return;
@@ -85,7 +103,12 @@ fn transpile(ctx: zli.CommandContext) !void {
     const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
         error.IsDir => {
             // It's a directory, proceed with normal transpileCommand
-            try transpileCommand(ctx.allocator, path, outdir, verbose);
+            try transpileCommand(ctx.allocator, .{
+                .path = path,
+                .outdir = outdir,
+                .verbose = verbose,
+                .map = map,
+            });
             return;
         },
         else => {
@@ -113,18 +136,69 @@ fn transpile(ctx: zli.CommandContext) !void {
                 defer ctx.allocator.free(source_z);
 
                 // Parse and transpile
-                var result = try zx.Ast.parse(ctx.allocator, source_z, .{ .path = path });
+                var result = try zx.Ast.parse(ctx.allocator, source_z, .{ .path = path, .map = map });
                 defer result.deinit(ctx.allocator);
 
                 // Output to stdout
                 try ctx.writer.writeAll(result.zig_source);
+
+                // Handle sourcemap for stdout output
+                if (result.sourcemap) |sm| {
+                    switch (map) {
+                        .none => {},
+                        .file => |map_path| {
+                            // Write sourcemap to the specified file
+                            const sourcemap_json = try sm.toJSON(
+                                ctx.allocator,
+                                path,
+                                path,
+                                source,
+                                result.zig_source,
+                            );
+                            defer ctx.allocator.free(sourcemap_json);
+
+                            try std.fs.cwd().writeFile(.{
+                                .sub_path = map_path,
+                                .data = sourcemap_json,
+                            });
+                        },
+                        .inlined => {
+                            // Append inline sourcemap to stdout
+                            const sourcemap_json = try sm.toJSON(
+                                ctx.allocator,
+                                path,
+                                path,
+                                source,
+                                null,
+                            );
+                            defer ctx.allocator.free(sourcemap_json);
+
+                            const base64_encoded = try base64Encode(ctx.allocator, sourcemap_json);
+                            defer ctx.allocator.free(base64_encoded);
+
+                            try ctx.writer.print("\n//# sourceMappingURL=data:application/json;base64,{s}\n", .{base64_encoded});
+                        },
+                    }
+                }
                 return;
             }
         }
     }
 
     // Otherwise, proceed with normal transpileCommand
-    try transpileCommand(ctx.allocator, path, outdir, verbose);
+    try transpileCommand(ctx.allocator, .{
+        .path = path,
+        .outdir = outdir,
+        .verbose = verbose,
+        .map = map,
+    });
+}
+
+fn base64Encode(allocator: std.mem.Allocator, data: []const u8) ![]const u8 {
+    const encoded_len = base64.Encoder.calcSize(data.len);
+    const encoded = try allocator.alloc(u8, encoded_len);
+    _ = base64.Encoder.encode(encoded, data);
+    return encoded;
 }
 
 fn copyOnly(ctx: zli.CommandContext, source_path: []const u8, dest_dir: []const u8) !void {
@@ -136,9 +210,7 @@ fn copyOnly(ctx: zli.CommandContext, source_path: []const u8, dest_dir: []const 
     if (stat.kind == .file) try copyFileToDir(ctx.allocator, source_path, dest_dir);
 }
 
-// ============================================================================
-// Path Utilities
-// ============================================================================
+// ---- Path Utilities ---- //
 
 /// Extract route from source path based on filesystem routing
 /// If the file is in a pages directory, returns the route (e.g., "/about", "/")
@@ -361,10 +433,7 @@ fn getOutputDirRelativePath(allocator: std.mem.Allocator, dir_path: []const u8, 
     return try allocator.dupe(u8, relative_path);
 }
 
-// ============================================================================
-// File Operations
-// ============================================================================
-
+// ---- File Operations ---- //
 fn copyFileToDir(
     allocator: std.mem.Allocator,
     source_file: []const u8,
@@ -427,20 +496,9 @@ fn copyDirectory(
     }
 }
 
-// ============================================================================
-// Client Component Handling
-// ============================================================================
-
-const ClientComponentSerializable = struct {
-    type: zx.Attribute.Rendering,
-    id: []const u8,
-    name: []const u8,
-    path: []const u8,
-    import: []const u8,
-    route: []const u8,
-};
-
-fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
+// ---- Client Component Handling ---- //
+const ClientComponentSerializable = struct { type: zx.Attribute.Rendering, id: []const u8, name: []const u8, path: []const u8, import: []const u8, route: []const u8 };
+fn genClientComponents(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
     _ = verbose;
     // Generate Zig array literal contents (without outer array declaration)
     var aw = std.io.Writer.Allocating.init(allocator);
@@ -507,7 +565,9 @@ fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientCom
     });
 }
 
-fn genClientMain(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
+fn genReactComponents(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
+    if (components.len == 0) return;
+
     var json_str = std.json.Stringify.valueAlloc(allocator, components, .{
         .whitespace = .indent_2,
     }) catch @panic("OOM");
@@ -552,9 +612,6 @@ fn genClientMain(allocator: std.mem.Allocator, components: []const ClientCompone
         log.debug("components.ts path: {s}", .{"components.ts"});
     }
 
-    // Create the node_modules/ziex/ if it doesn't exist
-    // Disable std.log.debug for this block
-
     const pkg_rootdir = try getPackageRootDir(allocator);
     defer allocator.free(pkg_rootdir);
 
@@ -572,21 +629,9 @@ fn genClientMain(allocator: std.mem.Allocator, components: []const ClientCompone
         .sub_path = main_csr_react_path,
         .data = main_csr_react_z,
     });
-
-    // Now using system command to compile the main.tsx file
-    // const outdir = try std.fs.path.join(allocator, &.{ output_dir, "assets" });
-    // defer allocator.free(outdir);
-    // var system = std.process.Child.init(&.{ "bun", "build", main_csr_react_path, "--outdir", outdir }, allocator);
-    // _ = system.spawnAndWait() catch |err| {
-    //     std.debug.print("You need to install bun to compile the main.tsx file: https://bun.sh/docs/installation\n", .{});
-    //     return err;
-    // };
 }
 
-// ============================================================================
-// Route and Meta Generation
-// ============================================================================
-
+// --- Route and Meta Generation --- //
 const Route = struct {
     path: []const u8,
     page_import: []const u8,
@@ -601,20 +646,15 @@ const Route = struct {
     }
 };
 
-fn generateFiles(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool) !void {
+fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool) !void {
     const pages_dir = try std.fs.path.join(allocator, &.{ output_dir, "pages" });
     defer allocator.free(pages_dir);
 
     std.fs.cwd().access(pages_dir, .{}) catch |err| {
-        if (verbose) {
-            std.debug.print("No pages directory found at {s}, skipping meta.zig generation\n", .{pages_dir});
-        }
+        if (verbose) std.debug.print("No pages directory found at {s}, skipping meta.zig generation\n", .{pages_dir});
         return err;
     };
-
-    if (verbose) {
-        std.debug.print("Generating meta.zig from pages directory: {s}\n", .{pages_dir});
-    }
+    if (verbose) std.debug.print("Generating meta.zig from pages directory: {s}\n", .{pages_dir});
 
     // Use .zx/pages as the import prefix since that's where the transpiled files are
     const import_prefix = try std.mem.concat(allocator, u8, &.{"pages"});
@@ -678,14 +718,11 @@ fn generateFiles(allocator: std.mem.Allocator, output_dir: []const u8, verbose: 
         .data = rendered_zig_source,
     });
 
-    if (verbose) {
-        std.debug.print("Generated meta.zig at: {s}\n", .{meta_path});
-    }
+    if (verbose) std.debug.print("Generated meta.zig at: {s}\n", .{meta_path});
 
-    // Copy devscript.js to the output assets/_zx/devscript.js
+    // @devscript assets/_zx/devscript.js
     const devscript_path = try std.fs.path.join(allocator, &.{ output_dir, "assets", "_zx", "devscript.js" });
     defer allocator.free(devscript_path);
-    // create the directory if it doesn't exist
     std.fs.cwd().makePath(std.fs.path.dirname(devscript_path) orelse ".") catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
@@ -694,8 +731,8 @@ fn generateFiles(allocator: std.mem.Allocator, output_dir: []const u8, verbose: 
         .sub_path = devscript_path,
         .data = @embedFile("./transpile/template/devscript.js"),
     });
-    if (verbose)
-        log.debug("Copied devscript.js to: {s}", .{devscript_path});
+
+    if (verbose) log.debug("Copied devscript.js to: {s}", .{devscript_path});
 }
 
 fn writeRoute(writer: anytype, route: Route) !void {
@@ -832,18 +869,14 @@ fn scanRecursive(
     }
 }
 
-// ============================================================================
-// Transpilation
-// ============================================================================
-
+// --- Transpilation --- //
 fn transpileFile(
     allocator: std.mem.Allocator,
+    global_components: *std.array_list.Managed(ClientComponentSerializable),
+    opts: TranspileOptions,
     source_path: []const u8,
     output_path: []const u8,
     input_root: []const u8,
-    output_dir: []const u8,
-    global_components: *std.array_list.Managed(ClientComponentSerializable),
-    verbose: bool,
 ) !void {
     const source = try std.fs.cwd().readFileAlloc(
         allocator,
@@ -855,7 +888,7 @@ fn transpileFile(
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = source_path });
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = source_path, .map = opts.map });
     defer result.deinit(allocator);
 
     // Extract route from source path
@@ -871,52 +904,56 @@ fn transpileFile(
         var cloned_import: []const u8 = undefined;
         var cloned_route: []const u8 = undefined;
 
-        if (component.type == .client) {
-            // For .client components, use the output .zig file path (relative to output_dir)
-            const output_rel_to_dir = try relativePath(allocator, output_dir, output_path);
-            defer allocator.free(output_rel_to_dir);
+        switch (component.type) {
+            .client => {
+                // For .client components, use the output .zig file path (relative to output_dir)
+                const output_rel_to_dir = try relativePath(allocator, opts.outdir, output_path);
+                defer allocator.free(output_rel_to_dir);
 
-            // Remove leading "./" if present
-            const clean_path = if (std.mem.startsWith(u8, output_rel_to_dir, "./"))
-                output_rel_to_dir[2..]
-            else
-                output_rel_to_dir;
+                // Remove leading "./" if present
+                const clean_path = if (std.mem.startsWith(u8, output_rel_to_dir, "./"))
+                    output_rel_to_dir[2..]
+                else
+                    output_rel_to_dir;
 
-            cloned_path = try allocator.dupe(u8, clean_path);
+                cloned_path = try allocator.dupe(u8, clean_path);
 
-            // Generate Zig import: use @@ as placeholder for quotes inside, @ markers on outside
-            const import_str = try std.fmt.allocPrint(allocator, "@@import(@@{s}@@).{s}@", .{ clean_path, component.name });
-            cloned_import = import_str;
-        } else {
-            // For .react components, use the original component path logic
-            const source_dir = std.fs.path.dirname(source_path) orelse ".";
-            const resolved_component_path = try resolvePath(allocator, source_dir, component.path);
-            defer allocator.free(resolved_component_path);
+                // Generate Zig import: use @@ as placeholder for quotes inside, @ markers on outside
+                const import_str = try std.fmt.allocPrint(allocator, "@@import(@@{s}@@).{s}@", .{ clean_path, component.name });
+                cloned_import = import_str;
+            },
+            .react => {
+                // For .react components, use the original component path logic
+                const source_dir = std.fs.path.dirname(source_path) orelse ".";
+                const resolved_component_path = try resolvePath(allocator, source_dir, component.path);
+                defer allocator.free(resolved_component_path);
 
-            // Calculate relative path from input root to component
-            // This path will be the same in the output directory structure
-            const component_rel_to_input = try relativePath(allocator, input_root, resolved_component_path);
-            defer allocator.free(component_rel_to_input);
+                // Calculate relative path from input root to component
+                // This path will be the same in the output directory structure
+                const component_rel_to_input = try relativePath(allocator, input_root, resolved_component_path);
+                defer allocator.free(component_rel_to_input);
 
-            // Get package root directory to determine node_modules location
-            const pkg_rootdir = try getPackageRootDir(allocator);
-            defer allocator.free(pkg_rootdir);
+                // Get package root directory to determine node_modules location
+                const pkg_rootdir = try getPackageRootDir(allocator);
+                defer allocator.free(pkg_rootdir);
 
-            // component.ts is inside node_modules/@ziex/components/index.ts
-            // Calculate relative path from that directory to the component file
-            const ziex_components_dir_rel = if (pkg_rootdir.len == 0)
-                try std.fs.path.join(allocator, &.{ "node_modules", "@ziex", "components" })
-            else
-                try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex", "components" });
-            defer allocator.free(ziex_components_dir_rel);
+                // component.ts is inside node_modules/@ziex/components/index.ts
+                // Calculate relative path from that directory to the component file
+                const ziex_components_dir_rel = if (pkg_rootdir.len == 0)
+                    try std.fs.path.join(allocator, &.{ "node_modules", "@ziex", "components" })
+                else
+                    try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex", "components" });
+                defer allocator.free(ziex_components_dir_rel);
 
-            // Resolve to absolute path for accurate relative path calculation
-            const ziex_components_dir = try std.fs.path.resolve(allocator, &.{ziex_components_dir_rel});
-            defer allocator.free(ziex_components_dir);
+                // Resolve to absolute path for accurate relative path calculation
+                const ziex_components_dir = try std.fs.path.resolve(allocator, &.{ziex_components_dir_rel});
+                defer allocator.free(ziex_components_dir);
 
-            const import_str = try std.fmt.allocPrint(allocator, "@async () => (await import('{s}')).default@", .{resolved_component_path});
-            cloned_path = try allocator.dupe(u8, component_rel_to_input);
-            cloned_import = import_str;
+                const import_str = try std.fmt.allocPrint(allocator, "@async () => (await import('{s}')).default@", .{resolved_component_path});
+                cloned_path = try allocator.dupe(u8, component_rel_to_input);
+                cloned_import = import_str;
+            },
+            else => return error.InvalidComponentType,
         }
 
         // Clone the route for this component
@@ -944,28 +981,78 @@ fn transpileFile(
         .data = result.zig_source,
     });
 
-    if (verbose) {
-        std.debug.print("Transpiled: {s} -> {s}\n", .{ source_path, output_path });
+    // Handle sourcemap based on config
+    if (result.sourcemap) |sm| {
+        switch (opts.map) {
+            .none => {},
+            .file => |map_path| {
+                // Write sourcemap to a separate file
+                const sourcemap_json = try sm.toJSON(
+                    allocator,
+                    output_path,
+                    source_path,
+                    source,
+                    result.zig_source,
+                );
+                defer allocator.free(sourcemap_json);
+
+                try std.fs.cwd().writeFile(.{
+                    .sub_path = map_path,
+                    .data = sourcemap_json,
+                });
+
+                if (opts.verbose) std.debug.print("Sourcemap: {s}\n", .{map_path});
+            },
+            .inlined => {
+                // For inlined sourcemaps, append to the generated file as a comment
+                const sourcemap_json = try sm.toJSON(
+                    allocator,
+                    output_path,
+                    source_path,
+                    source,
+                    null,
+                );
+                defer allocator.free(sourcemap_json);
+
+                const base64_encoded = try base64Encode(allocator, sourcemap_json);
+                defer allocator.free(base64_encoded);
+
+                const inline_comment = try std.fmt.allocPrint(
+                    allocator,
+                    "\n//# sourceMappingURL=data:application/json;base64,{s}\n",
+                    .{base64_encoded},
+                );
+                defer allocator.free(inline_comment);
+
+                // Append to the output file
+                var file = try std.fs.cwd().openFile(output_path, .{ .mode = .read_write });
+                defer file.close();
+                try file.seekFromEnd(0);
+                try file.writeAll(inline_comment);
+
+                if (opts.verbose) std.debug.print("Inlined sourcemap in: {s}\n", .{output_path});
+            },
+        }
     }
+
+    if (opts.verbose) std.debug.print("Transpiled: {s} -> {s}\n", .{ source_path, output_path });
 }
 
 fn transpileDirectory(
     allocator: std.mem.Allocator,
-    dir_path: []const u8,
-    output_dir: []const u8,
     global_components: *std.array_list.Managed(ClientComponentSerializable),
-    verbose: bool,
+    opts: TranspileOptions,
 ) !void {
-    var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
+    var dir = try std.fs.cwd().openDir(opts.path, .{ .iterate = true });
     defer dir.close();
 
-    const output_dir_relative = try getOutputDirRelativePath(allocator, dir_path, output_dir);
+    const output_dir_relative = try getOutputDirRelativePath(allocator, opts.path, opts.outdir);
     defer if (output_dir_relative) |rel| allocator.free(rel);
 
     const sep = std.fs.path.sep_str;
-    const dir_is_pages = std.mem.endsWith(u8, dir_path, sep ++ "pages") or
-        std.mem.eql(u8, getBasename(dir_path), "pages") or
-        std.mem.endsWith(u8, dir_path, "pages");
+    const dir_is_pages = std.mem.endsWith(u8, opts.path, sep ++ "pages") or
+        std.mem.eql(u8, getBasename(opts.path), "pages") or
+        std.mem.endsWith(u8, opts.path, "pages");
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
@@ -996,7 +1083,7 @@ fn transpileDirectory(
             std.mem.startsWith(u8, entry.path, "pages" ++ sep) or
             std.mem.indexOf(u8, entry.path, sep ++ "pages" ++ sep) != null;
 
-        const input_path = try std.fs.path.join(allocator, &.{ dir_path, entry.path });
+        const input_path = try std.fs.path.join(allocator, &.{ opts.path, entry.path });
         defer allocator.free(input_path);
 
         if (is_zx) {
@@ -1006,15 +1093,15 @@ fn transpileDirectory(
             });
             defer allocator.free(output_rel_path);
 
-            const output_path = try std.fs.path.join(allocator, &.{ output_dir, output_rel_path });
+            const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
             defer allocator.free(output_path);
 
-            transpileFile(allocator, input_path, output_path, dir_path, output_dir, global_components, verbose) catch |err| {
+            transpileFile(allocator, global_components, opts, input_path, output_path, opts.path) catch |err| {
                 std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                 continue;
             };
         } else if (is_in_pages_dir) {
-            const output_path = try std.fs.path.join(allocator, &.{ output_dir, entry.path });
+            const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, entry.path });
             defer allocator.free(output_path);
 
             if (std.fs.path.dirname(output_path)) |parent| {
@@ -1028,106 +1115,93 @@ fn transpileDirectory(
             }
 
             try std.fs.cwd().copyFile(input_path, std.fs.cwd(), output_path, .{});
-            if (verbose) {
-                std.debug.print("Copied: {s} -> {s}\n", .{ input_path, output_path });
-            }
+            if (opts.verbose) std.debug.print("Copied: {s} -> {s}\n", .{ input_path, output_path });
         }
     }
 }
 
-fn transpileCommand(
-    allocator: std.mem.Allocator,
+const TranspileOptions = struct {
     path: []const u8,
-    output_dir: []const u8,
+    outdir: []const u8,
     verbose: bool,
-) !void {
-    var client_components = std.array_list.Managed(ClientComponentSerializable).init(allocator);
+    map: zx.Ast.ParseOptions.MapMode = .none,
+};
+fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {
+    var all_client_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
     defer {
-        for (client_components.items) |*component| {
+        for (all_client_cmps.items) |*component| {
             allocator.free(component.id);
             allocator.free(component.name);
             allocator.free(component.path);
             allocator.free(component.import);
             allocator.free(component.route);
         }
-        client_components.deinit();
+        all_client_cmps.deinit();
     }
 
-    const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
+    const stat = std.fs.cwd().statFile(opts.path) catch |err| switch (err) {
         error.IsDir => std.fs.File.Stat{ .kind = .directory, .size = 0, .mode = 0, .atime = 0, .mtime = 0, .ctime = 0, .inode = 0 },
         else => {
-            std.debug.print("Error: Could not access path '{s}': {}\n", .{ path, err });
+            std.debug.print("Error: Could not access path '{s}': {}\n", .{ opts.path, err });
             return err;
         },
     };
 
-    if (stat.kind == .directory) {
-        if (verbose) {
-            std.debug.print("Transpiling directory: {s}\n", .{path});
-        }
-        try transpileDirectory(allocator, path, output_dir, &client_components, verbose);
+    switch (stat.kind) {
+        .directory => {
+            try transpileDirectory(allocator, &all_client_cmps, opts);
+            genRoutes(allocator, opts.outdir, opts.verbose) catch |err| {
+                std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
+            };
+        },
+        .file => {
+            const is_zx = std.mem.endsWith(u8, opts.path, ".zx");
 
-        generateFiles(allocator, output_dir, verbose) catch |err| {
-            std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
-        };
-    } else if (stat.kind == .file) {
-        const is_zx = std.mem.endsWith(u8, path, ".zx");
+            if (!is_zx) {
+                std.debug.print("Error: File must have .zx extension, got '{s}'\n", .{opts.path});
+                return error.InvalidFileExtension;
+            }
 
-        if (!is_zx) {
-            std.debug.print("Error: File must have .zx extension, got '{s}'\n", .{path});
-            return error.InvalidFileExtension;
-        }
+            const basename = getBasename(opts.path);
+            const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - (".zx").len], ".zig" });
+            defer allocator.free(output_rel_path);
+            const outpath = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
+            defer allocator.free(outpath);
 
-        const basename = getBasename(path);
+            const input_root = if (std.fs.path.dirname(opts.path)) |dir| dir else ".";
+            try transpileFile(allocator, &all_client_cmps, opts, opts.path, outpath, input_root);
 
-        const output_rel_path = try std.mem.concat(allocator, u8, &.{
-            basename[0 .. basename.len - (".zx").len],
-            ".zig",
-        });
-        defer allocator.free(output_rel_path);
-
-        const output_path = try std.fs.path.join(allocator, &.{ output_dir, output_rel_path });
-        defer allocator.free(output_path);
-
-        const input_root = if (std.fs.path.dirname(path)) |dir| dir else ".";
-        try transpileFile(allocator, path, output_path, input_root, output_dir, &client_components, verbose);
-
-        generateFiles(allocator, output_dir, verbose) catch |err| {
-            std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
-        };
-
-        if (verbose) {
-            std.debug.print("Done!\n", .{});
-        }
-    } else {
-        std.debug.print("Error: Path must be a file or directory\n", .{});
-        return error.InvalidPath;
+            genRoutes(allocator, opts.outdir, opts.verbose) catch |err| {
+                std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
+            };
+        },
+        else => {
+            std.debug.print("Error: Path must be a file or directory\n", .{});
+            return error.InvalidPath;
+        },
     }
 
-    // Filter components by type and generate appropriate files
-    var csr_components = std.array_list.Managed(ClientComponentSerializable).init(allocator);
-    defer csr_components.deinit();
-    var zig_client_components = std.array_list.Managed(ClientComponentSerializable).init(allocator);
-    defer zig_client_components.deinit();
+    // --- @rendering -> Client Side Rendering Related Files Generation --- //
+    var react_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
+    defer react_cmps.deinit();
+    var client_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
+    defer client_cmps.deinit();
 
-    for (client_components.items) |component| {
-        if (component.type == .react) {
-            try csr_components.append(component);
-        } else if (component.type == .client) {
-            try zig_client_components.append(component);
+    for (all_client_cmps.items) |component| {
+        switch (component.type) {
+            .react => try react_cmps.append(component),
+            .client => try client_cmps.append(component),
+            else => return error.InvalidComponentType,
         }
     }
 
-    if (csr_components.items.len > 0) {
-        genClientMain(allocator, csr_components.items, output_dir, verbose) catch |err| {
-            std.debug.print("Warning: Failed to generate main.tsx: {}\n", .{err});
-        };
-    }
+    // @rendering={.react}
+    genReactComponents(allocator, react_cmps.items, opts.outdir, opts.verbose) catch |err| {
+        std.debug.print("Warning: Failed to generate main.tsx: {}\n", .{err});
+    };
 
-    // if (client_components.items.len > 0) {
-    // Always generate components.zig
-    genClientMainWasm(allocator, zig_client_components.items, output_dir, verbose) catch |err| {
+    // @rendering={.client}
+    genClientComponents(allocator, client_cmps.items, opts.outdir, opts.verbose) catch |err| {
         std.debug.print("Warning: Failed to generate main_wasm.zig: {}\n", .{err});
     };
-    // }
 }

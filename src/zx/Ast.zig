@@ -22,8 +22,22 @@ pub const FmtResult = struct {
     }
 };
 
-const ParseOptions = struct {
+pub const ParseOptions = struct {
+    pub const MapMode = union(enum) {
+        none,
+        file: []const u8,
+        inlined,
+
+        pub fn enabled(self: MapMode) bool {
+            return switch (self) {
+                .none => false,
+                .file => true,
+                .inlined => true,
+            };
+        }
+    };
     path: ?[]const u8 = null,
+    map: MapMode = .none,
 };
 
 pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOptions) !ParseResult {
@@ -33,7 +47,7 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
 
     var parse_result = try Parser.parse(arena, zx_source);
     defer parse_result.deinit(arena);
-    const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = false, .path = options.path });
+    const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = options.map.enabled(), .path = options.path });
     var zig_ast = try std.zig.Ast.parse(gpa, try arena.dupeZ(u8, render_result.source), .zig);
     const zig_sourcez = try arena.dupeZ(u8, if (zig_ast.errors.len == 0) try zig_ast.renderAlloc(arena) else render_result.source);
 
@@ -49,11 +63,18 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
         });
     }
 
+    // Copy sourcemap if present
+    const result_sourcemap: ?sourcemap.SourceMap = if (render_result.sourcemap) |sm|
+        .{ .mappings = try gpa.dupe(u8, sm.mappings) }
+    else
+        null;
+
     return ParseResult{
         .zig_ast = zig_ast,
         .zx_source = try gpa.dupeZ(u8, render_result.source),
         .zig_source = try gpa.dupeZ(u8, zig_sourcez),
         .client_components = components,
+        .sourcemap = result_sourcemap,
     };
 }
 
@@ -62,6 +83,7 @@ pub const ParseResult = struct {
     zx_source: [:0]const u8,
     zig_source: [:0]const u8,
     client_components: std.ArrayList(ClientComponentMetadata),
+    sourcemap: ?sourcemap.SourceMap = null,
 
     pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
         self.zig_ast.deinit(allocator);
@@ -73,11 +95,16 @@ pub const ParseResult = struct {
             allocator.free(component.id);
         }
         self.client_components.deinit(allocator);
+        if (self.sourcemap) |*sm| {
+            sm.deinit(allocator);
+        }
     }
 };
 
 pub const ClientComponentMetadata = Parser.ClientComponentMetadata;
+pub const SourceMap = sourcemap.SourceMap;
 const log = std.log.scoped(.ast);
 
 const std = @import("std");
 const Parser = @import("Parse.zig");
+const sourcemap = @import("sourcemap.zig");

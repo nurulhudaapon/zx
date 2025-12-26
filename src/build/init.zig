@@ -202,6 +202,7 @@ pub fn initInner(
             switch (step.*) {
                 .command => {
                     var run = step.command.run;
+                    _ = run.captureStdErr();
                     run.setName(plugin.name);
 
                     for (run.argv.items) |*arg| {
