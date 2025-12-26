@@ -171,6 +171,9 @@ test "expression_optional" {
     // if (true) return error.Todo;
     try test_fmt("expression/optional");
 }
+test "expression_template" {
+    try test_fmt("expression/template");
+}
 test "expression_struct_access" {
     // if (true) return error.Todo;
     try test_fmt("expression/struct_access");

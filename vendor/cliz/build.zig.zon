@@ -1,0 +1,14 @@
+.{
+    .name = .zli,
+    .version = "4.3.0",
+    .fingerprint = 0x5b01c9c3a623e52d,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+        "README.md",
+    },
+}

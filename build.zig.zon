@@ -1,6 +1,6 @@
 .{
     .name = .zx,
-    .version = "0.1.0-dev.434",
+    .version = "0.1.0-dev.448",
     .description = "ZX is a framework for building web applications with Zig.",
     .repository = "https://github.com/nurulhudaapon/zx",
     .fingerprint = 0xcad77a8d2a3389f2,
@@ -16,27 +16,20 @@
         //     .url = "git+https://github.com/nurulhudaapon/lspz.git?ref=0.15.x#ce6c8f02c78e622421cfc2405c67c5222819ec03",
         //     .hash = "zls-0.15.0-rmm5fkjqIwDZpmDHyKwxa9K2gcI3FPaGVFPwjYWFBM5B",
         // },
-        // ZX CLI - Command Line Interface for ZX
-        .zli = .{
-            .url = "git+https://github.com/nurulhudaapon/cliz.git#aff3b54879e7514afaf8c87f1abe22121b8992d4",
-            .hash = "zli-4.3.0-LeUjpu_fAABOSVASSCW2fFh8SFVNHrxQGDXGPNzcSE_i",
-        },
-        .zig_js = .{
-            .url = "git+https://github.com/nurulhudaapon/jsz.git#04db83c617da1956ac5adc1cb9ba1e434c1cb6fd",
-            .hash = "zig_js-0.0.0-rjCAV-6GAADxFug7rDmPH-uM_XcnJ5NmuAMJCAscMjhi",
-        },
-        .tree_sitter_zx = .{
-            .path = "packages/tree-sitter-zx",
-        },
-        .tree_sitter = .{
-            .url = "git+https://github.com/tree-sitter/zig-tree-sitter#a53dac49d66562006e84dd11211b7ae40db68263",
-            .hash = "tree_sitter-0.25.0-8heIf4KZAQB9VQhOgtGaSvAJFbBn1t08wtsrkce4uEnI",
-        },
+        .zli = .{ .path = "vendor/cliz" },
+        .zig_js = .{ .path = "vendor/jsz" },
+        .tree_sitter = .{ .path = "vendor/zig-tree-sitter" },
+        .tree_sitter_zx = .{ .path = "packages/tree-sitter-zx" },
+        .cachez = .{ .path = "vendor/cachez" },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
         "packages/tree-sitter-zx",
+        "vendor/cachez",
+        "vendor/cliz",
+        "vendor/jsz",
+        "vendor/zig-tree-sitter",
     },
 }

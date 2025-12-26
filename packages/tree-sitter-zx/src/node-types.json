@@ -2617,6 +2617,10 @@
         {
           "type": "zx_string_literal",
           "named": true
+        },
+        {
+          "type": "zx_template_string",
+          "named": true
         }
       ]
     }
@@ -2873,6 +2877,41 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "zx_template_string",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "zx_template_content",
+          "named": true
+        },
+        {
+          "type": "zx_template_substitution",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "zx_template_substitution",
+    "named": true,
+    "fields": {
+      "expression": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {
@@ -3133,6 +3172,10 @@
   },
   {
     "type": "^=",
+    "named": false
+  },
+  {
+    "type": "`",
     "named": false
   },
   {
@@ -3486,6 +3529,10 @@
   },
   {
     "type": "zx_tag_name",
+    "named": true
+  },
+  {
+    "type": "zx_template_content",
     "named": true
   },
   {

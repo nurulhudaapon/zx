@@ -19,6 +19,27 @@ module.exports = grammar(zig, {
       $.zx_block,
     ),
 
+    // Template string: `text {expr} more text`
+    // Similar to JS template literals but without $ sigil
+    zx_template_string: $ => seq(
+      '`',
+      repeat(choice(
+        $.zx_template_content,
+        $.zx_template_substitution,
+      )),
+      '`',
+    ),
+
+    // Text content inside template string (anything except ` and {)
+    zx_template_content: _$ => token(prec(-1, /[^`{]+/)),
+
+    // Interpolation: {expression}
+    zx_template_substitution: $ => seq(
+      '{',
+      field('expression', $.expression),
+      '}',
+    ),
+
     // Main zx block - HTML wrapped in parentheses: (<...>...</...>)
     zx_block: $ => seq(
       '(',
@@ -96,10 +117,11 @@ module.exports = grammar(zig, {
 
     zx_attribute_name: _$ => /[a-zA-Z_:][a-zA-Z0-9_:.-]*/,
 
-    // Attribute value - can be a Zig expression in braces or a string
+    // Attribute value - can be a Zig expression in braces, a string, or a template string
     zx_attribute_value: $ => choice(
       $.zx_expression_block,
       $.zx_string_literal,
+      $.zx_template_string,
     ),
 
     // Zig expression inside braces: {expr}

@@ -1769,6 +1769,8 @@ pub const ZxAttribute = struct {
     is_builtin: bool,
     /// Optional zx_block node for attribute values that contain ZX elements
     zx_block_node: ?ts.Node = null,
+    /// Optional template string node for attribute values that are template strings
+    template_string_node: ?ts.Node = null,
 
     /// Check if any attributes in the list are regular (non-builtin)
     fn hasRegular(attrs: []const ZxAttribute) bool {
@@ -1810,19 +1812,113 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
     for (attributes) |attr| {
         if (attr.is_builtin) continue;
         try ctx.writeIndent();
-        try ctx.write("_zx.attr(\"");
-        try ctx.write(attr.name);
-        try ctx.write("\", ");
-        // If value contains a zx_block, transpile it instead of writing raw text
-        if (attr.zx_block_node) |zx_node| {
+
+        // Handle template strings with _zx.attrf
+        if (attr.template_string_node) |template_node| {
+            try transpileTemplateStringAttr(self, attr.name, template_node, ctx);
+        } else if (attr.zx_block_node) |zx_node| {
+            // If value contains a zx_block, transpile it instead of writing raw text
+            try ctx.write("_zx.attr(\"");
+            try ctx.write(attr.name);
+            try ctx.write("\", ");
             try transpileBlock(self, zx_node, ctx);
+            try ctx.write("),\n");
         } else {
+            try ctx.write("_zx.attr(\"");
+            try ctx.write(attr.name);
+            try ctx.write("\", ");
             try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            try ctx.write("),\n");
         }
-        try ctx.write("),\n");
     }
 
     ctx.indent_level -= 1;
+    try ctx.writeIndent();
+    try ctx.write("}),\n");
+}
+
+/// Transpile a template string attribute to _zx.attrf("name", "format", .{ values })
+fn transpileTemplateStringAttr(self: *Ast, attr_name: []const u8, template_node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+    // Collect template content and substitutions
+    var format_parts = std.ArrayList(u8){};
+    defer format_parts.deinit(ctx.output.allocator);
+    var substitutions = std.ArrayList(ts.Node){};
+    defer substitutions.deinit(ctx.output.allocator);
+
+    const template_start = template_node.startByte();
+    const template_end = template_node.endByte();
+
+    // Track current position to capture gaps between children (like spaces)
+    var current_pos = template_start + 1; // Skip opening backtick
+
+    const child_count = template_node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = template_node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+        const child_start = child.startByte();
+        const child_end = child.endByte();
+
+        // Capture any gap (like spaces) between previous position and this child
+        if (current_pos < child_start and child_start <= self.source.len) {
+            try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos..child_start]);
+        }
+
+        switch (child_kind) {
+            .zx_template_content => {
+                // Add text content to format string
+                const text = try self.getNodeText(child);
+                try format_parts.appendSlice(ctx.output.allocator, text);
+            },
+            .zx_template_substitution => {
+                // Tree-sitter may include leading whitespace in the substitution node.
+                // Find the actual '{' position and capture any text before it.
+                const sub_source = self.source[child_start..child_end];
+                const brace_pos = std.mem.indexOfScalar(u8, sub_source, '{');
+                if (brace_pos) |pos| {
+                    if (pos > 0) {
+                        // There's text before the '{' (like a space)
+                        try format_parts.appendSlice(ctx.output.allocator, sub_source[0..pos]);
+                    }
+                }
+
+                // Replace with {s} and save the expression node
+                try format_parts.appendSlice(ctx.output.allocator, "{s}");
+
+                // Get the expression using field name
+                const expr_node = child.childByFieldName("expression");
+                if (expr_node) |expr| {
+                    try substitutions.append(ctx.output.allocator, expr);
+                }
+            },
+            else => {},
+        }
+
+        current_pos = child_end;
+    }
+
+    // Capture any remaining content before closing backtick (unlikely but safe)
+    if (current_pos < template_end - 1 and template_end <= self.source.len) {
+        try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos .. template_end - 1]);
+    }
+
+    // Write _zx.attrf("name", "format", .{ values })
+    try ctx.write("_zx.attrf(\"");
+    try ctx.write(attr_name);
+    try ctx.write("\", \"");
+    try ctx.write(format_parts.items);
+    try ctx.write("\", .{\n");
+
+    ctx.indent_level += 1;
+    for (substitutions.items) |sub_node| {
+        try ctx.writeIndent();
+        try ctx.write("_zx.attrv(");
+        const expr_text = try self.getNodeText(sub_node);
+        try ctx.writeM(expr_text, sub_node.startByte(), self);
+        try ctx.write("),\n");
+    }
+    ctx.indent_level -= 1;
+
     try ctx.writeIndent();
     try ctx.write("}),\n");
 }
@@ -1851,6 +1947,9 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     // Check if value contains a zx_block
     const zx_block_node = if (value_node) |v| findZxBlockInValue(v) else null;
 
+    // Check if value is a template string
+    const template_string_node = if (value_node) |v| findTemplateStringInValue(v) else null;
+
     const value = if (value_node) |v| try getAttributeValue(self, v) else "\"\"";
     const value_offset = if (value_node) |v| v.startByte() else node.startByte();
 
@@ -1860,6 +1959,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
         .value_byte_offset = value_offset,
         .is_builtin = is_builtin,
         .zx_block_node = zx_block_node,
+        .template_string_node = template_string_node,
     };
 }
 
@@ -1878,6 +1978,28 @@ fn findZxBlockInValue(node: ts.Node) ?ts.Node {
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         if (findZxBlockInValue(child)) |found| {
+            return found;
+        }
+    }
+
+    return null;
+}
+
+/// Find a template string node within an attribute value (for values like attr=`text-{expr}`)
+fn findTemplateStringInValue(node: ts.Node) ?ts.Node {
+    const node_kind = NodeKind.fromNode(node);
+
+    // Direct template string
+    if (node_kind == .zx_template_string) {
+        return node;
+    }
+
+    // Check children for template string
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        if (findTemplateStringInValue(child)) |found| {
             return found;
         }
     }

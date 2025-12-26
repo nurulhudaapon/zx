@@ -273,6 +273,10 @@ test "expression_format" {
     try test_transpile("expression/format");
     try test_render("expression/format", @import("./../data/expression/format.zig").Page);
 }
+test "expression_template" {
+    try test_transpile("expression/template");
+    try test_render("expression/template", @import("./../data/expression/template.zig").Page);
+}
 test "expression_component" {
     // if (true) return error.Todo;
     try test_transpile("expression/component");
@@ -503,6 +507,7 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "expression/function_call", @import("./../data/expression/function_call.zig") },
         .{ "expression/multiline_string", @import("./../data/expression/multiline_string.zig") },
         .{ "expression/optional", @import("./../data/expression/optional.zig") },
+        .{ "expression/template", @import("./../data/expression/template.zig") },
         .{ "component/basic", @import("./../data/component/basic.zig") },
         .{ "component/multiple", @import("./../data/component/multiple.zig") },
         .{ "component/nested", @import("./../data/component/nested.zig") },

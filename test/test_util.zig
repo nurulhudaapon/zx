@@ -87,6 +87,7 @@ pub const TestFileCache = struct {
 
         // Expression
         "expression/optional",
+        "expression/template",
 
         // Raw
         "escaping/pre",

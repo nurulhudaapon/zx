@@ -87,6 +87,7 @@ pub fn initInner(
 
     // --- ZX Transpilation ---
     const transpile_cmd = getZxRun(b, zx_exe, opts);
+    transpile_cmd.setName("zx transpile");
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
     transpile_cmd.addArg("--outdir");

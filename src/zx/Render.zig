@@ -302,6 +302,10 @@ pub fn renderNodeWithContext(
         .zx_expression_block => {
             try renderExpressionBlock(self, node, w, ctx);
         },
+        .zx_template_string => {
+            // Template strings are rendered as-is from source
+            try renderTemplateString(self, node, w);
+        },
         else => {
             try renderSourceWithChildren(self, node, w, ctx);
         },
@@ -777,19 +781,19 @@ fn renderText(
     }
 }
 
-/// Check if node contains only horizontal spaces (no newlines/tabs) - for inline content
-fn hasInlineSpacesOnly(self: *Ast, node: ts.Node) bool {
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        if (NodeKind.fromNode(child) == .zx_text) {
-            const text = self.getNodeText(child) catch continue;
-            const has_newline_or_tab = std.mem.indexOfAny(u8, text, "\n\r\t") != null;
-            if (!has_newline_or_tab and text.len > 0) return true;
-        }
-    }
-    return false;
+/// Render template string: `text {expr} more text`
+/// Template strings are rendered as-is from source, preserving their format
+fn renderTemplateString(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+) !void {
+    const start_byte = node.startByte();
+    const end_byte = node.endByte();
+    if (start_byte >= end_byte or end_byte > self.source.len) return;
+
+    // Write the template string exactly as it appears in source
+    try w.writeAll(self.source[start_byte..end_byte]);
 }
 
 /// Check if a child node has meaningful (non-whitespace) content

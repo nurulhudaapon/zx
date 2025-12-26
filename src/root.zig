@@ -531,14 +531,7 @@ pub const Component = union(enum) {
                         try writer.print(" {s}", .{attribute.name});
                         if (attribute.value) |value| {
                             try writer.writeAll("=\"");
-                            if (attribute.fmt_specifier) |_| {
-                                // Format field is present - value is already formatted, skip HTML escaping
-                                try writer.writeAll(value);
-                            } else {
-                                // HTML escape attribute values to prevent XSS
-                                // Escape quotes, ampersands, and other HTML special characters
-                                try escapeAttributeValueToWriter(writer, value);
-                            }
+                            try escapeAttributeValueToWriter(writer, value);
                             try writer.writeAll("\"");
                         }
                     }
@@ -648,7 +641,6 @@ pub const Element = struct {
     pub const Attribute = struct {
         name: []const u8,
         value: ?[]const u8 = null,
-        fmt_specifier: ?[]const u8 = null, // Format specifier for value (e.g., "{s}", "{d}")
     };
 
     tag: ElementTag,
@@ -682,8 +674,6 @@ pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Compon
 const ZxContext = struct {
     allocator: ?std.mem.Allocator = null,
 
-    /// TODO: Remove once we've migrated to new transpiler
-    pub const getAllocator = getAlloc;
     pub fn getAlloc(self: *ZxContext) std.mem.Allocator {
         return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
     }
@@ -778,7 +768,20 @@ const ZxContext = struct {
 
                     return self.txt(slice);
                 },
+
                 else => @compileError("Unable to render type '" ++ @typeName(T) ++ "', supported types are: int, float, bool, string, enum, optional"),
+            },
+            .@"struct" => |struct_info| {
+                var aw = std.io.Writer.Allocating.init(self.getAlloc());
+                defer aw.deinit();
+
+                // aw.writer.print("{s} ", .{@tagName(struct_info)}) catch @panic("OOM");
+                _ = struct_info;
+                std.zon.stringify.serializeMaxDepth(val, .{ .whitespace = true }, &aw.writer, 100) catch |err| {
+                    return self.fmt("{s}", .{@errorName(err)});
+                };
+
+                return self.txt(aw.written());
             },
             .array => |arr_info| {
                 // Handle arrays of Components
@@ -802,7 +805,7 @@ const ZxContext = struct {
         return .{ .text = text };
     }
 
-    pub fn print(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
+    pub fn printf(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
         const allocator = self.getAlloc();
         const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
         return text;
@@ -831,13 +834,13 @@ const ZxContext = struct {
             // Integers - format to string
             .int, .comptime_int => .{
                 .name = name,
-                .value = self.print("{d}", .{val}),
+                .value = self.printf("{d}", .{val}),
             },
 
             // Floats - format with default precision
             .float, .comptime_float => .{
                 .name = name,
-                .value = self.print("{d}", .{val}),
+                .value = self.printf("{d}", .{val}),
             },
 
             // Booleans - presence-only attribute (true) or omit (false)
@@ -854,6 +857,20 @@ const ZxContext = struct {
 
             else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
         };
+    }
+
+    pub fn attrf(self: *ZxContext, comptime name: []const u8, comptime format: []const u8, args: anytype) ?Element.Attribute {
+        const allocator = self.getAlloc();
+        const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
+        return self.attr(name, text);
+    }
+
+    pub fn attrv(self: *ZxContext, val: anytype) []const u8 {
+        const attrkv = self.attr("f", val);
+        if (attrkv) |a| {
+            return a.value orelse "";
+        }
+        return "";
     }
 
     /// Filter and collect non-null attributes into a slice
@@ -949,6 +966,12 @@ pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
 
 pub const Allocator = std.mem.Allocator;
+
+pub const PageOptions = struct {
+    rendering: ?Attribute.Rendering = null,
+    caching: Attribute.Caching = .none,
+};
+
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
 pub const Attribute = struct {
@@ -974,6 +997,93 @@ pub const Attribute = struct {
         html,
         /// No escaping; outputs raw HTML. Use with caution for trusted content only.
         raw,
+    };
+
+    pub const Caching = union(enum) {
+        none,
+        seconds: u32,
+
+        /// Example:
+        ///
+        /// `5s` -> .{ .seconds = 5 }
+        ///
+        /// `10m` -> .{ .seconds = 600 }
+        ///
+        /// `1h` -> .{ .seconds = 3600 }
+        ///
+        /// `1y` -> .{ .seconds = 31536000 }
+        tag: []const u8,
+
+        /// Get caching duration in seconds
+        /// Examples: "10s" -> 10, "5m" -> 300, "1h" -> 3600, "1d" -> 86400
+        pub fn getSeconds(self: Caching) ?u32 {
+            switch (self) {
+                .seconds => |seconds| return seconds,
+                .tag => |tag| return parseTagRuntime(tag),
+                .none => return null,
+            }
+        }
+
+        /// Comptime version for compile-time validation
+        pub fn getSecondsComptime(comptime self: Caching) comptime_int {
+            return comptime switch (self) {
+                .seconds => |seconds| seconds,
+                .tag => |tag| parseTagComptime(tag),
+                .none => 0,
+            };
+        }
+
+        fn parseTagRuntime(tag: []const u8) u32 {
+            var num_end: usize = 0;
+            while (num_end < tag.len) : (num_end += 1) {
+                const c = tag[num_end];
+                if (!std.ascii.isDigit(c)) break;
+            }
+            if (num_end == 0) return 0;
+
+            const num_str = tag[0..num_end];
+            const unit_str = tag[num_end..];
+
+            const num_value = std.fmt.parseInt(u32, num_str, 10) catch return 0;
+            const unit_value = parseUnitRuntime(unit_str);
+
+            return num_value * unit_value;
+        }
+
+        fn parseTagComptime(comptime tag: []const u8) comptime_int {
+            comptime {
+                var num_end: usize = 0;
+                while (num_end < tag.len) : (num_end += 1) {
+                    const c = tag[num_end];
+                    if (!std.ascii.isDigit(c)) break;
+                }
+                if (num_end == 0) @compileError("Invalid caching tag '" ++ tag ++ "': no number found");
+
+                const num_str = tag[0..num_end];
+                const unit_str = tag[num_end..];
+
+                const num_value = std.fmt.parseInt(u64, num_str, 10) catch @compileError("Invalid caching number '" ++ num_str ++ "'");
+                const unit_value = parseUnitComptime(unit_str);
+
+                return num_value * unit_value;
+            }
+        }
+
+        fn parseUnitRuntime(unit: []const u8) u32 {
+            if (std.mem.eql(u8, unit, "s") or unit.len == 0) return 1;
+            if (std.mem.eql(u8, unit, "m")) return std.time.s_per_min;
+            if (std.mem.eql(u8, unit, "h")) return std.time.s_per_hour;
+            if (std.mem.eql(u8, unit, "d")) return std.time.s_per_day;
+            return 1; // default to seconds
+        }
+
+        fn parseUnitComptime(comptime unit: []const u8) comptime_int {
+            if (std.mem.eql(u8, unit, "s") or unit.len == 0) return 1;
+            if (std.mem.eql(u8, unit, "m")) return std.time.s_per_min;
+            if (std.mem.eql(u8, unit, "h")) return std.time.s_per_hour;
+            if (std.mem.eql(u8, unit, "d")) return std.time.s_per_day;
+            @compileError("Invalid caching unit '" ++ unit ++ "', supported units: s, m, h, d");
+        }
     };
 };
 const ClientComponentOptions = struct {
