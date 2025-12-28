@@ -708,6 +708,14 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     // Helper function for getting options from a module with inferred return type
     try writer.writeAll("fn getOptions(comptime T: type, comptime R: type) ?R {\n");
     try writer.writeAll("    return if (@hasDecl(T, \"options\")) T.options else null;\n");
+    try writer.writeAll("}\n\n");
+    // Wrapper to allow pages to return Component or !Component
+    try writer.writeAll("fn wrapPage(comptime pageFn: anytype) *const fn (zx.PageContext) anyerror!zx.Component {\n");
+    try writer.writeAll("    return struct {\n");
+    try writer.writeAll("        fn wrapper(ctx: zx.PageContext) anyerror!zx.Component {\n");
+    try writer.writeAll("            return pageFn(ctx);\n");
+    try writer.writeAll("        }\n");
+    try writer.writeAll("    }.wrapper;\n");
     try writer.writeAll("}\n");
 
     const meta_path = try std.fs.path.join(allocator, &.{ output_dir, "meta.zig" });
@@ -753,7 +761,7 @@ fn writeRoute(writer: anytype, route: Route) !void {
     try writer.print("{s}.{{\n", .{indent});
     try writer.print("{s}    .path = \"{s}\",\n", .{ indent, route.path });
 
-    try writer.print("{s}    .page = @import(\"{s}\").Page,\n", .{ indent, route.page_import });
+    try writer.print("{s}    .page = wrapPage(@import(\"{s}\").Page),\n", .{ indent, route.page_import });
 
     if (route.layout_import) |layout| {
         try writer.print("{s}    .layout = @import(\"{s}\").Layout,\n", .{ indent, layout });

@@ -2,7 +2,11 @@ pub const options = zx.PageOptions{
     .methods = &.{ .GET, .POST },
 };
 
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    if (ctx.request.method != .GET) {
+        return error.MethodNotAllowed;
+    }
+
     const allocator = ctx.arena;
 
     // Greeting example

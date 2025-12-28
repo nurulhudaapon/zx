@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageContext) !zx.Component {
     // var page_timer = std.time.Timer.start() catch unreachable;
     const allocator = ctx.arena;
 

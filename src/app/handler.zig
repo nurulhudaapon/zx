@@ -552,7 +552,9 @@ pub const Handler = struct {
             blk: {
                 const normalized_route_path = route.path;
 
-                var page_component = route.page(pagectx);
+                var page_component = route.page(pagectx) catch |err| {
+                    return self.uncaughtError(req, res, err);
+                };
 
                 // Find and apply parent layouts based on path hierarchy
                 // Collect all parent layouts from root to this route

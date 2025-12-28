@@ -8,7 +8,7 @@ pub const App = struct {
     pub const Meta = struct {
         pub const Route = struct {
             path: []const u8,
-            page: *const fn (ctx: zx.PageContext) Component,
+            page: *const fn (ctx: zx.PageContext) anyerror!Component,
             layout: ?*const fn (ctx: zx.LayoutContext, component: Component) Component = null,
             notfound: ?*const fn (ctx: zx.NotFoundContext) Component = null,
             @"error": ?*const fn (ctx: zx.ErrorContext) Component = null,
