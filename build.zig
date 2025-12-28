@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) !void {
             zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
             zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
 
-            try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
+            var zx_b = try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
                 .cli_path = null,
                 .site_outdir = b.path("site/.zx"),
                 .site_path = b.path("site"),
@@ -99,6 +99,8 @@ pub fn build(b: *std.Build) !void {
                     }),
                 },
             });
+            zx_b = zx_b;
+            // zx_b.step("serve", .serve);
         }
     }
 

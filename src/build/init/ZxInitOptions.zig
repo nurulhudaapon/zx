@@ -10,8 +10,8 @@
 ///     .cli = .{
 ///         .path = null, // Use ZX from dependency
 ///         .steps = .{
-///             .serve = "serve",
 ///             .dev = "dev",
+///             .serve = "serve",
 ///         },
 ///     },
 /// };
@@ -27,18 +27,16 @@ pub const CliOptions = struct {
     /// Configure which Zig build steps to create and what names to give them.
     /// Set any step to `null` to disable it.
     pub const Steps = struct {
-        /// Step name for running the development server (default: "serve")
-        serve: ?[]const u8 = "serve",
         /// Step name for development mode with hot-reload (default: null/disabled)
         dev: ?[]const u8 = null,
+        /// Step name for running the site in production build without hot-reload (default: "serve")
+        serve: ?[]const u8 = null,
         /// Step name for exporting static site (default: null/disabled)
         @"export": ?[]const u8 = null,
         /// Step name for bundling the website (default: null/disabled)
         bundle: ?[]const u8 = null,
 
-        zx: []const u8 = "zx",
-
-        pub const default: Steps = .{ .serve = "serve", .zx = "zx" };
+        pub const default: Steps = .{ .dev = "dev" };
     };
 
     /// Path to the ZX CLI executable.
@@ -52,7 +50,7 @@ pub const CliOptions = struct {
     ///
     /// If `null`, only the default "serve" step will be created.
     steps: ?Steps = .{
-        .serve = "serve",
+        .dev = "dev",
     },
 };
 

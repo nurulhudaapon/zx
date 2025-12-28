@@ -2,7 +2,7 @@ const std = @import("std");
 const LazyPath = std.Build.LazyPath;
 pub const ZxInitOptions = @import("init/ZxInitOptions.zig");
 
-pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions) !void {
+pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions) !Build {
     const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
     const build_zig = @import("../../build.zig");
@@ -81,7 +81,7 @@ pub fn initInner(
     zx_module: *std.Build.Module,
     zx_wasm_module: *std.Build.Module,
     opts: InitInnerOptions,
-) !void {
+) !Build {
     // const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
 
@@ -128,8 +128,9 @@ pub fn initInner(
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
+    var wasm_exe_opt: ?*std.Build.Step.Compile = null;
     if (opts.experimental_enabled_csr) {
-        const wasm_exe = b.addExecutable(.{
+        wasm_exe_opt = b.addExecutable(.{
             .name = b.fmt("main", .{}),
             .root_module = b.createModule(.{
                 .root_source_file = exe.root_module.root_source_file,
@@ -137,6 +138,8 @@ pub fn initInner(
                 .optimize = if (optimize == .ReleaseFast) .ReleaseSmall else optimize,
             }),
         });
+        const wasm_exe = wasm_exe_opt.?;
+
         wasm_exe.entry = .disabled;
         wasm_exe.export_memory = true;
         wasm_exe.rdynamic = true;
@@ -159,9 +162,12 @@ pub fn initInner(
         b.default_step.dependOn(&post_transpile_cmd.step);
     }
 
-    // --- Steps: ZX (Root of serve) --- //
+    // --- Steps: ZX (Root of ZX CLI) --- //
     {
-        const zx_step = b.step(opts.steps.zx, "Run the Zx website");
+        const zx_step = b.step(
+            "zx",
+            b.fmt("ZX CLI - \x1b[2m{s}\x1b[0m", .{"zig build zx -- <args>"}),
+        );
         const zx_cmd = b.addRunArtifact(zx_exe);
         zx_step.dependOn(&zx_cmd.step);
         if (b.args) |args| zx_cmd.addArgs(args);
@@ -254,4 +260,14 @@ pub fn initInner(
             }
         }
     }
+
+    return .{
+        .zx_exe = zx_exe,
+        .client_exe = wasm_exe_opt,
+    };
 }
+
+pub const Build = struct {
+    zx_exe: *std.Build.Step.Compile,
+    client_exe: ?*std.Build.Step.Compile,
+};
