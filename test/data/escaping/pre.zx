@@ -1,6 +1,6 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
-        <section @allocator={allocator} data-src={@src().file}>
+        <section @allocator={allocator}>
             <pre>
                 {
                     \\const data = 

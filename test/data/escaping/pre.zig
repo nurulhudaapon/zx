@@ -4,9 +4,6 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .attributes = _zx.attrs(.{
-                _zx.attr("data-src", @src().file),
-            }),
             .children = &.{
                 _zx.ele(
                     .pre,
