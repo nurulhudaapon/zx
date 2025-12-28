@@ -28,7 +28,7 @@ pub const CliOptions = struct {
     /// Set any step to `null` to disable it.
     pub const Steps = struct {
         /// Step name for running the development server (default: "serve")
-        serve: []const u8 = "serve",
+        serve: ?[]const u8 = "serve",
         /// Step name for development mode with hot-reload (default: null/disabled)
         dev: ?[]const u8 = null,
         /// Step name for exporting static site (default: null/disabled)
@@ -36,7 +36,9 @@ pub const CliOptions = struct {
         /// Step name for bundling the website (default: null/disabled)
         bundle: ?[]const u8 = null,
 
-        pub const default: Steps = .{ .serve = "serve" };
+        zx: []const u8 = "zx",
+
+        pub const default: Steps = .{ .serve = "serve", .zx = "zx" };
     };
 
     /// Path to the ZX CLI executable.

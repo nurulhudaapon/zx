@@ -159,9 +159,17 @@ pub fn initInner(
         b.default_step.dependOn(&post_transpile_cmd.step);
     }
 
-    // --- Steps: Serve --- //
+    // --- Steps: ZX (Root of serve) --- //
     {
-        const serve_step = b.step(opts.steps.serve, "Run the Zx website");
+        const zx_step = b.step(opts.steps.zx, "Run the Zx website");
+        const zx_cmd = b.addRunArtifact(zx_exe);
+        zx_step.dependOn(&zx_cmd.step);
+        if (b.args) |args| zx_cmd.addArgs(args);
+    }
+
+    // --- Steps: Serve --- //
+    if (opts.steps.serve) |serve_step_name| {
+        const serve_step = b.step(serve_step_name, "Run the Zx website");
         const serve_cmd = b.addRunArtifact(exe);
         serve_cmd.step.dependOn(b.getInstallStep());
         serve_cmd.step.dependOn(&transpile_cmd.step);
