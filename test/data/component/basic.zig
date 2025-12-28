@@ -18,6 +18,9 @@ pub fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
         .button,
         .{
             .allocator = allocator,
+            .attributes = _zx.attrs(.{
+                _zx.attr("data-src", @src().file),
+            }),
             .children = &.{
                 _zx.expr(props.title),
             },

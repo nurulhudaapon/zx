@@ -484,7 +484,7 @@ pub const Component = union(enum) {
     }
 
     pub fn render(self: Component, writer: *std.Io.Writer) !void {
-        try self.internalRender(writer, null);
+        try self.internalRender(writer, .{ .escaping = .html, .rendering = .server });
     }
 
     /// Stream method that renders HTML while collecting elements with 'slot' attribute
@@ -497,7 +497,12 @@ pub const Component = union(enum) {
         return slots.toOwnedSlice();
     }
 
-    fn internalRender(self: Component, writer: *std.Io.Writer, slots: ?*std.array_list.Managed(Component)) !void {
+    const RenderInnerOptions = struct {
+        slots: ?*std.array_list.Managed(Component) = null,
+        escaping: ?BuiltinAttribute.Escaping = .html,
+        rendering: ?BuiltinAttribute.Rendering = .server,
+    };
+    fn internalRender(self: Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
         switch (self) {
             .text => |text| {
                 try writer.print("{s}", .{text});
@@ -505,7 +510,7 @@ pub const Component = union(enum) {
             .component_fn => |func| {
                 // Lazily invoke the component function and render its result
                 const component = func.call();
-                try component.internalRender(writer, slots);
+                try component.internalRender(writer, options);
             },
             .component_csr => |component_csr| {
                 try writer.print("<{s} id=\"{s}\"", .{ "div", component_csr.id });
@@ -520,7 +525,7 @@ pub const Component = union(enum) {
             },
             .element => |elem| {
                 // Check if this element has a 'slot' attribute and we're collecting slots
-                if (slots != null) {
+                if (options.slots != null) {
                     var has_slot = false;
                     if (elem.attributes) |attributes| {
                         for (attributes) |attribute| {
@@ -533,7 +538,7 @@ pub const Component = union(enum) {
 
                     // If element has 'slot' attribute, accumulate it instead of rendering
                     if (has_slot) {
-                        try slots.?.append(self);
+                        try options.slots.?.append(self);
                         return;
                     }
                 }
@@ -542,7 +547,7 @@ pub const Component = union(enum) {
                 if (elem.tag == .fragment) {
                     if (elem.children) |children| {
                         for (children) |child| {
-                            try child.internalRender(writer, slots);
+                            try child.internalRender(writer, options);
                         }
                     }
                     return;
@@ -577,7 +582,7 @@ pub const Component = union(enum) {
                 // Render children (recursively collect slots if needed)
                 if (elem.children) |children| {
                     for (children) |child| {
-                        try child.internalRender(writer, slots);
+                        try child.internalRender(writer, options);
                     }
                 }
 
@@ -676,12 +681,17 @@ pub const Element = struct {
     tag: ElementTag,
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
+
+    escaping: ?BuiltinAttribute.Escaping = .html,
+    rendering: ?BuiltinAttribute.Rendering = .server,
 };
 
 const ZxOptions = struct {
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
     allocator: ?std.mem.Allocator = null,
+    escaping: ?BuiltinAttribute.Escaping = .html,
+    rendering: ?BuiltinAttribute.Rendering = .server,
 };
 
 pub fn zx(tag: ElementTag, options: ZxOptions) Component {
@@ -742,6 +752,8 @@ const ZxContext = struct {
             .tag = tag,
             .children = children_copy,
             .attributes = attributes_copy,
+            .escaping = options.escaping,
+            .rendering = options.rendering,
         } };
     }
 
@@ -1147,9 +1159,11 @@ pub const App = @import("app.zig").App;
 
 pub const Allocator = std.mem.Allocator;
 
+const PageOptionsStatic = struct {};
 pub const PageOptions = struct {
-    rendering: ?Attribute.Rendering = null,
-    caching: Attribute.Caching = .none,
+    rendering: ?BuiltinAttribute.Rendering = null,
+    caching: BuiltinAttribute.Caching = .none,
+    static: ?PageOptionsStatic = null,
 };
 
 pub const PageContext = routing.PageContext;
@@ -1248,7 +1262,7 @@ pub fn ComponentCtx(comptime PropsType: type) type {
     }
 }
 pub const ComponentContext = ComponentCtx(void);
-pub const Attribute = struct {
+pub const BuiltinAttribute = struct {
     pub const Rendering = enum {
         /// Client-side React.js
         react,
@@ -1270,7 +1284,7 @@ pub const Attribute = struct {
         /// HTML escaping (default behavior)
         html,
         /// No escaping; outputs raw HTML. Use with caution for trusted content only.
-        raw,
+        none, // no escaping
     };
 
     pub const Caching = union(enum) {

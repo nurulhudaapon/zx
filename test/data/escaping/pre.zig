@@ -4,17 +4,25 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
+            .attributes = _zx.attrs(.{
+                _zx.attr("data-src", @src().file),
+            }),
             .children = &.{
                 _zx.ele(
                     .pre,
                     .{
                         .children = &.{
-                            _zx.txt("                const data = \n"),
                             _zx.txt("                \n"),
-                            _zx.txt("                Test   \n"),
-                            _zx.txt("                        Test 2\n"),
-                            _zx.txt("                \n"),
-                            _zx.txt("                 name: \"test\" ;\n"),
+                            _zx.expr(
+                                \\const data = 
+                                \\
+                                \\ Test 
+                                \\ Test 2
+                                \\
+                                \\ name: "test" ;
+                                \\
+                                \\
+                            ),
                             _zx.txt("            "),
                         },
                     },

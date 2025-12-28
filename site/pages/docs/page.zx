@@ -316,11 +316,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <p>The <code>@escaping</code> attribute controls how text content is escaped within an element. By default, all text is HTML-escaped to prevent XSS attacks.</p>
                 <p><strong>Values:</strong></p>
                 <ul>
-                    <li><code>.default</code> - Standard HTML escaping (default behavior)</li>
-                    <li><code>.raw</code> - No escaping; outputs raw HTML. Use with caution for trusted content only.</li>
+                    <li><code>.html</code> - Standard HTML escaping (default behavior)</li>
+                    <li><code>.none</code> - No escaping; outputs raw HTML. Use with caution for trusted content only.</li>
                 </ul>
                 <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} filename="raw_html.zx" />
-                <p><strong>Warning:</strong> Only use <code>@escaping={"{.raw}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
+                <p><strong>Warning:</strong> Only use <code>@escaping={"{.none}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
                 <h3 id="rendering">@rendering</h3>
                 <p>The <code>@rendering</code> attribute enables client-side rendering for interactive components.</p>
                 <p><strong>Values:</strong></p>
@@ -363,7 +363,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} filename="card_demo.zx" />
             </section>
             <PluginsSection />
-            <CLISection />            // <ExamplesSection />
+            <CLISection />
+            // <ExamplesSection />
         </div>
     );
 }

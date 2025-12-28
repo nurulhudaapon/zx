@@ -5,8 +5,23 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             {switch (user_type) {
-                .admin => for (admin_users) |name| (<p>{name}</p>),
-                .member => for (member_users) |name| (<p>{name}</p>),
+                .admin => for (admin_users) |name| (
+                    <p>
+                        <p>
+                            <div>
+                                {name}
+                            </div>
+                        </p> 
+                    </p>
+                ),
+                .member => for (member_users) |name| (
+                    <p>
+                        <div>
+                            {name}
+                        </div>
+                        {name}
+                    </p>
+                ),
             }}
         </main>
     );

@@ -1,13 +1,17 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
-        <section @allocator={allocator}>
+        <section @allocator={allocator} data-src={@src().file}>
             <pre>
-                const data = 
-                
-                Test   
-                        Test 2
-                
-                 name: "test" ;
+                {
+                    \\const data = 
+                    \\
+                    \\ Test 
+                    \\ Test 2
+                    \\
+                    \\ name: "test" ;
+                    \\
+                    \\
+                }
             </pre>
         </section>
     );
