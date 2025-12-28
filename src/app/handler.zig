@@ -289,6 +289,7 @@ pub const Handler = struct {
 
         // Render the notfound component wrapped in layouts
         const notfound_cmp = nf_fn(notfoundctx);
+        res.clearWriter();
         self.renderErrorPage(req, res, notfound_cmp, .{
             .fallback_message = "Internal Server Error, notfound page rendering failed",
         });
@@ -317,6 +318,7 @@ pub const Handler = struct {
 
         // Render the error component wrapped in layouts
         const error_cmp = err_fn(errorctx);
+        res.clearWriter();
         self.renderErrorPage(req, res, error_cmp, .{
             .fallback_message = "Internal Server Error, error page rendering failed",
         });
@@ -665,7 +667,7 @@ pub const Handler = struct {
                 };
                 page_component.render(writer) catch |err| {
                     std.debug.print("Error rendering page: {}\n", .{err});
-                    break :blk;
+                    return self.uncaughtError(req, res, err);
                 };
             }
 

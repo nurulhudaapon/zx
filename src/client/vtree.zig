@@ -59,7 +59,7 @@ pub const VElement = struct {
                 return velement;
             },
             .component_fn => |comp_fn| {
-                const resolved = comp_fn.callFn(comp_fn.propsPtr, allocator);
+                const resolved = try comp_fn.callFn(comp_fn.propsPtr, allocator);
                 return try createFromComponent(allocator, document, parent_dom, resolved);
             },
             .component_csr => |component_csr| {

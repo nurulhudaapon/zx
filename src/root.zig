@@ -288,7 +288,7 @@ const ComponentSerializable = struct {
             .component_fn => |comp_fn| blk: {
                 // Resolve component_fn by calling it, then serialize the result
                 // This avoids serializing anyopaque fields
-                const resolved = comp_fn.call();
+                const resolved = try comp_fn.call();
                 const serialized = try ComponentSerializable.init(allocator, resolved);
                 break :blk serialized;
             },
@@ -337,7 +337,7 @@ pub const Component = union(enum) {
 
     pub const ComponentFn = struct {
         propsPtr: ?*const anyopaque,
-        callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) Component,
+        callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
 
@@ -395,7 +395,7 @@ pub const Component = union(enum) {
             } else null;
 
             const Wrapper = struct {
-                fn call(propsPtr: ?*const anyopaque, alloc: Allocator) Component {
+                fn call(propsPtr: ?*const anyopaque, alloc: Allocator) anyerror!Component {
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
                         const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
@@ -437,7 +437,7 @@ pub const Component = union(enum) {
             };
         }
 
-        pub fn call(self: ComponentFn) Component {
+        pub fn call(self: ComponentFn) anyerror!Component {
             return self.callFn(self.propsPtr, self.allocator);
         }
 
@@ -509,7 +509,10 @@ pub const Component = union(enum) {
             },
             .component_fn => |func| {
                 // Lazily invoke the component function and render its result
-                const component = func.call();
+                const component = func.call() catch |err| {
+                    std.debug.print("Error rendering component: {}\n", .{err});
+                    return err;
+                };
                 try component.internalRender(writer, options);
             },
             .component_csr => |component_csr| {
@@ -627,7 +630,7 @@ pub const Component = union(enum) {
             },
             .component_fn => |*func| {
                 // Resolve the component function and replace self with the result
-                const resolved = func.call();
+                const resolved = func.call() catch return null;
                 self.* = resolved;
                 // Now search the resolved component
                 return self.getElementByName(allocator, tag);
