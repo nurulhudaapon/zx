@@ -1,0 +1,123 @@
+#!/bin/bash
+
+# Script to generate release notes with changelog from commits between tags
+# Usage: ./gen-release-notes [output_file]
+# If output_file is not provided, outputs to stdout
+
+set -e
+
+OUTPUT_FILE="${1:-}"
+
+# Get the latest release tag (this will be the previous tag for the new release)
+PREVIOUS_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+
+if [ -z "$PREVIOUS_TAG" ]; then
+    echo "Warning: Could not find release tags from GitHub, trying git tags" >&2
+    # Try to get the latest tag from git
+    PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    
+    if [ -z "$PREVIOUS_TAG" ]; then
+        echo "Error: Could not find any release tags" >&2
+        exit 1
+    fi
+fi
+
+# Get current version from build.zig.zon for the release title
+CURRENT_VERSION=$(grep -E '^\s*\.version\s*=' build.zig.zon | sed -E 's/.*"([^"]+)".*/\1/' || echo "HEAD")
+
+echo "Generating changelog from $PREVIOUS_TAG to HEAD (v${CURRENT_VERSION})..." >&2
+
+# Read the base RELEASE.md
+BASE_CONTENT=$(cat .github/RELEASE.md)
+
+# Get commits between previous tag and HEAD
+COMMITS=$(gh api "repos/nurulhudaapon/zx/compare/${PREVIOUS_TAG}...HEAD" --jq '.commits[] | "\(.commit.message | split("\n")[0])"' 2>/dev/null || git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "")
+
+# Categorize commits
+FEATURES=()
+DOCS=()
+FIXES=()
+CHORES=()
+OTHER=()
+
+while IFS= read -r commit || [ -n "$commit" ]; do
+    if [[ -z "$commit" ]]; then
+        continue
+    fi
+    
+    if [[ "$commit" =~ ^feat ]]; then
+        FEATURES+=("$commit")
+    elif [[ "$commit" =~ ^docs ]]; then
+        DOCS+=("$commit")
+    elif [[ "$commit" =~ ^fix ]]; then
+        FIXES+=("$commit")
+    elif [[ "$commit" =~ ^chore ]]; then
+        CHORES+=("$commit")
+    else
+        OTHER+=("$commit")
+    fi
+done <<< "$COMMITS"
+
+# Generate changelog section
+{
+    echo "## Changelog"
+    echo ""
+    echo "### v${CURRENT_VERSION}"
+    echo ""
+    
+    if [ ${#FEATURES[@]} -gt 0 ]; then
+        echo "#### Features"
+        for feat in "${FEATURES[@]}"; do
+            echo "- ${feat}"
+        done
+        echo ""
+    fi
+    
+    if [ ${#DOCS[@]} -gt 0 ]; then
+        echo "#### Documentation"
+        for doc in "${DOCS[@]}"; do
+            echo "- ${doc}"
+        done
+        echo ""
+    fi
+    
+    if [ ${#FIXES[@]} -gt 0 ]; then
+        echo "#### Fixes"
+        for fix in "${FIXES[@]}"; do
+            echo "- ${fix}"
+        done
+        echo ""
+    fi
+    
+    if [ ${#CHORES[@]} -gt 0 ]; then
+        echo "#### Chores"
+        for chore in "${CHORES[@]}"; do
+            echo "- ${chore}"
+        done
+        echo ""
+    fi
+    
+    if [ ${#OTHER[@]} -gt 0 ]; then
+        echo "#### Other"
+        for other in "${OTHER[@]}"; do
+            echo "- ${other}"
+        done
+        echo ""
+    fi
+} > /tmp/changelog.txt
+
+# Combine base content with changelog
+if [ -n "$OUTPUT_FILE" ]; then
+    {
+        echo "$BASE_CONTENT"
+        echo ""
+        cat /tmp/changelog.txt
+    } > "$OUTPUT_FILE"
+    echo "Release notes generated: $OUTPUT_FILE" >&2
+else
+    echo "$BASE_CONTENT"
+    echo ""
+    cat /tmp/changelog.txt
+fi
+rm -f /tmp/changelog.txt
+

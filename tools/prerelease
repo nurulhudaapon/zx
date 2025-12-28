@@ -1,0 +1,18 @@
+#!/bin/bash
+
+RELEASE_VERSION=v$(grep -E '^\s*\.version\s*=' build.zig.zon | sed -E 's/.*"([^"]+)".*/\1/')
+
+echo "Releasing version: $RELEASE_VERSION"
+
+RELEASE_NOTES_FILE="tmp/RELEASE_WITH_CHANGELOG.md"
+mkdir -p tmp
+if ./tools/changelog "$RELEASE_NOTES_FILE" 2>/dev/null; then
+    echo "Generated release notes: $RELEASE_NOTES_FILE"
+else
+    echo "Error: Failed to generate release notes, falling back to RELEASE.md" >&2
+    RELEASE_NOTES_FILE=".github/RELEASE.md"
+fi
+
+
+echo "Using release notes from: $RELEASE_NOTES_FILE"
+gh release create $RELEASE_VERSION -F "$RELEASE_NOTES_FILE" --prerelease

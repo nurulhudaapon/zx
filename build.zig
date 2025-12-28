@@ -167,6 +167,7 @@ pub fn build(b: *std.Build) !void {
             release_mod.addImport("httpz", httpz_dep.module("httpz"));
             release_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
             release_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
+            release_mod.addImport("cachez", cachez_dep.module("cache"));
             release_mod.addOptions("zx_info", options);
 
             const release_exe = b.addExecutable(.{
