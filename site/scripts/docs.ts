@@ -86,7 +86,69 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Setup copy buttons for code blocks and install boxes
   setupCopyButtons();
+  
+  // Setup section heading anchor links
+  setupSectionAnchors();
 });
+
+// Convert section headings with IDs into clickable anchor links
+function setupSectionAnchors() {
+  const linkIcon = `<svg class="section-anchor-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Z"/>
+    <path d="M8.225 12.725a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 1 1-2.83-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25Z"/>
+  </svg>`;
+
+  function makeAnchor(heading: HTMLHeadingElement, id: string) {
+    // Skip if already processed
+    if (heading.querySelector('.section-anchor')) return;
+
+    // Get the text content
+    const textContent = heading.innerHTML;
+
+    // Create the anchor link wrapper
+    const anchor = document.createElement('a');
+    anchor.href = `#${id}`;
+    anchor.className = 'section-anchor';
+    anchor.innerHTML = textContent + linkIcon;
+
+    // Clear the heading and add the anchor
+    heading.innerHTML = '';
+    heading.appendChild(anchor);
+
+    // Handle click to copy the link
+    anchor.addEventListener('click', async () => {
+      // Allow normal navigation but also copy the link
+      const url = new URL(window.location.href);
+      url.hash = id;
+      
+      try {
+        await navigator.clipboard.writeText(url.toString());
+      } catch {
+        // Fallback - just let the browser handle the navigation
+      }
+    });
+  }
+
+  // Handle h2/h3 with IDs directly on them
+  const headingsWithIds = document.querySelectorAll<HTMLHeadingElement>('.section h2[id], .section h3[id]');
+  headingsWithIds.forEach((heading) => {
+    const id = heading.id;
+    if (id) makeAnchor(heading, id);
+  });
+
+  // Handle h2 that are direct children of sections with IDs (but h2 has no ID)
+  const sections = document.querySelectorAll<HTMLElement>('.section[id]');
+  sections.forEach((section) => {
+    const sectionId = section.id;
+    if (!sectionId) return;
+    
+    // Find the first h2 that's a direct child (or within a container div)
+    const h2 = section.querySelector<HTMLHeadingElement>(':scope > h2, :scope > div > h2');
+    if (h2 && !h2.id) {
+      makeAnchor(h2, sectionId);
+    }
+  });
+}
 
 function setupCopyButtons() {
   const copyButtonHTML = `

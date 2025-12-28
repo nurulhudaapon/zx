@@ -707,6 +707,43 @@ body {
     scroll-margin-top: 5rem;
 }
 
+/* Section heading anchor links */
+.section h2,
+.section h3 {
+    position: relative;
+}
+
+.section-anchor {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-anchor:hover {
+    color: var(--link-color);
+}
+
+.section-anchor-icon {
+    opacity: 0;
+    color: var(--subtitle-color);
+    transition: opacity 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+    width: 0.75em;
+    height: 0.75em;
+}
+
+.section h2:hover .section-anchor-icon,
+.section h3:hover .section-anchor-icon,
+.section-anchor:focus .section-anchor-icon {
+    opacity: 1;
+}
+
+.section-anchor:hover .section-anchor-icon {
+    color: var(--link-color);
+}
+
 .section h4 {
     font-size: 1.125rem;
     font-weight: 600;
