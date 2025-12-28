@@ -166,5 +166,17 @@ function getOS() {
   return 'unknown';
 }
 
-// Add a class to the body element
-document.body.classList.add(getOS());
+// Add OS class to body and auto-select appropriate tabs
+const os = getOS();
+document.body.classList.add(os);
+
+// Auto-select tabs based on OS
+const osTabs = {
+  windows: ['tab-windows', 'tab-zig-win'],
+  linux: ['tab-zig-other']
+};
+
+(osTabs[os] || []).forEach(id => {
+  const tab = document.getElementById(id);
+  if (tab) tab.checked = true;
+});

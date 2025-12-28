@@ -8,23 +8,23 @@ pub fn CodeBlock(allocator: zx.Allocator, props: CodeBlockProps) zx.Component {
     const highlighted = util.highlightZx(allocator, props.code) catch props.code;
 
     return if (props.filename) |filename| (
-        <div class="code-block" @allocator={allocator}>
-            <div class="code-block-header">
-                <div class="code-block-filename">
+        <div class="sandbox" style="box-shadow: none;" @allocator={allocator}>
+            <div class="sandbox-editor-header">
+                <div class="sandbox-tab" style="cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z"/>
                     </svg>
                     {filename}
                 </div>
             </div>
-            <div class="code-block-content">
-                <pre class="code-block-pre"><code class="hljs code-block-code">{[highlighted:s]}</code></pre>
+            <div class="sandbox-code">
+                <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines">{[highlighted:s]}</code></pre>
             </div>
         </div>
     ) else (
-        <div class="code-block code-block-inline" @allocator={allocator}>
-            <div class="code-block-content">
-                <pre class="code-block-pre"><code class="hljs code-block-code">{[highlighted:s]}</code></pre>
+        <div class="sandbox" style="box-shadow: none; border-radius: 8px;" @allocator={allocator}>
+            <div class="sandbox-code">
+                <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines">{[highlighted:s]}</code></pre>
             </div>
         </div>
     );

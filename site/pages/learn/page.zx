@@ -76,6 +76,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     // Layout example (just show code, no preview)
     const zx_layout = @embedFile("../../../pages/learn/examples/layout_example.zx");
 
+    // Build manual example
+    const build_manual_code = @embedFile("../../../pages/learn/examples/build_manual.zig");
+
     // Dynamic route example
     var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
     const zx_dynamic = @embedFile("../../../pages/learn/examples/dynamic_route.zx");
@@ -193,7 +196,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <LearnHeader />
             <YouWillLearn />
             <Installation />
-            <CreateProject />
+            <CreateProject build_manual_code={build_manual_code} />
             <EditorSetup />
             <CreatingComponents zx_code={zx_greeting} zig_code={zig_greeting} html_code={html_greeting} />
             <WritingMarkup zx_code={zx_markup} zig_code={zig_markup} html_code={html_markup} />
@@ -255,33 +258,81 @@ fn Installation(allocator: zx.Allocator) zx.Component {
     );
 }
 
-fn CreateProject(allocator: zx.Allocator) zx.Component {
+const CreateProjectProps = struct {
+    build_manual_code: []const u8,
+};
+
+fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Component {
     return (
         <section id="create-project" class="section" @allocator={allocator}>
             <h2>Create a Project</h2>
-            <p>Create a new ZX project:</p>
-            <div class="install-box install-box-simple">
-                <div class="install-box-content">
-                    <div class="install-code">
-                        <span class="install-prompt">$ </span>
-                        <span class="function">zx</span>
-                        <span class="operator"> init </span>
-                        <span class="variable">my-app</span>
+            <p><strong>CLI:</strong> Use the CLI to quickly scaffold a new ZX project. It automatically sets up the project structure, build configuration, and template files for you.</p>
+            <p><strong>Manual:</strong> If you prefer not to install the CLI, you can simply add the ZX dependency to your <code>build.zig</code> file and initialize the project manually, or use the <code>zx</code> build step available after configuring <code>zx.init</code>.</p>
+            <div>
+                <div class="simple-tab-header">
+                    <input type="radio" id="tab-cli" name="create-project" class="simple-tab-radio" checked="true" />
+                    <input type="radio" id="tab-manual" name="create-project" class="simple-tab-radio" />
+                    <label for="tab-cli" class="simple-tab-label">CLI</label>
+                    <label for="tab-manual" class="simple-tab-label">Manual</label>
+                </div>
+                <div class="simple-tab-content" id="content-cli">
+                    <p>Create a new ZX project using the CLI:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zx</span>
+                                <span class="operator"> init </span>
+                                <span class="variable">my-app</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Start the ZX app in development mode with hot reloading:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code install-code-multiline">
+                                <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
+                                <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">dev</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
+                </div>
+                <div class="simple-tab-content" id="content-manual">
+                    <h3 style="margin-top: 0;">New Project</h3>
+                    <p>For a new project, first initialize a Zig project:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zig</span>
+                                <span class="operator"> init</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top: 1.5rem;">Existing Project</h3>
+                    <p>For an existing Zig project, add the following to your <code>build.zig</code>:</p>
+                    <CodeBlock code={props.build_manual_code} filename="build.zig" />  
+
+                    <p style="margin-top: 1.5rem;">Then initialize the project with templates:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zig</span>
+                                <span class="operator"> build </span>
+                                <span class="variable">zx</span>
+                                <span class="operator"> -- </span>
+                                <span class="function">init</span>
+                                <span class="operator"> --existing</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <p>Start the ZX Application:</p>
-            <div class="install-box install-box-simple">
-                <div class="install-box-content">
-                    <div class="install-code install-code-multiline">
-                        <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
-                        <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">serve</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <p>Open <code>http://localhost:3000</code> in your browser!</p>
 
             <h3>Project Structure</h3>
             <pre class="language-text">
@@ -545,29 +596,7 @@ const PagesAndLayoutsProps = struct {
 };
 
 fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Component {
-    const layout_code =
-        \\pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-        \\    return (
-        \\        <html @allocator={ctx.arena}>
-        \\            <head>
-        \\                <title>My App</title>
-        \\            </head>
-        \\            <body>
-        \\                <nav>
-        \\                    <a href="/">Home</a>
-        \\                    <a href="/about">About</a>
-        \\                </nav>
-        \\                <main>
-        \\                    {children}
-        \\                </main>
-        \\                <footer>© 2025 My App</footer>
-        \\            </body>
-        \\        </html>
-        \\    );
-        \\}
-        \\
-        \\const zx = @import("zx");
-    ;
+    const layout_code = @embedFile("../../../pages/learn/examples/layout_example.zx");
     const layout_html =
         \\<html><head><title>My App</title></head><body><nav><a href="/">Home</a> <a href="/about">About</a></nav><main><h1>About Us</h1><p>Welcome!</p></main><footer>© 2025 My App</footer></body></html>
     ;
@@ -611,38 +640,8 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
 }
 
 fn Plugins(allocator: zx.Allocator) zx.Component {
-    const tailwind_example =
-        \\const zx = @import("zx");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... other setup ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.tailwind(b, .{
-        \\                .input = b.path("site/assets/styles.css"),
-        \\                .output = b.path("{outdir}/assets/styles.css"),
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
-    const esbuild_example =
-        \\const zx = @import("zx");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... other setup ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.esbuild(b, .{
-        \\                .input = b.path("site/main.ts"),
-        \\                .output = b.path("{outdir}/assets/main.js"),
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
+    const tailwind_example = @embedFile("../../../pages/learn/examples/tailwind_plugin.zig");
+    const esbuild_example = @embedFile("../../../pages/learn/examples/esbuild_plugin.zig");
     const link_css_example = "<link rel=\"stylesheet\" href=\"/assets/styles.css\" />";
     const link_js_example = "<script src=\"/assets/main.js\"></script>";
 
@@ -719,6 +718,8 @@ const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
 const util = @import("../docs/util.zig");
+const tailwind_plugin = @import("../../../pages/learn/examples/tailwind_plugin.zig");
+const esbuild_plugin = @import("../../../pages/learn/examples/esbuild_plugin.zig");
 
 // Helper to allocate files on heap to avoid stack lifetime issues
 fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {

@@ -2203,47 +2203,61 @@ code[class*="language-"] {
     display: block;
 }
 
-/* OS-based auto-selection - Windows */
-body.windows .install-box-header:has(#tab-unix:checked) + .install-box-content #content-unix,
-body.windows .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac {
+/* Simple tabs */
+.simple-tab-header {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.simple-tab-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.simple-tab-label {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    color: var(--subtitle-color);
+    user-select: none;
+    margin-left: 0.5rem;
+    margin-bottom: -1px;
+}
+
+.simple-tab-label:hover {
+    color: var(--text-color);
+    background: var(--hover-bg);
+}
+
+#tab-cli:checked ~ .simple-tab-label[for="tab-cli"],
+#tab-manual:checked ~ .simple-tab-label[for="tab-manual"] {
+    color: var(--link-color);
+    border-bottom-color: var(--link-color);
+    border-bottom-width: 2px;
+}
+
+.simple-tab-content {
     display: none;
 }
 
-body.windows .install-box-header:has(#tab-unix:checked) + .install-box-content #content-windows,
-body.windows .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-win {
+div:has(#tab-cli:checked) #content-cli,
+div:has(#tab-manual:checked) #content-manual {
     display: block;
 }
 
-body.windows .install-box-header:has(#tab-unix:checked) label[for="tab-unix"],
-body.windows .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-mac"] {
-    color: var(--subtitle-color);
-    border-bottom-color: transparent;
-}
+/* OS-based auto-selection - Windows (removed - now handled by JavaScript) */
 
-body.windows .install-box-header:has(#tab-unix:checked) label[for="tab-windows"],
-body.windows .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-win"] {
-    color: var(--text-color);
-    border-bottom-color: var(--link-color);
-}
-
-/* OS-based auto-selection - Linux (use Other for Zig) */
-body.linux .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac {
-    display: none;
-}
-
-body.linux .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-other {
-    display: block;
-}
-
-body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-mac"] {
-    color: var(--subtitle-color);
-    border-bottom-color: transparent;
-}
-
-body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-other"] {
-    color: var(--text-color);
-    border-bottom-color: var(--link-color);
-}
+/* OS-based auto-selection - Linux (removed - now handled by JavaScript) */
 
 /* Next steps grid */
 .next-steps-grid {
@@ -2364,6 +2378,31 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
     width: 100%;
     position: relative;
     z-index: 1;
+}
+
+/* Code blocks should not pop out like sandbox (only sandboxes with container pop out) */
+.sandbox:not(:has(.sandbox-container)) {
+    min-width: 0 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+@media (min-width: 1500px) {
+    .sandbox:not(:has(.sandbox-container)) {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+}
+
+@media (min-width: 1900px) {
+    .sandbox:not(:has(.sandbox-container)) {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        min-width: 0 !important;
+    }
 }
 
 /* Only pop out on very large screens where there's room */
@@ -2677,6 +2716,7 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
     font-size: 13px;
 }
 
+
 /* Hide the radio inputs */
 .sandbox-preview .tab-radio {
     position: absolute;
@@ -2735,6 +2775,10 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
     
     .sandbox-code-pre {
         font-size: 11px;
+    }
+    
+    .install-code {
+        font-size: 0.8125rem;
     }
     
     .sandbox-tab {
