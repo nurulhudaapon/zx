@@ -625,7 +625,7 @@ fn NextSteps(allocator: zx.Allocator) zx.Component {
                     <h3>Documentation</h3>
                     <p>Deep dive into all ZX features with detailed examples.</p>
                 </a>
-                <a href="/cli" class="next-step-card">
+                <a href="/docs#cli" class="next-step-card">
                     <h3>CLI Reference</h3>
                     <p>Learn about the ZX command-line tools.</p>
                 </a>
