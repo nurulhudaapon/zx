@@ -29,9 +29,18 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     \\ import { data } from "./data.js";
                     \\const data = { name: "test" };
                     \\console.log(data);
-
                 }
             </script>
+            <pre @escaping={.none}>
+                {
+                    \\<h1>name</h1>
+                }
+            </pre>
+            <pre @escaping={.html}>
+                {
+                    \\<h1>name</h1>
+                }
+            </pre>
         </section>
     );
 }

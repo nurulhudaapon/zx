@@ -46,6 +46,32 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
+                _zx.ele(
+                    .pre,
+                    .{
+                        .escaping = .none,
+                        .children = &.{
+                            _zx.txt("                \n"),
+                            _zx.expr(
+                                \\<h1>name</h1>
+                            ),
+                            _zx.txt("            "),
+                        },
+                    },
+                ),
+                _zx.ele(
+                    .pre,
+                    .{
+                        .escaping = .html,
+                        .children = &.{
+                            _zx.txt("                \n"),
+                            _zx.expr(
+                                \\<h1>name</h1>
+                            ),
+                            _zx.txt("            "),
+                        },
+                    },
+                ),
             },
         },
     );

@@ -235,6 +235,38 @@ fn escapeAttributeValueToWriter(writer: *std.Io.Writer, value: []const u8) !void
     }
 }
 
+fn unescapeHtmlToWriter(writer: *std.Io.Writer, value: []const u8) !void {
+    var i: usize = 0;
+    while (i < value.len) {
+        if (value[i] == '&') {
+            // Check for HTML entities
+            if (i + 4 <= value.len and std.mem.eql(u8, value[i .. i + 4], "&lt;")) {
+                try writer.writeByte('<');
+                i += 4;
+            } else if (i + 4 <= value.len and std.mem.eql(u8, value[i .. i + 4], "&gt;")) {
+                try writer.writeByte('>');
+                i += 4;
+            } else if (i + 5 <= value.len and std.mem.eql(u8, value[i .. i + 5], "&amp;")) {
+                try writer.writeByte('&');
+                i += 5;
+            } else if (i + 6 <= value.len and std.mem.eql(u8, value[i .. i + 6], "&quot;")) {
+                try writer.writeByte('"');
+                i += 6;
+            } else if (i + 6 <= value.len and std.mem.eql(u8, value[i .. i + 6], "&#x27;")) {
+                try writer.writeByte('\'');
+                i += 6;
+            } else {
+                // Not a recognized entity, write the ampersand as-is
+                try writer.writeByte(value[i]);
+                i += 1;
+            }
+        } else {
+            try writer.writeByte(value[i]);
+            i += 1;
+        }
+    }
+}
+
 /// Coerce props to the target struct type, handling defaults
 fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
     const TargetInfo = @typeInfo(TargetType);
@@ -525,7 +557,11 @@ pub const Component = union(enum) {
     fn renderInner(self: Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
         switch (self) {
             .text => |text| {
-                try writer.print("{s}", .{text});
+                if (options.escaping == .none) {
+                    try unescapeHtmlToWriter(writer, text);
+                } else {
+                    try writer.print("{s}", .{text});
+                }
             },
             .component_fn => |func| {
                 // Lazily invoke the component function and render its result
@@ -610,8 +646,14 @@ pub const Component = union(enum) {
 
                 // Render children (recursively collect slots if needed)
                 if (elem.children) |children| {
+                    // Use element's escaping setting if set, otherwise inherit from parent
+                    const child_options = RenderInnerOptions{
+                        .slots = options.slots,
+                        .escaping = elem.escaping orelse options.escaping,
+                        .rendering = elem.rendering orelse options.rendering,
+                    };
                     for (children) |child| {
-                        try child.renderInner(writer, options);
+                        try child.renderInner(writer, child_options);
                     }
                 }
 

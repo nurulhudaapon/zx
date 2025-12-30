@@ -1126,9 +1126,6 @@ fn transpileDirectory(
     defer if (output_dir_relative) |rel| allocator.free(rel);
 
     const sep = std.fs.path.sep_str;
-    const dir_is_pages = std.mem.endsWith(u8, opts.path, sep ++ "pages") or
-        std.mem.eql(u8, getBasename(opts.path), "pages") or
-        std.mem.endsWith(u8, opts.path, "pages");
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
@@ -1155,10 +1152,6 @@ fn transpileDirectory(
 
         const is_zx = std.mem.endsWith(u8, entry.path, ".zx");
 
-        const is_in_pages_dir = dir_is_pages or
-            std.mem.startsWith(u8, entry.path, "pages" ++ sep) or
-            std.mem.indexOf(u8, entry.path, sep ++ "pages" ++ sep) != null;
-
         const input_path = try std.fs.path.join(allocator, &.{ opts.path, entry.path });
         defer allocator.free(input_path);
 
@@ -1176,7 +1169,35 @@ fn transpileDirectory(
                 std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                 continue;
             };
-        } else if (is_in_pages_dir) {
+        } else {
+            // Copy all non-.zx files from the site directory, excluding reserved files
+            const basename = getBasename(entry.path);
+
+            // Skip files inside node_modules directory
+            if (std.mem.startsWith(u8, entry.path, "node_modules" ++ sep) or
+                std.mem.indexOf(u8, entry.path, sep ++ "node_modules" ++ sep) != null)
+            {
+                continue;
+            }
+
+            const is_root_file = std.mem.indexOf(u8, entry.path, sep) == null;
+            if (is_root_file) {
+                const reserved_files = [_][]const u8{ "components.zig", "app.zig", "client.zig" };
+                var is_reserved = false;
+                for (reserved_files) |reserved| {
+                    if (std.mem.eql(u8, basename, reserved)) {
+                        std.debug.print("Warning: '{s}' is a reserved file name and will not be copied\n", .{input_path});
+                        is_reserved = true;
+                        break;
+                    }
+                }
+
+                // Skip reserved files and main.zig at root level
+                if (is_reserved or std.mem.eql(u8, basename, "main.zig")) {
+                    continue;
+                }
+            }
+
             const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, entry.path });
             defer allocator.free(output_path);
 
