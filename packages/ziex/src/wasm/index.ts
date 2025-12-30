@@ -1,4 +1,4 @@
-import { ZigJS } from "jsz/js/src";
+import { ZigJS } from "../../../../vendor/jsz/js/src";
 
 const DEFAULT_URL = "/assets/main.wasm";
 const MAX_EVENTS = 100;
