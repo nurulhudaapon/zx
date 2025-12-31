@@ -15,7 +15,7 @@ cd src/cli/init/template
 
 
 echo "Updating template to zx version: ${VERSION}"
-zig fetch --save "git+https://github.com/nurulhudaapon/zx#${VERSION}"
+zig fetch --save "git+https://github.com/nurulhudaapon/zx"
 
 npx --yes npm-check-updates -u
 # git commit -m"feat: update template to latest zx"
