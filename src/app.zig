@@ -8,9 +8,14 @@ pub const App = struct {
     pub const Meta = struct {
         pub const Route = struct {
             path: []const u8,
-            page: *const fn (ctx: zx.PageContext) Component,
+            page: *const fn (ctx: zx.PageContext) anyerror!Component,
             layout: ?*const fn (ctx: zx.LayoutContext, component: Component) Component = null,
-            options: ?zx.PageOptions = null,
+            notfound: ?*const fn (ctx: zx.NotFoundContext) Component = null,
+            @"error": ?*const fn (ctx: zx.ErrorContext) Component = null,
+            page_opts: ?zx.PageOptions = null,
+            layout_opts: ?zx.LayoutOptions = null,
+            notfound_opts: ?zx.NotFoundOptions = null,
+            error_opts: ?zx.ErrorOptions = null,
         };
         pub const CliCommand = enum { dev, serve, @"export" };
 
@@ -51,8 +56,30 @@ pub const App = struct {
         router.get("/*", Handler.public, .{});
 
         // Routes
-        for (config.meta.routes) |*route|
-            router.get(route.path, Handler.page, .{ .data = route });
+        for (config.meta.routes) |*route| {
+            var method_found = false;
+            if (route.page_opts) |pg_opts| {
+                for (pg_opts.methods) |method| {
+                    method_found = true;
+                    switch (method) {
+                        .GET => router.get(route.path, Handler.page, .{ .data = route }),
+                        .POST => router.post(route.path, Handler.page, .{ .data = route }),
+                        .PUT => router.put(route.path, Handler.page, .{ .data = route }),
+                        .DELETE => router.delete(route.path, Handler.page, .{ .data = route }),
+                        .PATCH => router.patch(route.path, Handler.page, .{ .data = route }),
+                        .OPTIONS => router.options(route.path, Handler.page, .{ .data = route }),
+                        .HEAD => router.head(route.path, Handler.page, .{ .data = route }),
+                        .CONNECT => router.connect(route.path, Handler.page, .{ .data = route }),
+                        .TRACE => router.trace(route.path, Handler.page, .{ .data = route }),
+                        .ALL => router.all(route.path, Handler.page, .{ .data = route }),
+                    }
+                }
+            }
+
+            if (!method_found) {
+                router.get(route.path, Handler.page, .{ .data = route });
+            }
+        }
 
         // Introspect the app, this will exit the program in some cases like --introspect flag
         try app.introspect();
@@ -208,6 +235,7 @@ pub const App = struct {
     pub const SerilizableAppMeta = struct {
         pub const Route = struct {
             path: []const u8,
+            has_notfound: bool = false,
         };
         pub const Config = struct {
             server: httpz.Config,
@@ -226,6 +254,7 @@ pub const App = struct {
             for (app.meta.routes, 0..) |route, i| {
                 routes[i] = Route{
                     .path = try allocator.dupe(u8, route.path),
+                    .has_notfound = route.notfound != null,
                 };
             }
 

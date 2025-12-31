@@ -357,43 +357,6 @@ body {
     scrollbar-gutter: stable;
 }
 
-.nav-header {
-    padding: 0 2rem 2rem;
-    border-bottom: 2px solid var(--border-color);
-}
-
-.nav-header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.25rem;
-}
-
-.source-code-link {
-    font-size: 0.875rem;
-    color: var(--link-color);
-    text-decoration: none;
-    font-weight: 500;
-    transition: color 0.2s;
-}
-
-.source-code-link:hover {
-    color: var(--link-hover-color);
-    text-decoration: underline;
-}
-
-.nav-header h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--text-color);
-    margin-bottom: 0.25rem;
-}
-
-.nav-subtitle {
-    font-size: 0.875rem;
-    color: var(--subtitle-color);
-}
-
 .nav-menu {
     list-style: none;
     padding: 0;
@@ -402,58 +365,6 @@ body {
 .nav-menu li {
     border-bottom: 1px solid var(--border-color);
     position: relative;
-}
-
-.nav-item-with-submenu {
-    position: relative;
-}
-
-.nav-parent {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.submenu-arrow {
-    font-size: 0.7em;
-    transition: transform 0.2s;
-    margin-left: auto;
-}
-
-.nav-item-with-submenu:hover .submenu-arrow,
-.nav-item-with-submenu:focus-within .submenu-arrow {
-    transform: rotate(180deg);
-}
-
-.nav-submenu {
-    list-style: none;
-    padding: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-out;
-    background: var(--submenu-bg);
-}
-
-.nav-item-with-submenu:hover .nav-submenu,
-.nav-item-with-submenu:focus-within .nav-submenu {
-    max-height: 200px;
-    transition: max-height 0.3s ease-in;
-}
-
-.nav-submenu li {
-    border-bottom: none;
-    border-top: 1px solid var(--border-color);
-}
-
-.nav-submenu a {
-    padding-left: 3rem;
-    font-size: 0.9em;
-    color: var(--subtitle-color);
-}
-
-.nav-submenu a:hover {
-    background: var(--link-hover-bg);
-    border-left-color: var(--link-color);
 }
 
 /* Category-based Sidebar (React-style) */
@@ -735,17 +646,6 @@ body {
     background: var(--link-active-bg);
 }
 
-.right-sidebar-link-nested {
-    font-size: 0.75rem;
-    color: var(--subtitle-color);
-    padding-left: 1.25rem;
-    margin-left: -0.75rem;
-}
-
-.right-sidebar-link-nested:hover {
-    color: var(--link-color);
-}
-
 /* Active link styling */
 .right-sidebar-link.active {
     background: var(--link-active-bg);
@@ -754,230 +654,15 @@ body {
     font-weight: 500;
 }
 
-.examples-content,
-.cli-content {
+.examples-content {
     margin-left: 0;
     max-width: 1200px;
     margin: 0 auto;
 }
 
 /* CLI Command Cards */
-.cli-command {
-    background: var(--nav-bg);
-    border: 2px solid var(--border-color);
-    border-radius: 8px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-    transition: all 0.2s ease;
-    scroll-margin-top: 2rem;
-}
-
-.cli-command:hover {
-    border-color: var(--link-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-@media (prefers-color-scheme: dark) {
-    .cli-command:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-}
-
-.cli-command-header {
-    display: flex;
-    align-items: baseline;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.cli-command-name {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--link-color);
-    margin: 0;
-}
-
-.cli-badge {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background: var(--link-color);
-    color: var(--bg-color);
-    border-radius: 4px;
-    vertical-align: middle;
-    margin-left: 0.5rem;
-}
-
-.cli-command-syntax {
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 0.875rem;
-    color: var(--subtitle-color);
-    background: var(--code-bg);
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    border: 1px solid var(--code-border);
-    margin: 0;
-}
-
-.cli-command-description {
-    color: var(--text-color);
-    margin-bottom: 1.5rem;
-    line-height: 1.7;
-    font-size: 1rem;
-}
-
-.cli-command-section {
-    margin-top: 1.5rem;
-}
-
-.cli-command-section-title {
-    font-size: 0.875rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--subtitle-color);
-    margin-bottom: 0.75rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.cli-command-section-title::before {
-    content: '';
-    width: 3px;
-    height: 1rem;
-    background: var(--link-color);
-    border-radius: 2px;
-}
-
-.cli-flag-list,
-.cli-arg-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.cli-flag-item,
-.cli-arg-item {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.5rem;
-    background: var(--code-bg);
-    border: 1px solid var(--code-border);
-    border-radius: 6px;
-    border-left: 3px solid var(--link-color);
-}
-
-.cli-flag-name,
-.cli-arg-name {
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--link-color);
-    margin-bottom: 0.25rem;
-    display: block;
-}
-
-.cli-flag-desc,
-.cli-arg-desc {
-    color: var(--text-color);
-    font-size: 0.9375rem;
-    line-height: 1.6;
-    margin: 0;
-}
-
-.cli-flag-options {
-    margin-top: 0.5rem;
-    padding-left: 1.25rem;
-    list-style: none;
-}
-
-.cli-flag-options li {
-    margin-bottom: 0.25rem;
-    color: var(--subtitle-color);
-    font-size: 0.875rem;
-}
-
-.cli-flag-options code {
-    background: transparent;
-    border: none;
-    padding: 0;
-    color: var(--link-color);
-    font-weight: 500;
-}
-
-.cli-example-label {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--subtitle-color);
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.cli-note {
-    padding: 1rem 1.25rem;
-    background: var(--code-bg);
-    border-left: 3px solid var(--link-color);
-    border-radius: 4px;
-    margin-top: 1rem;
-    font-size: 0.9375rem;
-    line-height: 1.6;
-}
-
-.cli-note strong {
-    color: var(--link-color);
-    font-weight: 600;
-}
-
-.cli-install-section {
-    margin-bottom: 1.5rem;
-}
-
-.cli-install-section h3 {
-    margin-top: 0;
-    margin-bottom: 0.75rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-color);
-}
-
-.cli-install-section pre {
-    margin: 0;
-}
 
 /* Improve main content spacing for CLI */
-.cli-content h1 {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
-    color: var(--text-color);
-}
-
-.cli-content > p {
-    font-size: 1.125rem;
-    line-height: 1.7;
-    color: var(--subtitle-color);
-    margin-bottom: 3rem;
-}
-
-.cli-content h2 {
-    font-size: 2rem;
-    font-weight: 700;
-    margin-top: 3rem;
-    margin-bottom: 1.5rem;
-    color: var(--text-color);
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid var(--border-color);
-}
-
-.cli-content h2:first-of-type {
-    margin-top: 0;
-}
 
 .section {
     margin-bottom: 3.5rem;
@@ -1022,6 +707,43 @@ body {
     scroll-margin-top: 5rem;
 }
 
+/* Section heading anchor links */
+.section h2,
+.section h3 {
+    position: relative;
+}
+
+.section-anchor {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-anchor:hover {
+    color: var(--link-color);
+}
+
+.section-anchor-icon {
+    opacity: 0;
+    color: var(--subtitle-color);
+    transition: opacity 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+    width: 0.75em;
+    height: 0.75em;
+}
+
+.section h2:hover .section-anchor-icon,
+.section h3:hover .section-anchor-icon,
+.section-anchor:focus .section-anchor-icon {
+    opacity: 1;
+}
+
+.section-anchor:hover .section-anchor-icon {
+    color: var(--link-color);
+}
+
 .section h4 {
     font-size: 1.125rem;
     font-weight: 600;
@@ -1037,42 +759,6 @@ body {
 }
 
 /* Source Code Badge */
-.source-code-badge {
-    display: inline-block;
-    margin-left: 1rem;
-}
-
-.source-code-badge-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--badge-bg);
-    border: 1px solid var(--badge-border);
-    border-radius: 6px;
-    color: var(--text-color);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-}
-
-.source-code-badge-link:hover {
-    background: var(--badge-hover-bg);
-    border-color: var(--badge-hover-border);
-    color: var(--link-color);
-    text-decoration: none;
-}
-
-.source-code-badge-link svg {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-}
-
-.source-code-badge-link span {
-    white-space: nowrap;
-}
 
 .section ul,
 .section ol {
@@ -1133,162 +819,12 @@ pre code {
     overflow: visible;
 }
 
-.pane-header {
-    padding: 0.75rem 1rem;
-    background: var(--nav-bg);
-    border-bottom: 2px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 2.75rem;
-    min-height: 2.75rem;
-    box-sizing: border-box;
-}
-
 /* Tabs */
-.tab-buttons {
-    display: flex;
-    gap: 0;
-}
 
 .tab-radio {
     position: absolute;
     opacity: 0;
     pointer-events: none;
-}
-
-.tab-btn {
-    padding: 0.5rem 1rem;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--subtitle-color);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    transition: all 0.2s;
-    margin-left: 0.5rem;
-}
-
-.tab-btn:hover {
-    color: var(--text-color);
-    background: var(--hover-bg);
-}
-
-/* Default active state for preview tab button (since it's checked by default) */
-.example-code .tab-btn[for$="-preview"] {
-    color: var(--link-color);
-    border-bottom-color: var(--link-color);
-}
-
-.tab-btn {
-    color: var(--subtitle-color);
-}
-
-.tab-content {
-    display: none;
-    flex: 1;
-    overflow: hidden;
-    min-height: 0;
-    min-width: 0;
-    max-width: 100%;
-}
-
-
-/* Show preview tab by default - higher specificity to override the hide rule above */
-.example-code > .tab-content[id^="tab-preview-"] {
-    display: flex !important;
-    flex-direction: column;
-}
-
-/* Show html tab when html radio is checked */
-.example-code:has(.tab-radio[id$="-html"]:checked) .tab-content[id^="tab-html-"] {
-    display: flex;
-    flex-direction: column;
-}
-
-/* Show zig tab when zig radio is checked */
-.example-code:has(.tab-radio[id$="-zig"]:checked) .tab-content[id^="tab-zig-"] {
-    display: flex;
-    flex-direction: column;
-}
-
-/* Hide preview when html or zig tabs are checked */
-.example-code:has(.tab-radio[id$="-html"]:checked) .tab-content[id^="tab-preview-"],
-.example-code:has(.tab-radio[id$="-zig"]:checked) .tab-content[id^="tab-preview-"] {
-    display: none !important;
-}
-
-/* Reset preview button when other tabs are checked */
-.example-code:has(.tab-radio[id$="-html"]:checked) .tab-btn[for$="-preview"],
-.example-code:has(.tab-radio[id$="-zig"]:checked) .tab-btn[for$="-preview"] {
-    color: var(--subtitle-color) !important;
-    border-bottom-color: transparent !important;
-}
-
-/* Style active tab button based on checked radio */
-.example-code .tab-radio[id$="-preview"]:checked ~ .pane-header .tab-btn[for$="-preview"],
-.example-code .tab-radio[id$="-html"]:checked ~ .pane-header .tab-btn[for$="-html"],
-.example-code .tab-radio[id$="-zig"]:checked ~ .pane-header .tab-btn[for$="-zig"],
-.example-code:has(.tab-radio[id$="-preview"]:checked) .tab-btn[for$="-preview"],
-.example-code:has(.tab-radio[id$="-html"]:checked) .tab-btn[for$="-html"],
-.example-code:has(.tab-radio[id$="-zig"]:checked) .tab-btn[for$="-zig"] {
-    color: var(--link-color) !important;
-    border-bottom-color: var(--link-color) !important;
-}
-
-/* Code Wrapper */
-.code-wrapper {
-    flex: 1;
-    min-height: 0;
-    min-width: 0;
-    max-width: 100%;
-    overflow: visible;
-    position: relative;
-}
-
-.code-wrapper pre {
-    margin: 0;
-    border: none;
-    padding: 0;
-    background: var(--code-bg);
-    overflow: visible;
-    white-space: pre;
-    max-width: 100%;
-    box-sizing: border-box;
-    position: relative;
-}
-
-.code-wrapper code {
-    background: none;
-    border: none;
-    padding: 1.5rem;
-    font-size: 0.875rem;
-    line-height: 1.6;
-    white-space: pre;
-    display: block;
-    scrollbar-gutter: stable;
-    box-sizing: border-box;
-}
-
-
-/* Preview */
-.preview-wrapper {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    background: var(--preview-bg);
-    padding: 10px;
-}
-
-.preview-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: var(--preview-bg);
-    overflow: hidden;
 }
 
 /* Code Examples */
@@ -1300,157 +836,6 @@ pre code {
     width: 100%;
     max-width: 100%;
     overflow: hidden;
-}
-
-.example-code {
-    border: 2px solid var(--code-border);
-    display: flex;
-    flex-direction: column;
-    height: auto;
-    min-height: 60px;
-    overflow: hidden;
-    min-width: 0;
-    max-width: 100%;
-}
-
-/* Single block - all corners rounded */
-.example-code:only-child {
-    border-radius: 8px;
-}
-
-.example-code:only-child h4,
-.example-code:only-child span[data-no-nav] {
-    border-radius: 8px 8px 0 0;
-}
-
-.example-code:only-child pre {
-    border-radius: 0 0 8px 8px;
-}
-
-/* First block (left side) - left corners rounded */
-.example-code:first-child:not(:only-child) {
-    border-right: 1px solid var(--code-border);
-    border-radius: 8px 0 0 8px;
-}
-
-/* Last block (right side) - right corners rounded */
-.example-code:last-child:not(:only-child) {
-    border-left: 1px solid var(--code-border);
-    border-radius: 0 8px 8px 0;
-}
-
-.example-code h4,
-.example-code span[data-no-nav] {
-    padding: 0.75rem 1rem;
-    background: var(--nav-bg);
-    border-bottom: 2px solid var(--code-border);
-    margin: 0;
-    font-size: 0.875rem;
-    display: block;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--subtitle-color);
-    height: 2.75rem;
-    min-height: 2.75rem;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.example-code:first-child:not(:only-child) h4,
-.example-code:first-child:not(:only-child) span[data-no-nav] {
-    border-radius: 8px 0 0 0;
-}
-
-.example-code:last-child:not(:only-child) h4,
-.example-code:last-child:not(:only-child) span[data-no-nav] {
-    border-radius: 0 8px 0 0;
-}
-
-.code-tooltip {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--tooltip-icon-bg);
-    color: var(--bg-color);
-    font-size: 0.7rem;
-    font-weight: normal;
-    font-style: normal;
-    cursor: help;
-    margin-left: auto;
-    margin-right: 0;
-    flex-shrink: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-}
-
-.code-tooltip::after {
-    content: attr(aria-label);
-    position: absolute;
-    bottom: 100%;
-    right: 0;
-    margin-bottom: 8px;
-    padding: 6px 10px;
-    background: var(--tooltip-bg);
-    color: var(--text-color);
-    font-size: 0.75rem;
-    white-space: nowrap;
-    border-radius: 4px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    z-index: 1000;
-    font-weight: normal;
-    letter-spacing: normal;
-    text-transform: none;
-}
-
-.code-tooltip::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    right: 8px;
-    margin-bottom: 4px;
-    border: 4px solid transparent;
-    border-top-color: var(--tooltip-bg);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    z-index: 1000;
-}
-
-.code-tooltip:hover::after,
-.code-tooltip:hover::before {
-    opacity: 1;
-}
-
-.example-code pre {
-    position: relative;
-    margin: 0;
-    border: none;
-    border-radius: 0;
-    padding: 0;
-    overflow: hidden;
-    white-space: pre;
-    background: var(--code-bg);
-    flex: 1;
-    min-height: 0;
-    min-width: 0;
-    max-width: 100%;
-    box-sizing: border-box;
-}
-
-.example-code:first-child:not(:only-child) pre {
-    border-radius: 0 0 0 8px;
-}
-
-.example-code:last-child:not(:only-child) pre {
-    border-radius: 0 0 8px 0;
 }
 
 /* Copy button styles */
@@ -1473,8 +858,7 @@ pre code {
     pointer-events: all;
 }
 
-pre:hover .copy-button,
-.code-wrapper:hover .copy-button {
+pre:hover .copy-button {
     opacity: 0.7;
 }
 
@@ -1492,15 +876,6 @@ pre:hover .copy-button,
     width: 16px;
     height: 16px;
     flex-shrink: 0;
-}
-
-.example-code pre code {
-    white-space: pre;
-    display: block;
-    padding: 1.5rem;
-    scrollbar-gutter: stable;
-    min-height: 100%;
-    box-sizing: border-box;
 }
 
 
@@ -1539,7 +914,6 @@ code.hljs {
 .comment { font-style: italic; color: #6e7781; }
 .constant { color: #0550ae; }
 .constant.builtin { color: #0550ae; }
-.constructor { color: #8250df; }
 .function { color: #8250df; }
 .function.builtin { color: #8250df; }
 .keyword { color: #cf222e; }
@@ -1670,36 +1044,6 @@ code[class*="language-"] {
         width: 100%;
     }
     
-    .example-code:first-child:not(:only-child) {
-        border-right: 2px solid var(--code-border);
-        border-bottom: 1px solid var(--code-border);
-        border-radius: 8px 8px 0 0;
-    }
-    
-    .example-code:last-child:not(:only-child) {
-        border-left: 2px solid var(--code-border);
-        border-top: 1px solid var(--code-border);
-        border-radius: 0 0 8px 8px;
-    }
-    
-    .example-code:first-child:not(:only-child) h4,
-    .example-code:first-child:not(:only-child) span[data-no-nav] {
-        border-radius: 8px 8px 0 0;
-    }
-    
-    .example-code:last-child:not(:only-child) h4,
-    .example-code:last-child:not(:only-child) span[data-no-nav] {
-        border-radius: 0;
-    }
-    
-    .example-code:first-child:not(:only-child) pre {
-        border-radius: 0;
-    }
-    
-    .example-code:last-child:not(:only-child) pre {
-        border-radius: 0 0 8px 8px;
-    }
-    
     .sidebar {
         display: none !important;
     }
@@ -1725,10 +1069,6 @@ code[class*="language-"] {
         max-width: 100%;
     }
     
-    .example-code {
-        min-height: 40px;
-    }
-    
     /* Smaller fonts on medium screens */
     pre {
         font-size: 0.8rem;
@@ -1739,24 +1079,6 @@ code[class*="language-"] {
         font-size: 0.8rem;
     }
     
-    .code-wrapper pre {
-        font-size: 0.8rem;
-    }
-    
-    .code-wrapper code {
-        font-size: 0.8rem;
-        padding: 1rem;
-    }
-    
-    .example-code pre {
-        font-size: 0.8rem;
-    }
-    
-    .example-code pre code {
-        font-size: 0.8rem;
-        padding: 1rem;
-    }
-    
     code {
         font-size: 0.85em;
     }
@@ -1765,10 +1087,6 @@ code[class*="language-"] {
         flex-direction: column;
         align-items: flex-start;
         gap: 1rem;
-    }
-    
-    .source-code-badge {
-        margin-left: 0;
     }
     
     .section h2 {
@@ -1791,36 +1109,6 @@ code[class*="language-"] {
         margin-left: 0;
         margin-right: 0;
         width: 100%;
-    }
-    
-    .example-code:first-child:not(:only-child) {
-        border-right: 2px solid var(--code-border);
-        border-bottom: 1px solid var(--code-border);
-        border-radius: 8px 8px 0 0;
-    }
-    
-    .example-code:last-child:not(:only-child) {
-        border-left: 2px solid var(--code-border);
-        border-top: 1px solid var(--code-border);
-        border-radius: 0 0 8px 8px;
-    }
-    
-    .example-code:first-child:not(:only-child) h4,
-    .example-code:first-child:not(:only-child) span[data-no-nav] {
-        border-radius: 8px 8px 0 0;
-    }
-    
-    .example-code:last-child:not(:only-child) h4,
-    .example-code:last-child:not(:only-child) span[data-no-nav] {
-        border-radius: 0;
-    }
-    
-    .example-code:first-child:not(:only-child) pre {
-        border-radius: 0;
-    }
-    
-    .example-code:last-child:not(:only-child) pre {
-        border-radius: 0 0 8px 8px;
     }
     
     .sidebar {
@@ -1859,10 +1147,6 @@ code[class*="language-"] {
         padding-right: 0;
     }
     
-    .example-code {
-        min-height: 40px;
-    }
-    
     /* Smaller fonts on mobile */
     pre {
         font-size: 0.75rem;
@@ -1873,24 +1157,6 @@ code[class*="language-"] {
         font-size: 0.75rem;
     }
     
-    .code-wrapper pre {
-        font-size: 0.75rem;
-    }
-    
-    .code-wrapper code {
-        font-size: 0.75rem;
-        padding: 1rem;
-    }
-    
-    .example-code pre {
-        font-size: 0.75rem;
-    }
-    
-    .example-code pre code {
-        font-size: 0.75rem;
-        padding: 1rem;
-    }
-    
     code {
         font-size: 0.8em;
     }
@@ -1899,10 +1165,6 @@ code[class*="language-"] {
         flex-direction: column;
         align-items: flex-start;
         gap: 1rem;
-    }
-    
-    .source-code-badge {
-        margin-left: 0;
     }
     
     .section h2 {
@@ -1918,54 +1180,6 @@ code[class*="language-"] {
     }
     
     /* CLI responsive styles */
-    .cli-content {
-        padding: 2rem 1.5rem;
-    }
-    
-    .cli-command {
-        padding: 1.75rem;
-    }
-    
-    .cli-content h1 {
-        font-size: 2rem;
-    }
-    
-    .cli-content h2 {
-        font-size: 1.5rem;
-    }
-    
-    .cli-command {
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .cli-command-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-    
-    .cli-command-name {
-        font-size: 1.25rem;
-    }
-    
-    .cli-command-syntax {
-        font-size: 0.8125rem;
-        width: 100%;
-        overflow-x: auto;
-    }
-    
-    
-    .cli-flag-item,
-    .cli-arg-item {
-        padding: 0.625rem 0.75rem;
-    }
-    
-    .cli-flag-name,
-    .cli-arg-name {
-        font-size: 0.8125rem;
-        word-break: break-all;
-    }
 }
 
 /* Learn Page Styles */
@@ -2203,46 +1417,56 @@ code[class*="language-"] {
     display: block;
 }
 
-/* OS-based auto-selection - Windows */
-body.windows .install-box-header:has(#tab-unix:checked) + .install-box-content #content-unix,
-body.windows .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac {
+/* Simple tabs */
+.simple-tab-header {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.simple-tab-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.simple-tab-label {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    color: var(--subtitle-color);
+    user-select: none;
+    margin-left: 0.5rem;
+    margin-bottom: -1px;
+}
+
+.simple-tab-label:hover {
+    color: var(--text-color);
+    background: var(--hover-bg);
+}
+
+#tab-cli:checked ~ .simple-tab-label[for="tab-cli"],
+#tab-manual:checked ~ .simple-tab-label[for="tab-manual"] {
+    color: var(--link-color);
+    border-bottom-color: var(--link-color);
+    border-bottom-width: 2px;
+}
+
+.simple-tab-content {
     display: none;
 }
 
-body.windows .install-box-header:has(#tab-unix:checked) + .install-box-content #content-windows,
-body.windows .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-win {
+div:has(#tab-cli:checked) #content-cli,
+div:has(#tab-manual:checked) #content-manual {
     display: block;
-}
-
-body.windows .install-box-header:has(#tab-unix:checked) label[for="tab-unix"],
-body.windows .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-mac"] {
-    color: var(--subtitle-color);
-    border-bottom-color: transparent;
-}
-
-body.windows .install-box-header:has(#tab-unix:checked) label[for="tab-windows"],
-body.windows .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-win"] {
-    color: var(--text-color);
-    border-bottom-color: var(--link-color);
-}
-
-/* OS-based auto-selection - Linux (use Other for Zig) */
-body.linux .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac {
-    display: none;
-}
-
-body.linux .install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-other {
-    display: block;
-}
-
-body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-mac"] {
-    color: var(--subtitle-color);
-    border-bottom-color: transparent;
-}
-
-body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-other"] {
-    color: var(--text-color);
-    border-bottom-color: var(--link-color);
 }
 
 /* Next steps grid */
@@ -2290,21 +1514,6 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
 }
 
 /* Single code block (no preview) */
-.code-example.single-code {
-    grid-template-columns: 1fr;
-}
-
-.code-example.single-code .example-code {
-    border-radius: 8px;
-}
-
-.code-example.single-code .example-code span[data-no-nav] {
-    border-radius: 8px 8px 0 0;
-}
-
-.code-example.single-code .example-code pre {
-    border-radius: 0 0 8px 8px;
-}
 
 /* Responsive adjustments for Learn page */
 @media (max-width: 768px) {
@@ -2324,10 +1533,6 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
         padding: 1.25rem;
     }
 }
-
-/* ================================================
-   React.dev Inspired Sandbox Code Block
-   ================================================ */
 
 :root {
     --sandbox-bg: #ffffff;
@@ -2366,12 +1571,37 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
     z-index: 1;
 }
 
+/* Code blocks should not pop out like sandbox (only sandboxes with container pop out) */
+.sandbox:not(:has(.sandbox-container)) {
+    min-width: 0 !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+@media (min-width: 1500px) {
+    .sandbox:not(:has(.sandbox-container)) {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+}
+
+@media (min-width: 1900px) {
+    .sandbox:not(:has(.sandbox-container)) {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        min-width: 0 !important;
+    }
+}
+
 /* Only pop out on very large screens where there's room */
 @media (min-width: 1900px) {
     .sandbox {
-        width: calc(100% + 200px);
-        margin-left: -100px;
-        margin-right: -100px;
+        width: calc(100% + 10%);
+        margin-left: -5%;
+        margin-right: -5%;
         min-width: 900px;
     }
 }
@@ -2379,9 +1609,9 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
 /* Large screens: slight pop out */
 @media (min-width: 1500px) and (max-width: 1699px) {
     .sandbox {
-        width: calc(100% + 100px);
-        margin-left: -50px;
-        margin-right: -50px;
+        width: calc(100% + 4%);
+        margin-left: -2%;
+        margin-right: -2%;
     }
 }
 
@@ -2434,26 +1664,6 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
 
 .sandbox-tab svg {
     opacity: 0.6;
-}
-
-.sandbox-tab-active {
-    color: var(--sandbox-tab-active);
-    background: var(--sandbox-bg);
-}
-
-.sandbox-tab-active::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--sandbox-tab-active);
-}
-
-.sandbox-tab-active svg {
-    opacity: 1;
-    color: var(--sandbox-tab-active);
 }
 
 /* Code Area */
@@ -2677,6 +1887,7 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
     font-size: 13px;
 }
 
+
 /* Hide the radio inputs */
 .sandbox-preview .tab-radio {
     position: absolute;
@@ -2735,6 +1946,10 @@ body.linux .install-box-header:has(#tab-zig-mac:checked) label[for="tab-zig-othe
     
     .sandbox-code-pre {
         font-size: 11px;
+    }
+    
+    .install-code {
+        font-size: 0.8125rem;
     }
     
     .sandbox-tab {

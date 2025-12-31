@@ -251,7 +251,7 @@ fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
         } else if (field.defaultValue()) |default_value| {
             @field(result, field.name) = default_value;
         } else {
-            @compileError(std.fmt.comptimePrint("Missing required field: {s}", .{field.name}));
+            @compileError(std.fmt.comptimePrint("Missing required attribute `{s}` in Component `{s}`", .{ field.name, @typeName(TargetType) }));
         }
     }
 
@@ -259,10 +259,30 @@ fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
 }
 
 const ComponentSerializable = struct {
+    /// Serializable attribute (excludes handler which is a function pointer)
+    const AttributeSerializable = struct {
+        name: []const u8,
+        value: ?[]const u8 = null,
+    };
+
     tag: ?ElementTag = null,
     text: ?[]const u8 = null,
-    attributes: ?[]const Element.Attribute = null,
+    attributes: ?[]const AttributeSerializable = null,
     children: ?[]ComponentSerializable = null,
+
+    /// Convert Element.Attribute slice to serializable form (strips handlers)
+    fn serializeAttributes(allocator: Allocator, attrs: ?[]const Element.Attribute) !?[]const AttributeSerializable {
+        const attributes = attrs orelse return null;
+        const serializable = try allocator.alloc(AttributeSerializable, attributes.len);
+        for (attributes, 0..) |attr, i| {
+            serializable[i] = .{
+                .name = attr.name,
+                .value = attr.value,
+                // handler is intentionally excluded - not serializable
+            };
+        }
+        return serializable;
+    }
 
     pub fn init(allocator: Allocator, component: Component) !ComponentSerializable {
         return switch (component) {
@@ -277,7 +297,7 @@ const ComponentSerializable = struct {
                 } else null;
                 break :blk .{
                     .tag = element.tag,
-                    .attributes = element.attributes,
+                    .attributes = try serializeAttributes(allocator, element.attributes),
                     .children = children_serializable,
                 };
             },
@@ -288,7 +308,7 @@ const ComponentSerializable = struct {
             .component_fn => |comp_fn| blk: {
                 // Resolve component_fn by calling it, then serialize the result
                 // This avoids serializing anyopaque fields
-                const resolved = comp_fn.call();
+                const resolved = try comp_fn.call();
                 const serialized = try ComponentSerializable.init(allocator, resolved);
                 break :blk serialized;
             },
@@ -337,7 +357,7 @@ pub const Component = union(enum) {
 
     pub const ComponentFn = struct {
         propsPtr: ?*const anyopaque,
-        callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) Component,
+        callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
 
@@ -350,36 +370,61 @@ pub const Component = union(enum) {
             if (param_count != 1 and param_count != 2)
                 @compileError(std.fmt.comptimePrint("{s} must have 1 or 2 parameters found {d} parameters", .{ fn_name, param_count }));
 
-            // Validation of props type
             const FirstPropType = FuncInfo.@"fn".params[0].type.?;
+            const first_is_allocator = FirstPropType == std.mem.Allocator;
+            const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
+                @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
+                @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-            if (FirstPropType != std.mem.Allocator)
-                @compileError("Component" ++ fn_name ++ " must have allocator as the first parameter");
+            if (!first_is_allocator and !first_is_ctx_ptr)
+                @compileError("Component " ++ fn_name ++ " must have allocator or *ComponentCtx as the first parameter");
 
-            // If two parameters are passed, the props type must be a struct
-            if (param_count == 2) {
+            // If two parameters are passed with allocator first, the props type must be a struct
+            if (first_is_allocator and param_count == 2) {
                 const SecondPropType = FuncInfo.@"fn".params[1].type.?;
-
                 if (@typeInfo(SecondPropType) != .@"struct")
-                    @compileError("Component" ++ fn_name ++ "must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
+                    @compileError("Component" ++ fn_name ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
             }
 
+            // Context-based components should only have 1 parameter
+            if (first_is_ctx_ptr and param_count != 1)
+                @compileError("Component " ++ fn_name ++ " with *ComponentCtx must have exactly 1 parameter");
+
             // Allocate props on heap to persist
-            const props_copy = if (param_count == 2) blk: {
+            const props_copy = if (first_is_allocator and param_count == 2) blk: {
                 const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                 const coerced = coerceProps(SecondPropType, props);
                 const p = allocator.create(SecondPropType) catch @panic("OOM");
                 p.* = coerced;
                 break :blk p;
+            } else if (first_is_ctx_ptr) blk: {
+                // Contexted components
+                const CtxType = @typeInfo(FirstPropType).pointer.child;
+                const ctx = allocator.create(CtxType) catch @panic("OOM");
+                ctx.allocator = allocator;
+                // Children from props if present
+                ctx.children = if (@hasField(@TypeOf(props), "children")) props.children else null;
+                // fn Component(ctx: *ComponentCtx(Props)) zx.Component
+                if (@hasField(CtxType, "props")) {
+                    const PropsFieldType = @FieldType(CtxType, "props");
+                    if (PropsFieldType != void) {
+                        ctx.props = coerceProps(PropsFieldType, props);
+                    }
+                }
+                break :blk ctx;
             } else null;
 
             const Wrapper = struct {
-                fn call(propsPtr: ?*const anyopaque, alloc: Allocator) Component {
-                    // Check function signature and call appropriately
-                    if (param_count == 1) {
+                fn call(propsPtr: ?*const anyopaque, alloc: Allocator) anyerror!Component {
+                    if (first_is_ctx_ptr) {
+                        const CtxType = @typeInfo(FirstPropType).pointer.child;
+                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
+                        return func(ctx_ptr);
+                    }
+                    if (first_is_allocator and param_count == 1) {
                         return func(alloc);
                     }
-                    if (param_count == 2) {
+                    if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                         const p = propsPtr orelse @panic("propsPtr is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
@@ -389,13 +434,18 @@ pub const Component = union(enum) {
                 }
 
                 fn deinit(propsPtr: ?*const anyopaque, alloc: Allocator) void {
-                    if (param_count == 2) {
+                    if (first_is_ctx_ptr) {
+                        const CtxType = @typeInfo(FirstPropType).pointer.child;
+                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse return)));
+                        alloc.destroy(ctx_ptr);
+                        return;
+                    }
+                    if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                         const p = propsPtr orelse @panic("propsPtr is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
                         alloc.destroy(typed_p);
                     }
-                    // If param_count == 1, propsPtr is null, so nothing to destroy
                 }
             };
 
@@ -407,7 +457,7 @@ pub const Component = union(enum) {
             };
         }
 
-        pub fn call(self: ComponentFn) Component {
+        pub fn call(self: ComponentFn) anyerror!Component {
             return self.callFn(self.propsPtr, self.allocator);
         }
 
@@ -454,7 +504,7 @@ pub const Component = union(enum) {
     }
 
     pub fn render(self: Component, writer: *std.Io.Writer) !void {
-        try self.internalRender(writer, null);
+        try self.renderInner(writer, .{ .escaping = .html, .rendering = .server });
     }
 
     /// Stream method that renders HTML while collecting elements with 'slot' attribute
@@ -463,19 +513,27 @@ pub const Component = union(enum) {
         var slots = std.array_list.Managed(Component).init(allocator);
         errdefer slots.deinit();
 
-        try self.internalRender(writer, &slots);
+        try self.renderInner(writer, &slots);
         return slots.toOwnedSlice();
     }
 
-    fn internalRender(self: Component, writer: *std.Io.Writer, slots: ?*std.array_list.Managed(Component)) !void {
+    const RenderInnerOptions = struct {
+        slots: ?*std.array_list.Managed(Component) = null,
+        escaping: ?BuiltinAttribute.Escaping = .html,
+        rendering: ?BuiltinAttribute.Rendering = .server,
+    };
+    fn renderInner(self: Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
         switch (self) {
             .text => |text| {
                 try writer.print("{s}", .{text});
             },
             .component_fn => |func| {
                 // Lazily invoke the component function and render its result
-                const component = func.call();
-                try component.internalRender(writer, slots);
+                const component = func.call() catch |err| {
+                    std.debug.print("Error rendering component: {}\n", .{err});
+                    return err;
+                };
+                try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
                 try writer.print("<{s} id=\"{s}\"", .{ "div", component_csr.id });
@@ -490,7 +548,7 @@ pub const Component = union(enum) {
             },
             .element => |elem| {
                 // Check if this element has a 'slot' attribute and we're collecting slots
-                if (slots != null) {
+                if (options.slots != null) {
                     var has_slot = false;
                     if (elem.attributes) |attributes| {
                         for (attributes) |attribute| {
@@ -503,7 +561,7 @@ pub const Component = union(enum) {
 
                     // If element has 'slot' attribute, accumulate it instead of rendering
                     if (has_slot) {
-                        try slots.?.append(self);
+                        try options.slots.?.append(self);
                         return;
                     }
                 }
@@ -512,7 +570,7 @@ pub const Component = union(enum) {
                 if (elem.tag == .fragment) {
                     if (elem.children) |children| {
                         for (children) |child| {
-                            try child.internalRender(writer, slots);
+                            try child.renderInner(writer, options);
                         }
                     }
                     return;
@@ -528,7 +586,13 @@ pub const Component = union(enum) {
                 // Handle attributes
                 if (elem.attributes) |attributes| {
                     for (attributes) |attribute| {
-                        try writer.print(" {s}", .{attribute.name});
+                        if (attribute.handler) |handler| {
+                            // try writer.print(" {s}", .{attribute.name});
+                            // try handler(.{});
+                            _ = handler;
+                        } else {
+                            try writer.print(" {s}", .{attribute.name});
+                        }
                         if (attribute.value) |value| {
                             try writer.writeAll("=\"");
                             try escapeAttributeValueToWriter(writer, value);
@@ -547,7 +611,7 @@ pub const Component = union(enum) {
                 // Render children (recursively collect slots if needed)
                 if (elem.children) |children| {
                     for (children) |child| {
-                        try child.internalRender(writer, slots);
+                        try child.renderInner(writer, options);
                     }
                 }
 
@@ -592,7 +656,7 @@ pub const Component = union(enum) {
             },
             .component_fn => |*func| {
                 // Resolve the component function and replace self with the result
-                const resolved = func.call();
+                const resolved = func.call() catch return null;
                 self.* = resolved;
                 // Now search the resolved component
                 return self.getElementByName(allocator, tag);
@@ -641,17 +705,23 @@ pub const Element = struct {
     pub const Attribute = struct {
         name: []const u8,
         value: ?[]const u8 = null,
+        handler: ?EventHandler = null,
     };
 
     tag: ElementTag,
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
+
+    escaping: ?BuiltinAttribute.Escaping = .html,
+    rendering: ?BuiltinAttribute.Rendering = .server,
 };
 
 const ZxOptions = struct {
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
     allocator: ?std.mem.Allocator = null,
+    escaping: ?BuiltinAttribute.Escaping = .html,
+    rendering: ?BuiltinAttribute.Rendering = .server,
 };
 
 pub fn zx(tag: ElementTag, options: ZxOptions) Component {
@@ -712,6 +782,8 @@ const ZxContext = struct {
             .tag = tag,
             .children = children_copy,
             .attributes = attributes_copy,
+            .escaping = options.escaping,
+            .rendering = options.rendering,
         } };
     }
 
@@ -855,6 +927,11 @@ const ZxContext = struct {
                 .value = @tagName(val),
             },
 
+            // Event handlers - store as function pointer
+            .@"fn" => .{
+                .name = name,
+                .handler = val,
+            },
             else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
         };
     }
@@ -872,6 +949,12 @@ const ZxContext = struct {
         }
         return "";
     }
+
+    pub fn propf(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
+        const allocator = self.getAlloc();
+        return std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
+    }
+    pub const propv = attrv;
 
     /// Filter and collect non-null attributes into a slice
     pub fn attrs(self: *ZxContext, inputs: anytype) []const Element.Attribute {
@@ -913,14 +996,163 @@ const ZxContext = struct {
         @compileError("attrs() expects a tuple of attributes");
     }
 
+    /// Spread a struct's fields as attributes
+    /// Takes a struct and returns a slice of attributes for each field
+    pub fn attrSpr(self: *ZxContext, props: anytype) []const ?Element.Attribute {
+        const allocator = self.getAlloc();
+        const T = @TypeOf(props);
+        const type_info = @typeInfo(T);
+
+        if (type_info != .@"struct") {
+            @compileError("attrSpr() expects a struct, got " ++ @typeName(T));
+        }
+
+        const fields = type_info.@"struct".fields;
+        if (fields.len == 0) return &.{};
+
+        const result = allocator.alloc(?Element.Attribute, fields.len) catch @panic("OOM");
+
+        inline for (fields, 0..) |field, i| {
+            const val = @field(props, field.name);
+            result[i] = self.attr(field.name, val);
+        }
+
+        return result;
+    }
+
+    /// Merge two structs for component props spreading
+    /// Later fields override earlier ones
+    pub fn propsM(_: *ZxContext, base: anytype, overrides: anytype) MergedPropsType(@TypeOf(base), @TypeOf(overrides)) {
+        const BaseType = @TypeOf(base);
+        const OverrideType = @TypeOf(overrides);
+        const ResultType = MergedPropsType(BaseType, OverrideType);
+
+        var result: ResultType = undefined;
+
+        // Copy all fields from base
+        const base_info = @typeInfo(BaseType);
+        if (base_info == .@"struct") {
+            inline for (base_info.@"struct".fields) |field| {
+                if (@hasField(ResultType, field.name)) {
+                    @field(result, field.name) = @field(base, field.name);
+                }
+            }
+        }
+
+        // Apply overrides (these take precedence)
+        const override_info = @typeInfo(OverrideType);
+        if (override_info == .@"struct") {
+            inline for (override_info.@"struct".fields) |field| {
+                @field(result, field.name) = @field(overrides, field.name);
+            }
+        }
+
+        return result;
+    }
+
+    /// Merge multiple attribute sources (including spread results) into a single slice
+    /// Accepts a tuple where each element can be:
+    /// - ?Element.Attribute (single attribute from attr())
+    /// - []const ?Element.Attribute (slice from attrSpr())
+    /// Later attributes with the same name override earlier ones (like JSX)
+    pub fn attrsM(self: *ZxContext, inputs: anytype) []const Element.Attribute {
+        const allocator = self.getAlloc();
+        const InputType = @TypeOf(inputs);
+        const input_info = @typeInfo(InputType);
+
+        if (input_info != .@"struct" or !input_info.@"struct".is_tuple) {
+            @compileError("attrsM() expects a tuple of attributes or attribute slices");
+        }
+
+        // First pass: collect all attributes in order
+        var count: usize = 0;
+        inline for (inputs) |input| {
+            const T = @TypeOf(input);
+            if (T == ?Element.Attribute) {
+                if (input != null) count += 1;
+            } else if (T == []const ?Element.Attribute) {
+                for (input) |maybe_attr| {
+                    if (maybe_attr != null) count += 1;
+                }
+            } else {
+                @compileError("attrsM() element must be ?Element.Attribute or []const ?Element.Attribute, got " ++ @typeName(T));
+            }
+        }
+
+        if (count == 0) return &.{};
+
+        // Collect all attributes in order (later ones override earlier)
+        const temp = allocator.alloc(Element.Attribute, count) catch @panic("OOM");
+        var idx: usize = 0;
+
+        inline for (inputs) |input| {
+            const T = @TypeOf(input);
+            if (T == ?Element.Attribute) {
+                if (input) |a| {
+                    temp[idx] = a;
+                    idx += 1;
+                }
+            } else if (T == []const ?Element.Attribute) {
+                for (input) |maybe_attr| {
+                    if (maybe_attr) |a| {
+                        temp[idx] = a;
+                        idx += 1;
+                    }
+                }
+            }
+        }
+
+        // Deduplicate atrrs, keep last occurrence
+        var unique_count: usize = 0;
+        var i: usize = temp.len;
+        while (i > 0) {
+            i -= 1;
+            const current = temp[i];
+            var found_later = false;
+            for (temp[i + 1 ..]) |later| {
+                if (std.mem.eql(u8, current.name, later.name)) {
+                    found_later = true;
+                    break;
+                }
+            }
+            if (!found_later) {
+                unique_count += 1;
+            }
+        }
+
+        const result = allocator.alloc(Element.Attribute, unique_count) catch @panic("OOM");
+        var result_idx: usize = 0;
+
+        for (temp, 0..) |current_attr, j| {
+            var found_later = false;
+            for (temp[j + 1 ..]) |later| {
+                if (std.mem.eql(u8, current_attr.name, later.name)) {
+                    found_later = true;
+                    break;
+                }
+            }
+            if (!found_later) {
+                result[result_idx] = current_attr;
+                result_idx += 1;
+            }
+        }
+
+        allocator.free(temp);
+        return result;
+    }
+
     pub fn cmp(self: *ZxContext, comptime func: anytype, props: anytype) Component {
         const allocator = self.getAlloc();
         const FuncInfo = @typeInfo(@TypeOf(func));
         const param_count = FuncInfo.@"fn".params.len;
+        const FirstPropType = FuncInfo.@"fn".params[0].type.?;
+        const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
+            @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
+            @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-        // If function has props parameter, coerce props to the expected type
-        if (param_count == 2) {
-            const PropsType = FuncInfo.@"fn".params[1].type.?;
+        // Context-based component or function with props parameter
+        if (first_is_ctx_ptr or param_count == 2) {
+            const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".params[1].type.?;
             const coerced_props = coerceProps(PropsType, props);
             return .{ .component_fn = Component.ComponentFn.init(func, allocator, coerced_props) };
         } else {
@@ -960,21 +1192,156 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-pub const info = @import("zx_info");
 const routing = @import("routing.zig");
+
+pub const info = @import("zx_info");
 pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
 
 pub const Allocator = std.mem.Allocator;
 
+const PageOptionsStatic = struct {};
+pub const PageMethod = enum {
+    GET,
+    POST,
+    PUT,
+    DELETE,
+    PATCH,
+    OPTIONS,
+    HEAD,
+    CONNECT,
+    TRACE,
+    ALL,
+};
 pub const PageOptions = struct {
-    rendering: ?Attribute.Rendering = null,
-    caching: Attribute.Caching = .none,
+    rendering: ?BuiltinAttribute.Rendering = null,
+    caching: BuiltinAttribute.Caching = .none,
+    methods: []const PageMethod = &.{.GET},
+    static: ?PageOptionsStatic = null,
 };
 
+pub const LayoutOptions = struct {
+    rendering: ?BuiltinAttribute.Rendering = null,
+    caching: BuiltinAttribute.Caching = .none,
+};
+pub const NotFoundOptions = struct {
+    rendering: ?BuiltinAttribute.Rendering = null,
+    caching: BuiltinAttribute.Caching = .none,
+};
+pub const ErrorOptions = struct {};
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
-pub const Attribute = struct {
+pub const NotFoundContext = routing.NotFoundContext;
+pub const ErrorContext = routing.ErrorContext;
+
+/// Compute the merged type of two structs for props spreading
+/// All fields from both structs are included in the result
+pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) type {
+    const base_info = @typeInfo(BaseType);
+    const override_info = @typeInfo(OverrideType);
+
+    if (base_info != .@"struct" or override_info != .@"struct") {
+        @compileError("MergedPropsType expects struct types");
+    }
+
+    const base_fields = base_info.@"struct".fields;
+    const override_fields = override_info.@"struct".fields;
+
+    // Count unique fields (override fields replace base fields with same name)
+    comptime var field_count = base_fields.len;
+    inline for (override_fields) |of| {
+        comptime var found = false;
+        inline for (base_fields) |bf| {
+            if (std.mem.eql(u8, bf.name, of.name)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) field_count += 1;
+    }
+
+    // Build the combined fields array
+    comptime var fields: [field_count]std.builtin.Type.StructField = undefined;
+    comptime var idx: usize = 0;
+
+    // Add base fields (unless overridden)
+    inline for (base_fields) |bf| {
+        comptime var overridden = false;
+        inline for (override_fields) |of| {
+            if (std.mem.eql(u8, bf.name, of.name)) {
+                overridden = true;
+                break;
+            }
+        }
+        if (overridden) {
+            // Use override field's type
+            inline for (override_fields) |of| {
+                if (std.mem.eql(u8, bf.name, of.name)) {
+                    fields[idx] = of;
+                    break;
+                }
+            }
+        } else {
+            fields[idx] = bf;
+        }
+        idx += 1;
+    }
+
+    // Add new fields from override
+    inline for (override_fields) |of| {
+        comptime var found = false;
+        inline for (base_fields) |bf| {
+            if (std.mem.eql(u8, bf.name, of.name)) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            fields[idx] = of;
+            idx += 1;
+        }
+    }
+
+    return @Type(.{
+        .@"struct" = .{
+            .layout = .auto,
+            .fields = &fields,
+            .decls = &.{},
+            .is_tuple = false,
+        },
+    });
+}
+
+pub fn ComponentCtx(comptime PropsType: type) type {
+    if (PropsType == void) {
+        return struct {
+            allocator: Allocator,
+            children: ?Component = null,
+        };
+    } else {
+        return struct {
+            props: PropsType,
+            allocator: Allocator,
+            children: ?Component = null,
+        };
+    }
+}
+
+pub const ComponentContext = struct { allocator: Allocator, children: ?Component = null };
+pub const EventContext = struct {
+    id: u64,
+    pub fn init(id: u64) EventContext {
+        return .{ .id = id };
+    }
+
+    pub fn preventDefault(self: EventContext) void {
+        Client.bom.Event.preventDefault(self.id);
+    }
+};
+
+pub const EventHandler = *const fn (event: EventContext) void;
+
+pub const BuiltinAttribute = struct {
     pub const Rendering = enum {
         /// Client-side React.js
         react,
@@ -982,6 +1349,8 @@ pub const Attribute = struct {
         client,
         /// Server-side rendering (default)
         server,
+        /// Static rendering (pre-render the component/page/layout as static HTML and store in cache/cdn)
+        static,
 
         pub fn from(value: []const u8) Rendering {
             const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
@@ -996,7 +1365,7 @@ pub const Attribute = struct {
         /// HTML escaping (default behavior)
         html,
         /// No escaping; outputs raw HTML. Use with caution for trusted content only.
-        raw,
+        none, // no escaping
     };
 
     pub const Caching = union(enum) {

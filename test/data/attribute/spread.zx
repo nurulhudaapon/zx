@@ -1,0 +1,32 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const form_attrs = .{
+        .@"data-name" = "hello",
+        .class = "b-1 bold",
+    };
+
+    const input_props = .{
+        .name = "email",
+        .value = "test@example.com",
+    };
+
+    return (
+        <form @{allocator} {..form_attrs}>
+            <Input {..input_props} />
+            <Input {..input_props} extra="override" />
+        </form>
+    );
+}
+
+const InputProps = struct { value: []const u8, name: []const u8, extra: []const u8 = "" };
+fn Input(ctx: *zx.ComponentCtx(InputProps)) zx.Component {
+    return (
+        <div>
+            <label>{ctx.props.name}</label>
+            <input type="text" {..ctx.props} />
+            <input extra="override-by-spr" {..ctx.props} />
+            <input type="text" {..ctx.props} extra="override-by-attr" />
+        </div>
+    );
+}
+
+const zx = @import("zx");

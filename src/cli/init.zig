@@ -7,6 +7,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addPositionalArg(init_path_arg);
     try cmd.addFlag(template_flag);
     try cmd.addFlag(force_flag);
+    try cmd.addFlag(existing_flag);
 
     return cmd;
 }
@@ -27,6 +28,13 @@ const force_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
+const existing_flag = zli.Flag{
+    .name = "existing",
+    .description = "Initialize ZX in an existing project",
+    .type = .Bool,
+    .default_value = .{ .Bool = false },
+};
+
 const init_path_arg = zli.PositionalArg{
     .name = "path",
     .description = "Path to initialize the project in (default: current directory)",
@@ -36,6 +44,7 @@ const init_path_arg = zli.PositionalArg{
 fn init(ctx: zli.CommandContext) !void {
     const t_val = ctx.flag("template", []const u8);
     const force_init = ctx.flag("force", bool);
+    const existing_init = ctx.flag("existing", bool);
     const init_path = std.mem.trim(u8, ctx.getArg("path") orelse ".", " ");
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
@@ -44,7 +53,7 @@ fn init(ctx: zli.CommandContext) !void {
     // Validations
     const is_clean_dir = try isDirEmpty(init_path);
     const has_init_path_arg = init_path.len > 0 and !std.mem.eql(u8, init_path, ".");
-    if (!is_clean_dir and !force_init) {
+    if (!is_clean_dir and !force_init and !existing_init) {
         printer.warning("Directory is not empty.", .{});
         try ctx.writer.print("\nYou may want either:\n\n", .{});
         if (!has_init_path_arg)
@@ -95,6 +104,18 @@ fn init(ctx: zli.CommandContext) !void {
 
         const output_path = try std.fs.path.join(ctx.allocator, &.{ init_path, template.path });
         defer ctx.allocator.free(output_path);
+
+        // Skip if file exists and existing flag is set
+        if (existing_init) {
+            const file_exists = blk: {
+                std.fs.cwd().access(output_path, .{}) catch |err| switch (err) {
+                    error.FileNotFound => break :blk false,
+                    else => continue,
+                };
+                break :blk true;
+            };
+            if (file_exists) continue;
+        }
 
         if (std.fs.path.dirname(output_path)) |parent_dir| {
             try std.fs.cwd().makePath(parent_dir);

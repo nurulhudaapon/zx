@@ -1,7 +1,7 @@
 pub fn RawHtml(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
-            <div @escaping={.raw}>
+            <div @escaping={.none}>
                 <strong>This HTML is rendered directly</strong>
             </div>
         </main>
@@ -9,4 +9,3 @@ pub fn RawHtml(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");
-

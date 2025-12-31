@@ -16,7 +16,21 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 .p,
                                 .{
                                     .children = &.{
-                                        _zx.expr(name),
+                                        _zx.ele(
+                                            .p,
+                                            .{
+                                                .children = &.{
+                                                    _zx.ele(
+                                                        .div,
+                                                        .{
+                                                            .children = &.{
+                                                                _zx.expr(name),
+                                                            },
+                                                        },
+                                                    ),
+                                                },
+                                            },
+                                        ),
                                     },
                                 },
                             );
@@ -30,6 +44,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 .p,
                                 .{
                                     .children = &.{
+                                        _zx.ele(
+                                            .div,
+                                            .{
+                                                .children = &.{
+                                                    _zx.expr(name),
+                                                },
+                                            },
+                                        ),
                                         _zx.expr(name),
                                     },
                                 },

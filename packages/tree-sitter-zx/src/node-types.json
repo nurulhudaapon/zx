@@ -2596,7 +2596,19 @@
           "named": true
         },
         {
+          "type": "zx_builtin_shorthand_attribute",
+          "named": true
+        },
+        {
           "type": "zx_regular_attribute",
+          "named": true
+        },
+        {
+          "type": "zx_shorthand_attribute",
+          "named": true
+        },
+        {
+          "type": "zx_spread_attribute",
           "named": true
         }
       ]
@@ -2668,6 +2680,22 @@
         "types": [
           {
             "type": "zx_attribute_value",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "zx_builtin_shorthand_attribute",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
             "named": true
           }
         ]
@@ -2851,6 +2879,38 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "zx_shorthand_attribute",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "zx_spread_attribute",
+    "named": true,
+    "fields": {
+      "expression": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "expression",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {

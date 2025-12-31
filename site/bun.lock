@@ -4,16 +4,17 @@
   "workspaces": {
     "": {
       "dependencies": {
-        "@tailwindcss/cli": "latest",
-        "react": "latest",
-        "react-dom": "latest",
-        "tailwindcss": "latest",
-        "ziex": "latest",
+        "@tailwindcss/cli": "^4.1.18",
+        "prettier": "^3.7.4",
+        "react": "^19.2.3",
+        "react-dom": "^19.2.3",
+        "tailwindcss": "^4.1.18",
+        "ziex": "^0.0.1-dev.7",
       },
       "devDependencies": {
-        "@types/react": "latest",
-        "@types/react-dom": "latest",
-        "esbuild": "latest",
+        "@types/react": "^19.2.7",
+        "@types/react-dom": "^19.2.3",
+        "esbuild": "^0.27.2",
       },
     },
   },
@@ -199,6 +200,8 @@
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 
     "picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
+
+    "prettier": ["prettier@3.7.4", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-v6UNi1+3hSlVvv8fSaoUbggEM5VErKmmpGA7Pl3HF8V6uKY7rvClBOJlH6yNwQtfTueNkGVpOv/mtWL9L4bgRA=="],
 
     "react": ["react@19.2.3", "", {}, "sha512-Ku/hhYbVjOQnXDZFv2+RibmLFGwFdeeKHFcOTlrt7xplBnya5OGn/hIRDsqDiSUcfORsDC7MPxwork8jBwsIWA=="],
 

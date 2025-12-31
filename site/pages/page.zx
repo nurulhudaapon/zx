@@ -51,7 +51,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <li><a href="/learn" class="nav-link">Learn</a></li>
                             <li><a href="/docs" class="nav-link"><span class="nav-link-full">Reference</span><span class="nav-link-short">Ref</span></a></li>
                             <li><a href="/examples" class="nav-link">Examples</a></li>
-                            <li><a href="/cli" class="nav-link">CLI</a></li>
                         </ul>
                         <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="nav-github" aria-label="GitHub">
                             <GitHubIcon allocator={allocator} />

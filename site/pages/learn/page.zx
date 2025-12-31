@@ -1,4 +1,12 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub const options = zx.PageOptions{
+    .methods = &.{ .GET, .POST },
+};
+
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    if (ctx.request.method != .GET) {
+        return error.MethodNotAllowed;
+    }
+
     const allocator = ctx.arena;
 
     // Greeting example
@@ -76,6 +84,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     // Layout example (just show code, no preview)
     const zx_layout = @embedFile("../../../pages/learn/examples/layout_example.zx");
 
+    // Build manual example
+    const build_manual_code = @embedFile("../../../pages/learn/examples/build_manual.zig");
+
     // Dynamic route example
     var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
     const zx_dynamic = @embedFile("../../../pages/learn/examples/dynamic_route.zx");
@@ -108,92 +119,13 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
 
-    const categories = [_]SidebarProps.Category{
-        .{
-            .title = "GET STARTED",
-            .sections = &[_]SidebarProps.Section{
-                .{ .title = "Quick Start", .href = "/learn" },
-                .{
-                    .title = "Installation",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#installation", .text = "Install ZX CLI" },
-                        .{ .href = "#create-project", .text = "Create a Project" },
-                    },
-                },
-                .{
-                    .title = "Editor Setup",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#vscode", .text = "VS Code / Cursor" },
-                        .{ .href = "#neovim", .text = "Neovim" },
-                        .{ .href = "#zed", .text = "Zed" },
-                    },
-                },
-            },
-        },
-        .{
-            .title = "LEARN ZX",
-            .sections = &[_]SidebarProps.Section{
-                .{
-                    .title = "Describing the UI",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#creating-components", .text = "Creating Components" },
-                        .{ .href = "#writing-markup", .text = "Writing Markup" },
-                        .{ .href = "#fragments", .text = "Fragments" },
-                        .{ .href = "#displaying-data", .text = "Displaying Data" },
-                        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-                        .{ .href = "#passing-props", .text = "Passing Props" },
-                        .{ .href = "#children", .text = "Children Props" },
-                    },
-                },
-                .{
-                    .title = "Control Flow",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#conditional-rendering", .text = "Conditional Rendering" },
-                        .{ .href = "#rendering-lists", .text = "Rendering Lists" },
-                    },
-                },
-                .{
-                    .title = "Routing",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#pages-layouts", .text = "Pages and Layouts" },
-                    },
-                },
-                .{
-                    .title = "Plugins",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#plugins", .text = "Using Plugins" },
-                    },
-                },
-            },
-        },
-    };
-
-    const toc_links = [_]SidebarProps.Link{
-        .{ .href = "#installation", .text = "Installation" },
-        .{ .href = "#create-project", .text = "Create a Project" },
-        .{ .href = "#vscode", .text = "VS Code / Cursor" },
-        .{ .href = "#neovim", .text = "Neovim" },
-        .{ .href = "#zed", .text = "Zed" },
-        .{ .href = "#creating-components", .text = "Creating Components" },
-        .{ .href = "#writing-markup", .text = "Writing Markup" },
-        .{ .href = "#fragments", .text = "Fragments" },
-        .{ .href = "#displaying-data", .text = "Displaying Data" },
-        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-        .{ .href = "#conditional-rendering", .text = "Conditional Rendering" },
-        .{ .href = "#rendering-lists", .text = "Rendering Lists" },
-        .{ .href = "#passing-props", .text = "Passing Props" },
-        .{ .href = "#children", .text = "Children Props" },
-        .{ .href = "#pages-layouts", .text = "Pages and Layouts" },
-        .{ .href = "#plugins", .text = "Using Plugins" },
-        .{ .href = "#next-steps", .text = "Next Steps" },
-    };
 
     return (
-        <Sidebar @allocator={allocator} categories={&categories} toc={&toc_links}>
+        <fragment @{allocator}>
             <LearnHeader />
             <YouWillLearn />
             <Installation />
-            <CreateProject />
+            <CreateProject build_manual_code={build_manual_code} />
             <EditorSetup />
             <CreatingComponents zx_code={zx_greeting} zig_code={zig_greeting} html_code={html_greeting} />
             <WritingMarkup zx_code={zx_markup} zig_code={zig_markup} html_code={html_markup} />
@@ -207,7 +139,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <PagesAndLayouts zx_page={zx_page} zig_page={zig_page} html_page={html_page} zx_layout={zx_layout} zx_dynamic={zx_dynamic} zig_dynamic={zig_dynamic} html_dynamic={html_dynamic} />
             <Plugins />
             <NextSteps />
-        </Sidebar>
+        </fragment>
     );
 }
 
@@ -239,13 +171,15 @@ fn YouWillLearn(allocator: zx.Allocator) zx.Component {
     );
 }
 
-fn Installation(allocator: zx.Allocator) zx.Component {
+fn Installation(allocator: zx.Allocator) !zx.Component {
     return (
         <section id="installation" class="section" @allocator={allocator}>
             <h2>Installation</h2>
             <p>Install the ZX CLI to get started:</p>
 
             <InstallCLI />
+
+            <p style="margin-top: 1rem;">If you prefer not to install the CLI, you can create a project manually. See the <a href="#create-project">Create a Project</a> section for the manual setup option, or check the <a href="/docs#cli">CLI documentation</a> for all available commands.</p>
 
             <h3>Install Zig</h3>
             <p>ZX <code>{zx.info.version_string}</code> requires Zig <code>{zx.info.minimum_zig_version}</code>:</p>
@@ -255,33 +189,81 @@ fn Installation(allocator: zx.Allocator) zx.Component {
     );
 }
 
-fn CreateProject(allocator: zx.Allocator) zx.Component {
+const CreateProjectProps = struct {
+    build_manual_code: []const u8,
+};
+
+fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Component {
     return (
         <section id="create-project" class="section" @allocator={allocator}>
             <h2>Create a Project</h2>
-            <p>Create a new ZX project:</p>
-            <div class="install-box install-box-simple">
-                <div class="install-box-content">
-                    <div class="install-code">
-                        <span class="install-prompt">$ </span>
-                        <span class="function">zx</span>
-                        <span class="operator"> init </span>
-                        <span class="variable">my-app</span>
+            <p><strong>CLI:</strong> Use the CLI to quickly scaffold a new ZX project. It automatically sets up the project structure, build configuration, and template files for you.</p>
+            <p><strong>Manual:</strong> If you prefer not to install the CLI, you can simply add the ZX dependency to your <code>build.zig</code> file and initialize the project manually, or use the <code>zx</code> build step available after configuring <code>zx.init</code>.</p>
+            <div>
+                <div class="simple-tab-header">
+                    <input type="radio" id="tab-cli" name="create-project" class="simple-tab-radio" checked="true" />
+                    <input type="radio" id="tab-manual" name="create-project" class="simple-tab-radio" />
+                    <label for="tab-cli" class="simple-tab-label">CLI</label>
+                    <label for="tab-manual" class="simple-tab-label">Manual</label>
+                </div>
+                <div class="simple-tab-content" id="content-cli">
+                    <p>Create a new ZX project using the CLI:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code" style="min-height: 28px; margin-top: 5px;">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zx</span>
+                                <span class="operator"> init </span>
+                                <span class="variable">my-app</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Start the ZX app in development mode with hot reloading:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code install-code-multiline">
+                                <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
+                                <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">dev</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
+                </div>
+                <div class="simple-tab-content" id="content-manual">
+                    <h3 style="margin-top: 0;">New Project</h3>
+                    <p>For a new project, first initialize a Zig project:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zig</span>
+                                <span class="operator"> init</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top: 1.5rem;">Existing Project</h3>
+                    <p>For an existing Zig project, add the following to your <code>build.zig</code>:</p>
+                    <CodeBlock code={props.build_manual_code} filename="build.zig" /> 
+
+                    <p style="margin-top: 1.5rem;">Then initialize the project with templates:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zig</span>
+                                <span class="operator"> build </span>
+                                <span class="variable">zx</span>
+                                <span class="operator"> -- </span>
+                                <span class="function">init</span>
+                                <span class="operator"> --existing</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <p>Start the ZX Application:</p>
-            <div class="install-box install-box-simple">
-                <div class="install-box-content">
-                    <div class="install-code install-code-multiline">
-                        <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
-                        <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">serve</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <p>Open <code>http://localhost:3000</code> in your browser!</p>
 
             <h3>Project Structure</h3>
             <pre class="language-text">
@@ -369,7 +351,7 @@ fn CreatingComponents(allocator: zx.Allocator, props: CreatingComponentsProps) z
                 <strong>Note:</strong>
                  Every component needs an allocator for memory management. The 
                 <code>@allocator</code>
-                 attribute must be set on the root element of each component. Child components inherit the allocator from their parent.
+                 attribute must be set on the root element of each component. Child components inherit the allocator from their parent. See the <a href="/docs#allocator">@allocator documentation</a> for details.
             </div>
         </section>
     );
@@ -389,6 +371,7 @@ fn WritingMarkup(allocator: zx.Allocator, props: WritingMarkupProps) zx.Componen
             <p>ZX is stricter than HTML. You have to close all tags, including self-closing ones like <code>{"<br />"}</code>:</p>
             <ExampleBlock id="markup" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="about_section.zx" />
             <p>CSS classes are specified with the <code>class</code> attribute, same as HTML. Write your CSS in separate files and include them in your layout.</p>
+            <p>ZX automatically escapes HTML content for security. If you need to render raw HTML, see the <a href="/docs#escaping">@escaping documentation</a>.</p>
         </section>
     );
 }
@@ -405,7 +388,7 @@ fn Fragments(allocator: zx.Allocator, props: FragmentsProps) zx.Component {
             <h2>Fragments</h2>
             <p>Sometimes you want to return multiple elements from a component without adding an extra wrapper. Use the empty tag syntax <code>{"<>"}...{"</>"}</code>:</p>
             <ExampleBlock id="fragment" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="fragment_demo.zx" />
-            <p>Fragments are useful when you need to group elements but don't want to add extra DOM nodes. The children are rendered directly without any wrapper element.</p>
+            <p>Fragments are useful when you need to group elements but don't want to add extra DOM nodes. The children are rendered directly without any wrapper element. Learn more in the <a href="/docs#fragments">Fragments documentation</a>.</p>
         </section>
     );
 }
@@ -434,6 +417,7 @@ fn DisplayingData(allocator: zx.Allocator, props: DisplayingDataProps) zx.Compon
             <ExampleBlock id="text-expr" zx_code={props.zx_text} zig_code={props.zig_text} html_code={props.html_text} filename="user_greeting.zx" />
             <p>Different types are automatically handled:</p>
             <ExampleBlock id="format-expr" zx_code={props.zx_format} zig_code={props.zig_format} html_code={props.html_format} filename="product_info.zx" />
+            <p>See the <a href="/docs#expressions">Expressions documentation</a> for detailed information on all supported types including components and component arrays.</p>
         </section>
     );
 }
@@ -445,12 +429,32 @@ const DynamicAttributesProps = struct {
 };
 
 fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.Component {
+    const spread_example =
+        \\const attrs = .{ .class = "btn", .disabled = true };
+        \\...
+        \\(<button {..attrs}>Click</button>)
+    ;
+    const template_example =
+        \\const id = 42;
+        \\...
+        \\(<a href=`/users/{id}/profile`>Profile</a>)
+    ;
+
     return (
         <section id="dynamic-attributes" class="section" @allocator={allocator}>
             <h2>Dynamic attributes</h2>
             <p>Use curly braces to pass dynamic values to HTML attributes:</p>
             <ExampleBlock id="dynamic-attr" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attrs.zx" />
             <p>You can use any expression, including conditionals, to compute attribute values dynamically.</p>
+
+            <h3>Template strings</h3>
+            <p>Use backticks for string interpolation in attributes:</p>
+            <CodeBlock code={template_example} />
+
+            <h3>Spread and shorthand</h3>
+            <p>Use <code>{"{..struct}"}</code> to spread struct fields as attributes, or <code>{"{variable}"}</code> as shorthand when the attribute name matches the variable:</p>
+            <CodeBlock code={spread_example} />
+            <p>See the <a href="/docs#attribute-syntax">Attribute Syntax documentation</a> for more details. ZX also provides special <a href="/docs#builtin-attributes">builtin attributes</a> like <code>@allocator</code>, <code>@escaping</code>, and <code>@rendering</code>.</p>
         </section>
     );
 }
@@ -474,6 +478,7 @@ fn ConditionalRendering(allocator: zx.Allocator, props: ConditionalRenderingProp
             <h3>Switch expressions</h3>
             <p>Use <code>switch</code> expressions to match against enum values. Each case can return text or a component:</p>
             <ExampleBlock id="switch-expr" zx_code={props.zx_switch} zig_code={props.zig_switch} html_code={props.html_switch} filename="role_badge.zx" />
+            <p>ZX also supports <code>while</code> loops for conditional iteration. See the <a href="/docs#control-flow">Control Flow documentation</a> for all patterns.</p>
         </section>
     );
 }
@@ -490,7 +495,7 @@ fn RenderingLists(allocator: zx.Allocator, props: RenderingListsProps) zx.Compon
             <h2>Rendering lists</h2>
             <p>Use <code>for</code> loops to iterate over arrays and render a component for each item:</p>
             <ExampleBlock id="list" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="product_list.zx" />
-            <p>The loop variable can be used within the component body to display item-specific content.</p>
+            <p>The loop variable can be used within the component body to display item-specific content. See the <a href="/docs#for-loops">For Loops documentation</a> for more examples.</p>
         </section>
     );
 }
@@ -507,7 +512,7 @@ fn PassingProps(allocator: zx.Allocator, props: PassingPropsProps) zx.Component 
             <h2>Passing props to components</h2>
             <p>Components can accept <em>props</em> (properties) to customize their behavior. Define a props struct as the second parameter:</p>
             <ExampleBlock id="props" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="button_demo.zx" />
-            <p>ZX automatically coerces attributes to the props struct. Fields with default values are optional.</p>
+            <p>ZX automatically coerces attributes to the props struct. Fields with default values are optional. See the <a href="/docs#components">Components documentation</a> for more on props coercion.</p>
             <h3>Component signatures</h3>
             <ul>
                 <li><strong>Allocator only:</strong><code>fn Component(allocator: zx.Allocator) zx.Component</code></li>
@@ -529,7 +534,7 @@ fn ChildrenProps(allocator: zx.Allocator, props: ChildrenPropsProps) zx.Componen
             <h2>Passing children to components</h2>
             <p>Components can accept <em>children</em> — content passed between opening and closing tags. Add a <code>children: zx.Component</code> field to your props:</p>
             <ExampleBlock id="children" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="card_demo.zx" />
-            <p>This pattern is useful for creating wrapper components like cards, modals, or layout containers.</p>
+            <p>This pattern is useful for creating wrapper components like cards, modals, or layout containers. See the <a href="/docs#children-props">Children Props documentation</a> for more details.</p>
         </section>
     );
 }
@@ -545,29 +550,7 @@ const PagesAndLayoutsProps = struct {
 };
 
 fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Component {
-    const layout_code =
-        \\pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-        \\    return (
-        \\        <html @allocator={ctx.arena}>
-        \\            <head>
-        \\                <title>My App</title>
-        \\            </head>
-        \\            <body>
-        \\                <nav>
-        \\                    <a href="/">Home</a>
-        \\                    <a href="/about">About</a>
-        \\                </nav>
-        \\                <main>
-        \\                    {children}
-        \\                </main>
-        \\                <footer>© 2025 My App</footer>
-        \\            </body>
-        \\        </html>
-        \\    );
-        \\}
-        \\
-        \\const zx = @import("zx");
-    ;
+    const layout_code = @embedFile("../../../pages/learn/examples/layout_example.zx");
     const layout_html =
         \\<html><head><title>My App</title></head><body><nav><a href="/">Home</a> <a href="/about">About</a></nav><main><h1>About Us</h1><p>Welcome!</p></main><footer>© 2025 My App</footer></body></html>
     ;
@@ -606,43 +589,14 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
                 <code>ctx.arena</code>
                  for allocations - it's automatically freed after the request.
             </div>
+            <p>See the <a href="/docs#routing">Routing documentation</a> for detailed information on pages, layouts, and dynamic routes.</p>
         </section>
     );
 }
 
 fn Plugins(allocator: zx.Allocator) zx.Component {
-    const tailwind_example =
-        \\const zx = @import("zx");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... other setup ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.tailwind(b, .{
-        \\                .input = b.path("site/assets/styles.css"),
-        \\                .output = b.path("{outdir}/assets/styles.css"),
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
-    const esbuild_example =
-        \\const zx = @import("zx");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... other setup ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.esbuild(b, .{
-        \\                .input = b.path("site/main.ts"),
-        \\                .output = b.path("{outdir}/assets/main.js"),
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
+    const tailwind_example = @embedFile("../../../pages/learn/examples/tailwind_plugin.zig");
+    const esbuild_example = @embedFile("../../../pages/learn/examples/esbuild_plugin.zig");
     const link_css_example = "<link rel=\"stylesheet\" href=\"/assets/styles.css\" />";
     const link_js_example = "<script src=\"/assets/main.js\"></script>";
 
@@ -695,7 +649,7 @@ fn NextSteps(allocator: zx.Allocator) zx.Component {
                     <h3>Documentation</h3>
                     <p>Deep dive into all ZX features with detailed examples.</p>
                 </a>
-                <a href="/cli" class="next-step-card">
+                <a href="/docs#cli" class="next-step-card">
                     <h3>CLI Reference</h3>
                     <p>Learn about the ZX command-line tools.</p>
                 </a>
@@ -710,15 +664,12 @@ fn NextSteps(allocator: zx.Allocator) zx.Component {
 
 const zx = @import("zx");
 const std = @import("std");
-const Sidebar = @import("../components/sidebar.zx").Sidebar;
-const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 const example_block = @import("../components/example_block.zx");
 const ExampleBlock = example_block.ExampleBlock;
 const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
-const util = @import("../docs/util.zig");
 
 // Helper to allocate files on heap to avoid stack lifetime issues
 fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {

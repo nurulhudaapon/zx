@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.18",
+    "prettier": "^3.7.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",

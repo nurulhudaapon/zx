@@ -95,6 +95,33 @@ module.exports = grammar(zig, {
     zx_attribute: $ => choice(
       $.zx_builtin_attribute,
       $.zx_regular_attribute,
+      $.zx_shorthand_attribute,
+      $.zx_builtin_shorthand_attribute,
+      $.zx_spread_attribute,
+    ),
+
+    // Shorthand attribute: {name} expands to name={name}
+    // Supports both regular identifiers {class} and quoted {@"data-name"}
+    zx_shorthand_attribute: $ => seq(
+      '{',
+      field('name', $.identifier),
+      '}',
+    ),
+
+    // Builtin shorthand attribute: @{name} expands to @name={name}
+    zx_builtin_shorthand_attribute: $ => seq(
+      '@',
+      '{',
+      field('name', $.identifier),
+      '}',
+    ),
+
+    // Spread attribute: {..expr} spreads all properties of expr as attributes
+    zx_spread_attribute: $ => seq(
+      '{',
+      '..',
+      field('expression', $.expression),
+      '}',
     ),
 
     // Builtin attributes starting with @: @allocator, @rendering, etc.

@@ -5,12 +5,12 @@
     "": {
       "name": "tree-sitter-zx",
       "dependencies": {
-        "node-addon-api": "latest",
-        "node-gyp-build": "latest",
+        "node-addon-api": "^8.5.0",
+        "node-gyp-build": "^4.8.4",
       },
       "devDependencies": {
-        "prebuildify": "latest",
-        "tree-sitter": "latest",
+        "prebuildify": "^6.0.1",
+        "tree-sitter": "^0.25.0",
         "tree-sitter-zig": "github:tree-sitter-grammars/tree-sitter-zig",
       },
     },

@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageContext) !zx.Component {
     // var page_timer = std.time.Timer.start() catch unreachable;
     const allocator = ctx.arena;
 
@@ -40,7 +40,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_expr: std.io.Writer.Allocating = .init(allocator);
     const zx_example_expr = @embedFile("../../../pages/examples/text.zx");
     const zig_example_expr = @embedFile("../examples/text.zig");
-    const html_page_expr = @import("../examples/text.zig").Expressions(allocator);
+    const html_page_expr = try @import("../examples/text.zig").Expressions(allocator);
     html_page_expr.render(&aw_expr.writer) catch unreachable;
     const html_example_expr = allocator.dupe(u8, aw_expr.written()) catch unreachable;
 
@@ -127,6 +127,108 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         \\(<ul>{items}</ul>) // Renders both Item components
     ;
 
+    // Control flow capture examples
+    const optional_capture_example =
+        \\const user_name: ?[]const u8 = "Alice";
+        \\...
+        \\{if (user_name) |name| (<p>Welcome, {name}!</p>)}
+        \\
+        \\// With else branch:
+        \\{if (user_name) |name| (<p>Hello, {name}</p>) else (<p>Guest</p>)}
+        \\
+        \\// While with capture (iterator pattern):
+        \\{while (iter.next()) |item| (<li>{item}</li>)}
+    ;
+    const error_capture_example =
+        \\// If with error capture:
+        \\{if (fetchUser()) |user| (
+        \\    <p>Welcome, {user.name}!</p>
+        \\) else |err| (
+        \\    <p>Error: {@errorName(err)}</p>
+        \\)}
+        \\
+        \\// While with error capture:
+        \\{while (iter.next()) |item| (
+        \\    <li>{item}</li>
+        \\) else |err| (
+        \\    <p>Iteration ended: {@errorName(err)}</p>
+        \\)}
+    ;
+
+    // Attribute examples
+    const spread_attrs_example =
+        \\const form_attrs = .{
+        \\    .class = "form-control",
+        \\    .@"data-validate" = "true",
+        \\};
+        \\const input_props = .{ .name = "email", .value = "test@example.com" };
+        \\...
+        \\(<form {..form_attrs}>
+        \\    <input type="text" {..input_props} />
+        \\</form>)
+    ;
+    const shorthand_attrs_example =
+        \\const class = "btn-primary";
+        \\const disabled = true;
+        \\const @"data-id" = "123";
+        \\...
+        \\(<button {class} {disabled} {@"data-id"}>Click</button>)
+        \\// Renders: <button class="btn-primary" disabled data-id="123">Click</button>
+    ;
+    const template_attrs_example =
+        \\const count = 42;
+        \\const name = "John";
+        \\...
+        \\(<div class=`item-{count}` data-user=`user-{name}`>
+        \\    <a href=`/users/{name}/profile`>Profile</a>
+        \\</div>)
+        \\// Renders: <div class="item-42" data-user="user-John">
+        \\//            <a href="/users/John/profile">Profile</a>
+        \\//          </div>
+    ;
+
+    // Component context examples
+    const component_ctx_example =
+        \\// ComponentContext: children only, no custom props
+        \\fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
+        \\    return (
+        \\        <div @allocator={ctx.allocator} class="wrapper">
+        \\            {ctx.children}
+        \\        </div>
+        \\    );
+        \\}
+    ;
+    const component_ctx_props_example =
+        \\// ComponentCtx(Props): props and children access
+        \\const CardProps = struct { title: []const u8 };
+        \\fn Card(ctx: *zx.ComponentCtx(CardProps)) zx.Component {
+        \\    return (
+        \\        <article @allocator={ctx.allocator} class="card">
+        \\            <h2>{ctx.props.title}</h2>
+        \\            {ctx.children}
+        \\        </article>
+        \\    );
+        \\}
+    ;
+
+    // Syntax examples
+    const multiline_string_example =
+        \\// Multiline strings use Zig's \\ syntax:
+        \\(<pre>{
+        \\    \\const x = 1;
+        \\    \\const y = 2;
+        \\    \\const sum = x + y;
+        \\}</pre>)
+    ;
+    const comments_example =
+        \\// Single-line comments are supported in ZX:
+        \\(<div>
+        \\    // This is a comment
+        \\    <p>Visible content</p>
+        \\    // Another comment
+        \\</div>)
+    ;
+
     // Escaping example
     var aw_escaping: std.io.Writer.Allocating = .init(allocator);
     const zx_example_escaping = @embedFile("../../../pages/examples/escaping.zx");
@@ -179,7 +281,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     // const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
     // std.log.info("\x1b[1;36m[DOCS PAGE] Setup phase completed: {d:.3}ms\x1b[0m", .{setup_elapsed_ms});
 
-
     // Allocate files on heap to avoid stack lifetime issues
     const layout_files = blk: {
         const files = allocator.alloc(File, 2) catch unreachable;
@@ -194,38 +295,38 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h2>Expressions</h2>
                 <p>Use curly braces <code>{expr_syntax}</code> to embed any Zig expression. Values are automatically formatted based on their type and HTML-escaped for safety.</p>
                 <ExampleBlock id="expressions-example" zx_code={zx_example_expr} zig_code={zig_example_expr} html_code={html_example_expr} filename="expressions.zx" />
-                
+
                 <h3 id="expr-strings">Strings</h3>
                 <p>String values (<code>[]const u8</code>) are displayed as text and automatically HTML-escaped to prevent XSS attacks. This is the safe default for displaying user input or any dynamic text content.</p>
                 <CodeBlock code={expr_string_example} />
-                
+
                 <h3 id="expr-integers">Integers</h3>
                 <p>Integer types (<code>i32</code>, <code>u64</code>, <code>comptime_int</code>, etc.) are formatted as decimal numbers. The special case <code>u8</code> is printed as a character if it's a printable ASCII character.</p>
                 <CodeBlock code={expr_int_example} />
-                
+
                 <h3 id="expr-floats">Floats</h3>
                 <p>Floating-point types (<code>f32</code>, <code>f64</code>, <code>comptime_float</code>) are formatted as decimal numbers.</p>
                 <CodeBlock code={expr_float_example} />
-                
+
                 <h3 id="expr-booleans">Booleans</h3>
                 <p>Boolean values are displayed as the literal strings "true" or "false".</p>
                 <CodeBlock code={expr_bool_example} />
-                
+
                 <h3 id="expr-enums">Enums</h3>
                 <p>Enum values are displayed as their tag name. This is useful for displaying status values, categories, or any enumerated type.</p>
                 <CodeBlock code={expr_enum_example} />
-                
+
                 <h3 id="expr-optionals">Optionals</h3>
                 <p>Optional values (<code>?T</code>) are automatically unwrapped and rendered if present. If the value is <code>null</code>, nothing is rendered. This makes it easy to conditionally display content.</p>
                 <CodeBlock code={expr_optional_example} />
-                
+
                 <h3 id="expr-null">Null</h3>
                 <p>The <code>null</code> value renders nothing, producing no output in the final HTML.</p>
-                
+
                 <h3 id="expr-components">Components</h3>
                 <p>A <code>zx.Component</code> value is rendered directly. This allows you to embed components returned from functions or stored in variables.</p>
                 <CodeBlock code={expr_component_example} />
-                
+
                 <h3 id="expr-component-arrays">Component Arrays</h3>
                 <p>Arrays or slices of components (<code>[]zx.Component</code>) are rendered as a fragment containing all the components in sequence.</p>
                 <CodeBlock code={expr_component_array_example} />
@@ -245,16 +346,33 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h3 id="while-loops">While Loops</h3>
                 <p>Use <code>while</code> loops for conditional iteration with a continuation expression. The syntax follows Zig's while loop pattern: <code>{"while (condition) : (continue_expr) (body)"}</code>. This is useful for generating numbered sequences or iterating until a condition is met.</p>
                 <ExampleBlock id="while" zx_code={zx_example_while} zig_code={zig_example_while} html_code={html_example_while} filename="counter.zx" />
+                <h3 id="optional-capture">Optional Capture</h3>
+                <p>Use payload capture syntax to unwrap optional values in <code>if</code> and <code>while</code> expressions:</p>
+                <CodeBlock code={optional_capture_example} />
+                <p>If the optional is <code>null</code>, the body is skipped (or the <code>else</code> branch runs if provided).</p>
+                <h3 id="error-capture">Error Capture</h3>
+                <p>Capture errors from error unions using <code>else |err|</code> syntax:</p>
+                <CodeBlock code={error_capture_example} />
+                <p>This works with both <code>if</code> and <code>while</code> expressions for handling fallible operations.</p>
             </section>
             <section id="components" class="section">
                 <h2>Components</h2>
                 <p>Components are reusable functions that return <code>zx.Component</code>. They allow you to encapsulate UI logic and create modular, maintainable code. Components can accept props (properties) to customize their behavior and appearance.</p>
                 <h3>Component Function Signatures</h3>
-                <p>Component functions must follow one of two signatures:</p>
+                <p>Component functions can use one of several signatures depending on their needs:</p>
                 <ul>
-                    <li><strong>Single parameter (allocator only):</strong><code>fn ComponentName(allocator: zx.Allocator) zx.Component</code></li>
-                    <li><strong>Two parameters (allocator and props):</strong><code>fn ComponentName(allocator: zx.Allocator, props: PropsType) zx.Component</code></li>
+                    <li><strong>Allocator only:</strong><code>fn Component(allocator: zx.Allocator) zx.Component</code></li>
+                    <li><strong>With props:</strong><code>fn Component(allocator: zx.Allocator, props: Props) zx.Component</code></li>
+                    <li><strong>Context (children only):</strong><code>fn Component(ctx: *zx.ComponentContext) zx.Component</code></li>
+                    <li><strong>Context with props:</strong><code>fn Component(ctx: *zx.ComponentCtx(Props)) zx.Component</code></li>
                 </ul>
+                <h3 id="component-context">ComponentContext</h3>
+                <p>Use <code>zx.ComponentContext</code> when your component needs access to children but has no custom props:</p>
+                <CodeBlock code={component_ctx_example} />
+                <h3 id="component-ctx-props">ComponentCtx with Props</h3>
+                <p>Use <code>zx.ComponentCtx(Props)</code> when you need both custom props and children access:</p>
+                <CodeBlock code={component_ctx_props_example} />
+                <p>The context provides <code>ctx.allocator</code>, <code>ctx.props</code>, and <code>ctx.children</code>.</p>
                 <h3>Defining Components</h3>
                 <p>To create a component, define a function that returns a <code>zx.Component</code>. The function must have an allocator as its first parameter. If your component needs configuration, add a props struct as the second parameter:</p>
                 <ExampleBlock id="components" zx_code={zx_example_components} zig_code={zig_example_components} html_code={html_example_components} filename="button_demo.zx" />
@@ -317,11 +435,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <p>The <code>@escaping</code> attribute controls how text content is escaped within an element. By default, all text is HTML-escaped to prevent XSS attacks.</p>
                 <p><strong>Values:</strong></p>
                 <ul>
-                    <li><code>.default</code> - Standard HTML escaping (default behavior)</li>
-                    <li><code>.raw</code> - No escaping; outputs raw HTML. Use with caution for trusted content only.</li>
+                    <li><code>.html</code> - Standard HTML escaping (default behavior)</li>
+                    <li><code>.none</code> - No escaping; outputs raw HTML. Use with caution for trusted content only.</li>
                 </ul>
                 <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} filename="raw_html.zx" />
-                <p><strong>Warning:</strong> Only use <code>@escaping={"{.raw}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
+                <p><strong>Warning:</strong> Only use <code>@escaping={"{.none}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
                 <h3 id="rendering">@rendering</h3>
                 <p>The <code>@rendering</code> attribute enables client-side rendering for interactive components.</p>
                 <p><strong>Values:</strong></p>
@@ -330,6 +448,22 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li><code>.client</code> - Client-side render with Zig (compile component to WebAssembly)</li>
                 </ul>
                 <ExampleBlock id="react" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} filename="react_demo.zx" />
+            </section>
+            <section id="attribute-syntax" class="section">
+                <h2>Attribute Syntax</h2>
+                <p>ZX provides convenient syntax for working with attributes beyond simple static values.</p>
+                <h3 id="spread-attributes">Spread Attributes</h3>
+                <p>Use <code>{"{..struct}"}</code> to spread all fields of a struct as attributes on an element. This is useful for passing groups of attributes or forwarding props:</p>
+                <CodeBlock code={spread_attrs_example} />
+                <p>Spread attributes can be combined with explicit attributes. Explicit attributes take precedence when there are conflicts.</p>
+                <h3 id="shorthand-attributes">Shorthand Attributes</h3>
+                <p>When the attribute name matches the variable name, use the shorthand syntax <code>{"{variable}"}</code>:</p>
+                <CodeBlock code={shorthand_attrs_example} />
+                <p>This is equivalent to writing <code>class={"{class}"}</code> but more concise.</p>
+                <h3 id="template-attributes">Template Attributes</h3>
+                <p>Use backticks (<code>`</code>) for string interpolation in attribute values. Embed expressions with <code>{"{expr}"}</code> inside the template:</p>
+                <CodeBlock code={template_attrs_example} />
+                <p>Template attributes are useful for building dynamic URLs, class names, or data attributes that combine static text with dynamic values.</p>
             </section>
             <section id="importing" class="section">
                 <h2>Importing</h2>
@@ -363,9 +497,21 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <p>Components can accept child elements through a <code>children</code> prop, enabling wrapper and container patterns. Any elements between the opening and closing tags are passed as the <code>children</code> prop:</p>
                 <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} filename="card_demo.zx" />
             </section>
+            <section id="syntax" class="section">
+                <h2>Syntax Features</h2>
+                <p>ZX supports additional Zig syntax features within templates.</p>
+                <h3 id="multiline-strings">Multiline Strings</h3>
+                <p>Use Zig's multiline string syntax (<code>\\</code>) to embed formatted text blocks:</p>
+                <CodeBlock code={multiline_string_example} />
+                <p>Each line prefixed with <code>\\</code> is concatenated. This is useful for code snippets, preformatted text, or ASCII art.</p>
+                <h3 id="comments">Comments</h3>
+                <p>Single-line comments are supported within ZX templates:</p>
+                <CodeBlock code={comments_example} />
+                <p>Comments are stripped from the output and do not appear in the rendered HTML.</p>
+            </section>
             <PluginsSection />
+            <CLISection />
             // <ExamplesSection />
-      
         </div>
     );
 }
@@ -381,142 +527,25 @@ const example_block = @import("../components/example_block.zig");
 const ExampleBlock = example_block.ExampleBlock;
 const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zig").CodeBlock;
+const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {
-    const tailwind_full_example =
-        \\const zx = @import("zx");
-        \\const std = @import("std");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    const target = b.standardTargetOptions(.{});
-        \\    const optimize = b.standardOptimizeOption(.{});
-        \\    
-        \\    const zx_dep = b.dependency("zx", .{ .target = target, .optimize = optimize });
-        \\    const exe = b.addExecutable(.{
-        \\        .name = "my-app",
-        \\        .root_module = b.createModule(.{
-        \\            .root_source_file = b.path("site/main.zig"),
-        \\            .target = target,
-        \\            .optimize = optimize,
-        \\        }),
-        \\    });
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.tailwind(b, .{
-        \\                .bin = b.path("node_modules/.bin/tailwindcss"),
-        \\                .input = b.path("site/assets/styles.css"),
-        \\                .output = b.path("{outdir}/assets/styles.css"),
-        \\                .minify = optimize != .Debug,
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
-    const esbuild_full_example =
-        \\const zx = @import("zx");
-        \\const std = @import("std");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... setup code ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.esbuild(b, .{
-        \\                .bin = b.path("node_modules/.bin/esbuild"),
-        \\                .input = b.path("site/main.ts"),
-        \\                .output = b.path("{outdir}/assets/main.js"),
-        \\                .bundle = true,
-        \\                .format = .esm,
-        \\                .platform = .browser,
-        \\                .target = "es2020",
-        \\                .external = &.{ "react", "react-dom" },
-        \\                .define = &.{
-        \\                    .{ .key = "API_URL", .value = "\"https://api.example.com\"" },
-        \\                },
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
-    const combined_example =
-        \\try zx.init(b, exe, .{
-        \\    .plugins = &.{
-        \\        zx.plugins.esbuild(b, .{
-        \\            .input = b.path("site/main.ts"),
-        \\            .output = b.path("{outdir}/assets/main.js"),
-        \\        }),
-        \\        zx.plugins.tailwind(b, .{
-        \\            .input = b.path("site/assets/styles.css"),
-        \\            .output = b.path("{outdir}/assets/styles.css"),
-        \\        }),
-        \\    },
-        \\});
-    ;
-    const custom_plugin_example =
-        \\const zx = @import("zx");
-        \\const std = @import("std");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... setup code ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            // Custom plugin using PluginOptions directly
-        \\            createImageOptimizer(b),
-        \\        },
-        \\    });
-        \\}
-        \\
-        \\fn createImageOptimizer(b: *std.Build) zx.ZxInitOptions.PluginOptions {
-        \\    const cmd = std.Build.Step.Run.create(b, "optimize-images");
-        \\    
-        \\    // Add your custom command
-        \\    cmd.addArgs(&.{ "npx", "imagemin", "site/public/**/*", "--out-dir={outdir}/public" });
-        \\    
-        \\    // Allocate steps array
-        \\    const steps = b.allocator.alloc(zx.ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
-        \\    steps[0] = .{
-        \\        .command = .{
-        \\            .type = .after_transpile,  // Run after ZX transpilation
-        \\            .run = cmd,
-        \\        },
-        \\    };
-        \\    
-        \\    return .{
-        \\        .name = "image-optimizer",
-        \\        .steps = steps,
-        \\    };
-        \\}
-    ;
-    const plugin_options_struct =
-        \\/// Configuration for build plugins
-        \\pub const PluginOptions = struct {
-        \\    /// Human-readable name for this plugin
-        \\    name: []const u8,
-        \\    
-        \\    /// List of steps this plugin should execute
-        \\    steps: []const PluginStep,
-        \\    
-        \\    pub const PluginStep = union(enum) {
-        \\        command: PluginStepCommand,
-        \\    };
-        \\    
-        \\    pub const PluginStepCommand = struct {
-        \\        /// When to execute: before_transpile or after_transpile
-        \\        type: enum { before_transpile, after_transpile },
-        \\        
-        \\        /// The command to run (use {outdir} for output directory)
-        \\        run: *std.Build.Step.Run,
-        \\    };
-        \\};
-    ;
+    // Embedded snippet files for plugin examples
+    const plugin_examples = @embedFile("../../../assets/snippets/plugin_examples.zig");
+    const zx_init_options = @embedFile("../../../assets/snippets/ZxInitOptions.zig");
+
+    // Extract specific line ranges from the embedded snippets
+    const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{ .{ 2, 29 } });
+    const esbuild_full_example = util.extractLines(allocator, plugin_examples, &.{ .{ 32, 56 } });
+    const combined_example = util.extractLines(allocator, plugin_examples, &.{ .{ 59, 70 } });
+    const custom_plugin_example = util.extractLines(allocator, plugin_examples, &.{ .{ 73, 107 } });
+    const plugin_options_struct = util.extractLines(allocator, zx_init_options, &.{ .{ 79, 107 } });
 
     return (
         <section id="plugins" class="section" @allocator={allocator}>
             <h2>Plugins</h2>
             <p>ZX provides a plugin system to extend the build process with additional tools. Plugins run as build steps and integrate seamlessly with <code>zig build</code>.</p>
-            
+
             <h3 id="plugin-overview">Overview</h3>
             <p>Plugins are configured in your <code>build.zig</code> file and passed to <code>zx.init()</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
             <p>ZX provides <strong>builtin plugins</strong> for common tasks, and you can also <strong>create custom plugins</strong> for your specific needs.</p>
@@ -530,7 +559,7 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
 
             <h3 id="tailwind-plugin">Tailwind CSS Plugin</h3>
             <p>The <code>tailwind</code> builtin plugin compiles your CSS using the Tailwind CSS CLI. It automatically runs after ZX transpiles your pages.</p>
-            
+
             <h4>Options</h4>
             <table class="options-table">
                 <thead>
@@ -586,13 +615,13 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
                     </tr>
                 </tbody>
             </table>
-            
+
             <h4>Example</h4>
             <CodeBlock code={tailwind_full_example} filename="build.zig" />
 
             <h3 id="esbuild-plugin">esbuild Plugin</h3>
             <p>The <code>esbuild</code> builtin plugin bundles TypeScript or JavaScript files for client-side code. It supports modern JavaScript features and can bundle dependencies.</p>
-            
+
             <h4>Options</h4>
             <table class="options-table">
                 <thead>
@@ -684,19 +713,19 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
                     </tr>
                 </tbody>
             </table>
-            
+
             <p><strong>Automatic defines:</strong> The esbuild plugin automatically sets <code>__DEV__</code> and <code>process.env.NODE_ENV</code> based on the build mode.</p>
-            
+
             <h4>Example</h4>
             <CodeBlock code={esbuild_full_example} filename="build.zig" />
 
             <h3 id="combining-plugins">Combining Plugins</h3>
             <p>You can use multiple plugins together. They run in order after ZX transpilation:</p>
-            <CodeBlock code={combined_example} />
+            <CodeBlock code={combined_example} filename="build.zig" />
 
             <h3 id="custom-plugins">Creating Custom Plugins</h3>
             <p>You can create your own plugins by returning a <code>zx.ZxInitOptions.PluginOptions</code> struct. This allows you to integrate any command-line tool into the ZX build process.</p>
-            
+
             <h4>Plugin Structure</h4>
             <p>A plugin consists of a name and a list of steps. Each step specifies when to run (before or after transpilation) and what command to execute:</p>
             <CodeBlock code={plugin_options_struct} />
@@ -718,5 +747,221 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
                 <strong>Tip:</strong> Look at the builtin plugins (<code>tailwind.zig</code> and <code>esbuild.zig</code> in the ZX source) for examples of how to structure complex plugins with many options.
             </div>
         </section>
+    );
+}
+
+const CLIArg = struct {
+    name: []const u8,
+    description: []const u8,
+};
+
+const CLIFlag = struct {
+    name: []const u8,
+    description: []const u8,
+};
+
+const CLICommandInfo = struct {
+    name: []const u8,
+    id: []const u8,
+    description: []const u8,
+    usage: []const u8,
+    badge: ?[]const u8 = null,
+    arguments: ?[]const CLIArg = null,
+    flags: ?[]const CLIFlag = null,
+    note: ?[]const u8 = null,
+};
+
+const cli_commands = [_]CLICommandInfo{
+    .{
+        .name = "init",
+        .id = "cli-init",
+        .description = "Initialize a new ZX project. Creates all the necessary files and directory structure to get started with ZX.",
+        .usage = "zx init [path] [flags]",
+        .arguments = &[_]CLIArg{
+            .{ .name = "[path]", .description = "Path to initialize the project in (default: current directory)" },
+        },
+        .flags = &[_]CLIFlag{
+            .{ .name = "--template, -t <name>", .description = "Template to use (default: \"default\"). Options: default, react, wasm, react_wasm" },
+            .{ .name = "--force, -f", .description = "Force initialization even if the directory is not empty" },
+            .{ .name = "--existing", .description = "Initialize ZX in an existing project (only adds files that don't exist)" },
+        },
+        .note = "The command will warn if the directory is not empty. Use --force to override, or --existing to only add missing files.",
+    },
+    .{
+        .name = "dev",
+        .id = "cli-dev",
+        .description = "Start the app in development mode with hot reloading. Watches for file changes and automatically rebuilds.",
+        .usage = "zx dev [flags]",
+        .flags = &[_]CLIFlag{
+            .{ .name = "--binpath, -b <path>", .description = "Binpath of the app (default: auto-detected)" },
+            .{ .name = "--build-args <args>", .description = "Additional arguments to pass to zig build" },
+        },
+    },
+    .{
+        .name = "serve",
+        .id = "cli-serve",
+        .description = "Serve the project for production. Builds and runs the executable.",
+        .usage = "zx serve [flags]",
+        .flags = &[_]CLIFlag{
+            .{ .name = "--port, -p <number>", .description = "Port to run the server on (default: 3000)" },
+        },
+    },
+    .{
+        .name = "transpile",
+        .id = "cli-transpile",
+        .description = "Transpile .zx files to Zig source code. Useful for debugging or inspecting generated code.",
+        .usage = "zx transpile <path> [flags]",
+        .arguments = &[_]CLIArg{
+            .{ .name = "<path>", .description = "Path to .zx file or directory (required)" },
+        },
+        .flags = &[_]CLIFlag{
+            .{ .name = "--outdir, -o <directory>", .description = "Output directory (default: \".zx\")" },
+        },
+    },
+    .{
+        .name = "fmt",
+        .id = "cli-fmt",
+        .description = "Format ZX source code files according to ZX's formatting rules.",
+        .usage = "zx fmt [path] [flags]",
+        .badge = "Alpha",
+        .arguments = &[_]CLIArg{
+            .{ .name = "[path]", .description = "Path to .zx file or directory (optional, formats current directory if not specified)" },
+        },
+        .flags = &[_]CLIFlag{
+            .{ .name = "--stdio", .description = "Read from stdin and write to stdout" },
+            .{ .name = "--stdout", .description = "Write formatted output to stdout instead of modifying files" },
+        },
+    },
+    .{
+        .name = "export",
+        .id = "cli-export",
+        .description = "Generate static site assets. Builds your project and exports it for static hosting.",
+        .usage = "zx export [flags]",
+        .flags = &[_]CLIFlag{
+            .{ .name = "--outdir, -o <directory>", .description = "Output directory (default: \"dist\")" },
+            .{ .name = "--binpath, -b <path>", .description = "Binpath of the app executable (default: auto-detected)" },
+        },
+        .note = "Run zig build first to build the ZX executable before exporting.",
+    },
+    .{
+        .name = "bundle",
+        .id = "cli-bundle",
+        .description = "Bundle the site into a deployable directory with the executable and assets.",
+        .usage = "zx bundle [flags]",
+        .flags = &[_]CLIFlag{
+            .{ .name = "--outdir, -o <directory>", .description = "Output directory (default: \"bundle\")" },
+            .{ .name = "--binpath, -b <path>", .description = "Binpath of the app executable (default: auto-detected)" },
+        },
+        .note = "Run zig build first to build the ZX executable before bundling.",
+    },
+    .{
+        .name = "update",
+        .id = "cli-update",
+        .description = "Update the ZX dependency version in your project's build.zig.zon file.",
+        .usage = "zx update [flags]",
+        .flags = &[_]CLIFlag{
+            .{ .name = "--version, -v <version>", .description = "Version to update to (default: \"latest\")" },
+        },
+    },
+    .{
+        .name = "upgrade",
+        .id = "cli-upgrade",
+        .description = "Upgrade the ZX CLI tool itself. Downloads and installs a new version of the CLI binary.",
+        .usage = "zx upgrade [flags]",
+        .flags = &[_]CLIFlag{
+            .{ .name = "--version, -v <version>", .description = "Version to upgrade to (default: \"latest\")" },
+        },
+    },
+    .{
+        .name = "version",
+        .id = "cli-version",
+        .description = "Show the current version of the ZX CLI tool.",
+        .usage = "zx version",
+    },
+};
+
+fn CLISection(allocator: zx.Allocator) zx.Component {
+    return (
+        <section id="cli" class="section" @allocator={allocator}>
+            <h2>Command Line Interface</h2>
+            <p>ZX comes with a built-in CLI tool to help you create, develop, and deploy your projects.</p>
+
+            <h3 id="cli-installation">Installation</h3>
+            <p>Install the ZX CLI using one of the following methods:</p>
+            <InstallCLI />
+
+            {for (cli_commands) |cmd| (
+                <CLICommand allocator={allocator} command={cmd} />
+            )}
+        </section>
+    );
+}
+
+fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }) zx.Component {
+    const command = props.command;
+    // Parse usage string into parts for syntax highlighting
+    const usage = command.usage;
+    var parts = std.ArrayList(struct { text: []const u8, class: []const u8 }).empty;
+    defer parts.deinit(allocator);
+
+    var iter = std.mem.tokenizeScalar(u8, usage, ' ');
+    var first = true;
+    while (iter.next()) |token| {
+        const class_name = if (first) "function" else if (std.mem.startsWith(u8, token, "[") or std.mem.startsWith(u8, token, "<")) "variable" else "operator";
+        parts.append(allocator, .{ .text = token, .class = class_name }) catch unreachable;
+        first = false;
+    }
+
+    return (
+        <div @allocator={allocator}>
+            <h3 id={command.id}>
+                {command.name}
+                {if (command.badge) |badge| (
+                    <span class="badge">{badge}</span>
+                )}
+            </h3>
+            <p>{command.description}</p>
+
+            <div class="install-box install-box-simple">
+                <div class="install-box-content">
+                    <div class="install-code">
+                        <span class="install-prompt">$ </span>
+                        {for (parts.items) |part| (
+                            <span>
+                                <span class={part.class}>{part.text} {" "}</span>
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {if (command.arguments) |args| (
+                <div>
+                    <h5>Arguments</h4>
+                    <ul>
+                        {for (args) |arg| (
+                            <li><code>{arg.name}</code> — {arg.description}</li>
+                        )}
+                    </ul>
+                </div>
+            )}
+
+            {if (command.flags) |flags| (
+                <div>
+                    <h5>Flags</h4>
+                    <ul>
+                        {for (flags) |flag| (
+                            <li><code>{flag.name}</code> — {flag.description}</li>
+                        )}
+                    </ul>
+                </div>
+            )}
+
+            {if (command.note) |note| (
+                <div class="callout">
+                    <strong>Note:</strong> {note}
+                </div>
+            )}
+        </div>
     );
 }

@@ -49,74 +49,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
 
-    const categories = [_]SidebarProps.Category{
-        .{
-            .title = "EXAMPLES",
-            .sections = &[_]SidebarProps.Section{
-                .{ .title = "Overview", .href = "/examples" },
-            },
-        },
-        .{
-            .title = "CONTROL FLOW",
-            .sections = &[_]SidebarProps.Section{
-                .{ 
-                    .title = "Conditionals",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#if-else", .text = "If/Else" },
-                        .{ .href = "#switch", .text = "Switch" },
-                    },
-                },
-                .{ 
-                    .title = "Loops",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#for-loop", .text = "For Loop" },
-                    },
-                },
-            },
-        },
-        .{
-            .title = "COMPONENTS",
-            .sections = &[_]SidebarProps.Section{
-                .{ 
-                    .title = "Building Blocks",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#components", .text = "Component Props" },
-                        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-                    },
-                },
-            },
-        },
-        .{
-            .title = "FORMS",
-            .sections = &[_]SidebarProps.Section{
-                .{ 
-                    .title = "Form Handling",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#form-handling", .text = "Basic Form" },
-                    },
-                },
-            },
-        },
-        .{
-            .title = "ADVANCED",
-            .sections = &[_]SidebarProps.Section{
-                .{ .title = "WASM TODO App", .href = "/examples/wasm" },
-                .{ .title = "Simple WASM", .href = "/examples/wasm/simple" },
-            },
-        },
-    };
-
-    const toc_links = [_]SidebarProps.Link{
-        .{ .href = "#if-else", .text = "If/Else" },
-        .{ .href = "#switch", .text = "Switch" },
-        .{ .href = "#for-loop", .text = "For Loop" },
-        .{ .href = "#components", .text = "Component Props" },
-        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-        .{ .href = "#form-handling", .text = "Form Handling" },
-    };
-
     return (
-        <Sidebar @allocator={allocator} categories={&categories} toc={&toc_links}>
+        <fragment @allocator={allocator}>
             <ExamplesHeader />
             <IfElseSection zx_code={zx_if} zig_code={zig_if} html_code={html_if} />
             <SwitchSection zx_code={zx_switch} zig_code={zig_switch} html_code={html_switch} />
@@ -124,7 +58,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <ComponentsSection zx_code={zx_components} zig_code={zig_components} html_code={html_components} />
             <DynamicAttrSection zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
             <FormSection zx_code={zx_form} zig_code={zig_form} html_code={html_form} />
-        </Sidebar>
+
+            <script src="/assets/main.js" />
+        </fragment>
     );
 }
 

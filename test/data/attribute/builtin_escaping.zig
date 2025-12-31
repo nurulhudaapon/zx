@@ -6,10 +6,43 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .allocator = allocator,
             .children = &.{
                 _zx.ele(
-                    .div,
+                    .style,
                     .{
                         .children = &.{
-                            _zx.txt("\n                const data = name:\n                Test   \n                        Test 2\n                \n                 test ;\n            "),
+                            _zx.expr(
+                                \\div {
+                                \\    background-color: red;
+                                \\    padding: 10px;
+                                \\    border-radius: 5px;
+                                \\    border: 1px solid black;
+                                \\    margin: 10px;
+                                \\    width: 100px;
+                                \\    height: 100px;
+                                \\    display: flex;
+                                \\    justify-content: center;
+                                \\    align-items: center;
+                                \\    font-size: 16px;
+                                \\    font-weight: bold;
+                                \\    color: white;
+                                \\    text-align: center;
+                                \\    text-decoration: none;
+                                \\    text-transform: uppercase;
+                                \\    letter-spacing: 1px;
+                                \\}
+                            ),
+                        },
+                    },
+                ),
+                _zx.ele(
+                    .script,
+                    .{
+                        .escaping = .none,
+                        .children = &.{
+                            _zx.expr(
+                                \\ import { data } from "./data.js";
+                                \\const data = { name: "test" };
+                                \\console.log(data);
+                            ),
                         },
                     },
                 ),

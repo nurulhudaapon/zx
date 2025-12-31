@@ -182,6 +182,69 @@ export function activate(context: ExtensionContext) {
   registerZxFileProviders(context);
 }
 
+interface BuildStep {
+  name: string;
+  description: string;
+}
+
+function parseBuildSteps(output: string): BuildStep[] {
+  const steps: BuildStep[] = [];
+  const lines = output.split("\n");
+  
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const trimmed = line.trimStart();
+    
+    const parts = trimmed.split(/\s{2,}/);
+    if (parts.length >= 2) {
+      const namePart = parts[0].replace(/\s*\([^)]+\)\s*$/, "").trim();
+      const description = parts.slice(1).join(" ").trim();
+      if (namePart && description) {
+        steps.push({ name: namePart, description });
+      }
+    }
+  }
+  
+  return steps;
+}
+
+async function hasZxBuildStep(cwd: string): Promise<boolean> {
+  try {
+    const { stdout } = await execFile("zig", ["build", "-l"], {
+      cwd,
+      maxBuffer: 1024 * 1024,
+      timeout: 5000,
+    });
+    const steps = parseBuildSteps(stdout);
+    return steps.some(step => step.name === "zx");
+  } catch (error: any) {
+    console.error(error);
+    return false;
+  }
+}
+
+async function showZxInstallationError(): Promise<void> {
+  const installCommand =
+    process.platform === "win32"
+      ? 'powershell -c "irm ziex.dev/install.ps1 | iex"'
+      : "curl -fsSL https://ziex.dev/install | bash";
+
+  const selection = await window.showErrorMessage(
+    "ZX CLI not found. Please install it to use code formatting.",
+    "Install Now",
+    "Copy Installation Script"
+  );
+
+  if (selection === "Copy Installation Script") {
+    await vscode.env.clipboard.writeText(installCommand);
+    window.showInformationMessage("Installation command copied to clipboard!");
+  } else if (selection === "Install Now") {
+    const terminal = window.createTerminal("ZX CLI Installation");
+    terminal.sendText(installCommand);
+    terminal.show();
+  }
+}
+
 async function formatWithZxCli(
   document: vscode.TextDocument,
   token: vscode.CancellationToken
@@ -189,10 +252,16 @@ async function formatWithZxCli(
   const abortController = new AbortController();
   token.onCancellationRequested(() => abortController.abort());
 
+  const cwd = workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const useZigBuild = cwd ? await hasZxBuildStep(cwd) : false;
+
+  const originalText = document.getText();
+  
+  let command = useZigBuild ? "zig" : "zx";
+  let args = useZigBuild ? ["build", "zx", "--", "fmt", "--stdio"] : ["fmt", "--stdio"];
+  
   try {
-    const cwd = workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const originalText = document.getText();
-    const promise = execFile("zx", ["fmt", "--stdio"], {
+    const promise = execFile(command, args, {
       cwd,
       maxBuffer: 10 * 1024 * 1024,
       signal: abortController.signal,
@@ -212,28 +281,34 @@ async function formatWithZxCli(
     const message = error?.stderr?.toString()?.trim() || error?.message || String(error);
     const isNotFound = message.includes("not found") || message.includes("ENOENT") || error.code === "ENOENT";
 
-    if (isNotFound) {
-      const installCommand =
-        process.platform === "win32"
-          ? 'powershell -c "irm ziex.dev/install.ps1 | iex"'
-          : "curl -fsSL https://ziex.dev/install | bash";
+    // If zx CLI not found and we weren't already using zig build, try zig build as fallback
+    if (isNotFound && !useZigBuild && cwd) {
+      try {
+        const fallbackPromise = execFile("zig", ["build", "zx", "--", "fmt", "--stdio"], {
+          cwd,
+          maxBuffer: 10 * 1024 * 1024,
+          signal: abortController.signal,
+          timeout: 60000,
+        });
+        fallbackPromise.child.stdin?.end(originalText);
 
-      const selection = await window.showErrorMessage(
-        "ZX CLI not found. Please install it to use code formatting.",
-        "Install Now",
-        "Copy Installation Script"
-      );
+        const { stdout } = await fallbackPromise;
+        if (!stdout || stdout === originalText) return null;
 
-      if (selection === "Copy Installation Script") {
-        await vscode.env.clipboard.writeText(installCommand);
-        window.showInformationMessage("Installation command copied to clipboard!");
-      } else if (selection === "Install Now") {
-        const terminal = window.createTerminal("ZX CLI Installation");
-        terminal.sendText(installCommand);
-        terminal.show();
+        const lastLineId = document.lineCount - 1;
+        const wholeDocument = new vscode.Range(0, 0, lastLineId, document.lineAt(lastLineId).text.length);
+        return [new vscode.TextEdit(wholeDocument, stdout)];
+      } catch {
+        // Both methods failed, show installation error
+        await showZxInstallationError();
+        return null;
       }
+    } else if (isNotFound) {
+      // Already tried zig build, show installation error
+      await showZxInstallationError();
     } else {
-      window.showErrorMessage(`ZX: failed to format using 'zx fmt': ${message}`);
+      const commandStr = useZigBuild ? "zig build zx -- fmt" : "zx fmt";
+      window.showErrorMessage(`ZX: failed to format using '${commandStr}': ${message}`);
     }
 
     return null;

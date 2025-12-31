@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) !void {
             zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
             zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
 
-            try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
+            var zx_b = try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
                 .cli_path = null,
                 .site_outdir = b.path("site/.zx"),
                 .site_path = b.path("site"),
@@ -92,6 +92,13 @@ pub fn build(b: *std.Build) !void {
                         .input = b.path("site/main.ts"),
                         .output = b.path("{outdir}/assets/main.js"),
                     }),
+                    plugins.esbuild(b, .{
+                        .bin = b.path("site/node_modules/.bin/esbuild"),
+                        .input = b.path("site/scripts/docs.ts"),
+                        .output = b.path("{outdir}/assets/docs.js"),
+                        .minify = true,
+                        .sourcemap = .none,
+                    }),
                     plugins.tailwind(b, .{
                         .bin = b.path("site/node_modules/.bin/tailwindcss"),
                         .input = b.path("site/assets/styles.css"),
@@ -99,6 +106,8 @@ pub fn build(b: *std.Build) !void {
                     }),
                 },
             });
+            zx_b = zx_b;
+            // zx_b.step("serve", .serve);
         }
     }
 
@@ -158,6 +167,7 @@ pub fn build(b: *std.Build) !void {
             release_mod.addImport("httpz", httpz_dep.module("httpz"));
             release_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
             release_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
+            release_mod.addImport("cachez", cachez_dep.module("cache"));
             release_mod.addOptions("zx_info", options);
 
             const release_exe = b.addExecutable(.{

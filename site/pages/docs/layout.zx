@@ -1,11 +1,9 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-
     return (
-        <div  @allocator={ctx.arena}>
-           <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} children={children} />
-            <script type="module" src="/assets/docs.js"></script>
+        <div @allocator={ctx.arena}>
+            <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} children={children} />
+            <script src=`/assets/docs.js?v={zx.info.version_string}`></script>
         </div>
-        
     );
 }
 
@@ -19,8 +17,8 @@ const categories = [_]SidebarProps.Category{
     .{
         .title = "CORE CONCEPTS",
         .sections = &[_]SidebarProps.Section{
-            .{ 
-                .title = "Expressions", 
+            .{
+                .title = "Expressions",
                 .href = "/docs#expressions",
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#expr-strings", .text = "Strings" },
@@ -34,22 +32,28 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#expr-component-arrays", .text = "Component Arrays" },
                 },
             },
-            .{ 
-                .title = "Control Flow", 
+            .{
+                .title = "Control Flow",
                 .href = "/docs#control-flow",
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#if-statements", .text = "If Statements" },
                     .{ .href = "/docs#switch-statements", .text = "Switch Statements" },
                     .{ .href = "/docs#for-loops", .text = "For Loops" },
                     .{ .href = "/docs#while-loops", .text = "While Loops" },
+                    .{ .href = "/docs#optional-capture", .text = "Optional Capture" },
+                    .{ .href = "/docs#error-capture", .text = "Error Capture" },
                 },
             },
-            .{ 
-                .title = "Components", 
+            .{
+                .title = "Components",
                 .href = "/docs#components",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#component-context", .text = "ComponentContext" },
+                    .{ .href = "/docs#component-ctx-props", .text = "ComponentCtx" },
+                },
             },
-            .{ 
-                .title = "Routing", 
+            .{
+                .title = "Routing",
                 .href = "/docs#routing",
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#pages", .text = "Pages" },
@@ -62,8 +66,8 @@ const categories = [_]SidebarProps.Category{
     .{
         .title = "ADVANCED",
         .sections = &[_]SidebarProps.Section{
-            .{ 
-                .title = "Builtin Attributes", 
+            .{
+                .title = "Builtin Attributes",
                 .href = "/docs#builtin-attributes",
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#allocator", .text = "@allocator" },
@@ -71,16 +75,50 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#rendering", .text = "@rendering" },
                 },
             },
+            .{
+                .title = "Attribute Syntax",
+                .href = "/docs#attribute-syntax",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#spread-attributes", .text = "Spread Attributes" },
+                    .{ .href = "/docs#shorthand-attributes", .text = "Shorthand" },
+                    .{ .href = "/docs#template-attributes", .text = "Template Strings" },
+                },
+            },
             .{ .title = "Importing", .href = "/docs#importing" },
             .{ .title = "Fragments", .href = "/docs#fragments" },
             .{ .title = "Children Props", .href = "/docs#children-props" },
+            .{
+                .title = "Syntax",
+                .href = "/docs#syntax",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#multiline-strings", .text = "Multiline Strings" },
+                    .{ .href = "/docs#comments", .text = "Comments" },
+                },
+            },
         },
     },
     .{
         .title = "BUILD & TOOLS",
         .sections = &[_]SidebarProps.Section{
-            .{ 
-                .title = "Plugins", 
+            .{
+                .title = "CLI",
+                .href = "/docs#cli",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#cli-installation", .text = "Installation" },
+                    .{ .href = "/docs#cli-init", .text = "init" },
+                    .{ .href = "/docs#cli-dev", .text = "dev" },
+                    .{ .href = "/docs#cli-serve", .text = "serve" },
+                    .{ .href = "/docs#cli-transpile", .text = "transpile" },
+                    .{ .href = "/docs#cli-fmt", .text = "fmt" },
+                    .{ .href = "/docs#cli-export", .text = "export" },
+                    .{ .href = "/docs#cli-bundle", .text = "bundle" },
+                    .{ .href = "/docs#cli-update", .text = "update" },
+                    .{ .href = "/docs#cli-upgrade", .text = "upgrade" },
+                    .{ .href = "/docs#cli-version", .text = "version" },
+                },
+            },
+            .{
+                .title = "Plugins",
                 .href = "/docs#plugins",
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#plugin-overview", .text = "Overview" },
@@ -96,17 +134,20 @@ const categories = [_]SidebarProps.Category{
 };
 
 const toc_links = [_]SidebarProps.Link{
-    .{ .href = "#overview", .text = "Overview" },
-    .{ .href = "#expressions", .text = "Expressions" },
-    .{ .href = "#control-flow", .text = "Control Flow" },
-    .{ .href = "#components", .text = "Components" },
-    .{ .href = "#routing", .text = "Routing" },
-    .{ .href = "#builtin-attributes", .text = "Builtin Attributes" },
-    .{ .href = "#importing", .text = "Importing" },
-    .{ .href = "#dynamic-routes", .text = "Dynamic Routes" },
-    .{ .href = "#fragments", .text = "Fragments" },
-    .{ .href = "#children-props", .text = "Children Props" },
-    .{ .href = "#plugins", .text = "Plugins" },
+    .{ .href = "/docs#overview", .text = "Overview" },
+    .{ .href = "/docs#expressions", .text = "Expressions" },
+    .{ .href = "/docs#control-flow", .text = "Control Flow" },
+    .{ .href = "/docs#components", .text = "Components" },
+    .{ .href = "/docs#routing", .text = "Routing" },
+    .{ .href = "/docs#builtin-attributes", .text = "Builtin Attributes" },
+    .{ .href = "/docs#attribute-syntax", .text = "Attribute Syntax" },
+    .{ .href = "/docs#importing", .text = "Importing" },
+    .{ .href = "/docs#dynamic-routes", .text = "Dynamic Routes" },
+    .{ .href = "/docs#fragments", .text = "Fragments" },
+    .{ .href = "/docs#children-props", .text = "Children Props" },
+    .{ .href = "/docs#syntax", .text = "Syntax" },
+    .{ .href = "/docs#plugins", .text = "Plugins" },
+    .{ .href = "/docs#cli", .text = "CLI" },
 };
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;

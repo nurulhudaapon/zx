@@ -1,0 +1,301 @@
+// Dynamic import to reduce initial bundle size
+async function formatHTML(html: string, printWidth: number): Promise<string> {
+  const prettier = await import("prettier");
+  const prettierPluginHtml = await import("prettier/plugins/html.js");
+  
+  return await prettier.format(html, {
+    parser: "html",
+    plugins: [prettierPluginHtml],
+    printWidth: printWidth,
+    singleAttributePerLine: false,
+    htmlWhitespaceSensitivity: "css",
+  });
+}
+
+// Calculate printWidth based on window width
+function getPrintWidth(): number {
+  const width = window.innerWidth;
+  
+  // Responsive breakpoints for printWidth
+  if (width < 640) {
+    // Mobile: ~30 chars
+    return 30;
+  } else if (width < 768) {
+    // Small tablet: ~40 chars
+    return 40;
+  } else if (width < 1024) {
+    // Tablet: ~60 chars
+    return 60;
+  } else if (width < 1280) {
+    // Desktop: ~80 chars
+    return 80;
+  } else {
+    // Large desktop: ~100 chars
+    return 100;
+  }
+}
+
+// Simple lightweight HTML syntax highlighter
+function highlightHTML(html: string): string {
+  let result = html;
+  
+  // HTML comments (must be first to avoid matching inside tags)
+  result = result.replace(/&lt;!--[\s\S]*?--&gt;/g, '<span class="comment">$&</span>');
+  
+  // Doctype
+  result = result.replace(/&lt;!DOCTYPE[^&]*&gt;/gi, '<span class="keyword">$&</span>');
+  
+  // HTML tags with attributes
+  result = result.replace(/&lt;(\/?)([\w-]+)([^&]*?)&gt;/g, (match, closing, tagName, attrs) => {
+    // Highlight attributes: name="value" or name='value' or name=value
+    const attrsHighlighted = attrs.replace(/([\w-]+)(\s*=\s*)("([^"]*)"|'([^']*)'|([^\s>]+))/g, 
+      '<span class="attribute">$1</span><span class="punctuation">$2</span><span class="string">$3</span>');
+    return `<span class="punctuation">&lt;</span><span class="tag">${closing}${tagName}</span>${attrsHighlighted}<span class="punctuation">&gt;</span>`;
+  });
+  
+  return result;
+}
+
+// Find and format HTML code snippets
+document.addEventListener("DOMContentLoaded", async () => {
+  const htmlCodeElements = document.querySelectorAll<HTMLPreElement>('code.language-markup');
+
+  for (const codeElement of htmlCodeElements) {
+    const htmlContent = codeElement.textContent || codeElement.innerText;
+    
+    if (htmlContent.trim()) {
+      try {
+        const formatted = await formatHTML(htmlContent, getPrintWidth());
+        
+        // Escape HTML for highlighting, then apply syntax highlighting
+        const escaped = formatted
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        
+        const highlighted = highlightHTML(escaped);
+        
+        // Update the code element with highlighted HTML
+        codeElement.innerHTML = highlighted;
+        
+      } catch (error) {
+        // console.error("Error formatting HTML:", error);
+      }
+    }
+  }
+
+  // Setup copy buttons for code blocks and install boxes
+  setupCopyButtons();
+  
+  // Setup section heading anchor links
+  setupSectionAnchors();
+});
+
+// Convert section headings with IDs into clickable anchor links
+function setupSectionAnchors() {
+  const linkIcon = `<svg class="section-anchor-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Z"/>
+    <path d="M8.225 12.725a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 1 1-2.83-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25Z"/>
+  </svg>`;
+
+  function makeAnchor(heading: HTMLHeadingElement, id: string) {
+    // Skip if already processed
+    if (heading.querySelector('.section-anchor')) return;
+
+    // Get the text content
+    const textContent = heading.innerHTML;
+
+    // Create the anchor link wrapper
+    const anchor = document.createElement('a');
+    anchor.href = `#${id}`;
+    anchor.className = 'section-anchor';
+    anchor.innerHTML = textContent + linkIcon;
+
+    // Clear the heading and add the anchor
+    heading.innerHTML = '';
+    heading.appendChild(anchor);
+
+    // Handle click to copy the link
+    anchor.addEventListener('click', async () => {
+      // Allow normal navigation but also copy the link
+      const url = new URL(window.location.href);
+      url.hash = id;
+      
+      try {
+        await navigator.clipboard.writeText(url.toString());
+      } catch {
+        // Fallback - just let the browser handle the navigation
+      }
+    });
+  }
+
+  // Handle h2/h3 with IDs directly on them
+  const headingsWithIds = document.querySelectorAll<HTMLHeadingElement>('.section h2[id], .section h3[id]');
+  headingsWithIds.forEach((heading) => {
+    const id = heading.id;
+    if (id) makeAnchor(heading, id);
+  });
+
+  // Handle h2 that are direct children of sections with IDs (but h2 has no ID)
+  const sections = document.querySelectorAll<HTMLElement>('.section[id]');
+  sections.forEach((section) => {
+    const sectionId = section.id;
+    if (!sectionId) return;
+    
+    // Find the first h2 that's a direct child (or within a container div)
+    const h2 = section.querySelector<HTMLHeadingElement>(':scope > h2, :scope > div > h2');
+    if (h2 && !h2.id) {
+      makeAnchor(h2, sectionId);
+    }
+  });
+}
+
+function setupCopyButtons() {
+  const copyButtonHTML = `
+    <svg class="copy-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path>
+      <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path>
+    </svg>
+    <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style="display: none;">
+      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+    </svg>
+  `;
+
+  function showCopied(button) {
+    const copyIcon = button.querySelector('.copy-icon');
+    const checkIcon = button.querySelector('.check-icon');
+    copyIcon.style.display = 'none';
+    checkIcon.style.display = 'block';
+    button.classList.add('copied');
+    button.setAttribute('aria-label', 'Copied!');
+    
+    setTimeout(() => {
+      copyIcon.style.display = 'block';
+      checkIcon.style.display = 'none';
+      button.classList.remove('copied');
+      button.setAttribute('aria-label', 'Copy code');
+    }, 2000);
+  }
+
+  async function copyText(text, button) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showCopied(button);
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showCopied(button);
+      } catch (fallbackErr) {
+        console.error('Copy failed:', fallbackErr);
+      }
+      document.body.removeChild(textArea);
+    }
+  }
+
+  // Setup for regular code blocks (pre code)
+  document.querySelectorAll<HTMLPreElement>('pre code').forEach((codeElement) => {
+    const preElement = codeElement.parentElement;
+    if (!preElement || preElement.querySelector('.copy-button')) return;
+    
+    const copyButton = document.createElement('button');
+    copyButton.className = 'copy-button';
+    copyButton.setAttribute('aria-label', 'Copy code');
+    copyButton.innerHTML = copyButtonHTML;
+    
+    copyButton.addEventListener('click', () => {
+      copyText(codeElement.textContent || codeElement.innerText, copyButton);
+    });
+    
+    preElement.appendChild(copyButton);
+  });
+
+  // Setup for install boxes
+  document.querySelectorAll('.install-box').forEach((box) => {
+    if (box.querySelector('.copy-button')) return;
+    
+    const copyButton = document.createElement('button');
+    copyButton.className = 'copy-button install-box-copy';
+    copyButton.setAttribute('aria-label', 'Copy command');
+    copyButton.innerHTML = copyButtonHTML;
+    
+    copyButton.addEventListener('click', () => {
+      // Find the visible install code based on checked radio button
+      let installCode: HTMLPreElement | null | undefined = null;
+      
+      // Check which radio is checked and find corresponding content
+      const checkedRadio = box.querySelector('.install-tab-radio:checked');
+      if (checkedRadio) {
+        const contentId = 'content-' + checkedRadio.id.replace('tab-', '');
+        const visibleTab = box.querySelector('#' + contentId);
+        installCode = visibleTab?.querySelector('.install-code');
+      }
+      
+      // Fallback for simple boxes without tabs
+      if (!installCode) {
+        installCode = box.querySelector<HTMLPreElement>('.install-code');
+      }
+      
+      if (!installCode) return;
+      
+      // Extract text, handling multiline
+      const lines = installCode.querySelectorAll('.install-code-multiline > div');
+      let text;
+      if (lines.length > 0) {
+        text = Array.from(lines).map(line => 
+          line.textContent.replace(/^\$\s*|^>\s*/, '').trim()
+        ).join(' && ');
+      } else {
+        text = installCode.textContent.replace(/^\$\s*|^>\s*/, '').trim();
+      }
+      
+      copyText(text, copyButton);
+    });
+    
+    // Add to header if it exists, otherwise to content
+    const header = box.querySelector('.install-box-header');
+    const content = box.querySelector('.install-box-content');
+    if (header) {
+      header.appendChild(copyButton);
+    } else if (content) {
+      content.appendChild(copyButton);
+    }
+  });
+}
+
+function getOS() {
+  const userAgent = navigator.userAgent;
+  if (/Windows NT/i.test(userAgent)) {
+      return 'windows';
+  } else if (/Macintosh|Mac OS X/i.test(userAgent)) {
+      return 'macos';
+  } else if (/Android/i.test(userAgent)) {
+      return 'android';
+  } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      return 'ios';
+  } else if (/Linux/i.test(userAgent)) {
+      return 'linux';
+  }
+  return 'unknown';
+}
+
+// Add OS class to body and auto-select appropriate tabs
+const os = getOS();
+document.body.classList.add(os);
+
+// Auto-select tabs based on OS
+const osTabs = {
+  windows: ['tab-windows', 'tab-zig-win'],
+  linux: ['tab-zig-other']
+};
+
+(osTabs[os] || []).forEach(id => {
+  const tab = document.getElementById(id);
+  if (tab && tab instanceof HTMLInputElement) tab.checked = true;
+});

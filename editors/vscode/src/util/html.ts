@@ -67,18 +67,18 @@ The \`@rendering\` attribute controls how a component is rendered on the client 
 The \`@escaping\` attribute controls how content is escaped for HTML safety.
 
 **Values:**
-- \`.raw\` - Disables HTML escaping, allowing raw HTML/script content
+- \`.none\` - Disables HTML escaping, allowing raw HTML/script content
 
 **Usage:**
 \`\`\`zx
-<script type="module" @escaping={.raw}>
+<script type="module" @escaping={.none}>
     // JavaScript code here is not escaped
     const data = { name: "test" };
 </script>
 \`\`\`
 
-**Warning:** Use \`.raw\` only for trusted content like inline scripts. Never use with user-generated content to prevent XSS attacks.`,
-    values: [".raw"],
+**Warning:** Use \`.none\` only for trusted content like inline scripts. Never use with user-generated content to prevent XSS attacks.`,
+    values: [".none"],
   },
 };
 
@@ -279,7 +279,7 @@ export function registerHtmlAutoCompletion(
       }
     }
 
-    // Check if hovering over a builtin attribute value pattern (e.g., .react, .client, .raw)
+    // Check if hovering over a builtin attribute value pattern (e.g., .react, .client, .none)
     const valueRange = doc.getWordRangeAtPosition(pos, /\.[a-zA-Z_][a-zA-Z0-9_]*/);
     if (valueRange) {
       const value = doc.getText(valueRange);
