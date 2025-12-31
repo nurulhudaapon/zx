@@ -58,11 +58,15 @@ pub const App = struct {
         // Routes
         for (config.meta.routes) |*route| {
             var method_found = false;
+            var get_method_found = false;
             if (route.page_opts) |pg_opts| {
                 for (pg_opts.methods) |method| {
                     method_found = true;
                     switch (method) {
-                        .GET => router.get(route.path, Handler.page, .{ .data = route }),
+                        .GET => {
+                            get_method_found = true;
+                            router.get(route.path, Handler.page, .{ .data = route });
+                        },
                         .POST => router.post(route.path, Handler.page, .{ .data = route }),
                         .PUT => router.put(route.path, Handler.page, .{ .data = route }),
                         .DELETE => router.delete(route.path, Handler.page, .{ .data = route }),
@@ -76,7 +80,7 @@ pub const App = struct {
                 }
             }
 
-            if (!method_found) {
+            if (!method_found or !get_method_found) {
                 router.get(route.path, Handler.page, .{ .data = route });
             }
         }
