@@ -6,71 +6,82 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         </div>
     );
 }
-    const categories = [_]SidebarProps.Category{
-        .{
-            .title = "EXAMPLES",
-            .sections = &[_]SidebarProps.Section{
-                .{ .title = "Overview", .href = "/examples" },
-            },
+const categories = [_]SidebarProps.Category{
+    .{
+        .title = "EXAMPLES",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "Overview", .href = "/examples" },
         },
-        .{
-            .title = "CONTROL FLOW",
-            .sections = &[_]SidebarProps.Section{
-                .{
-                    .title = "Conditionals",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#if-else", .text = "If/Else" },
-                        .{ .href = "#switch", .text = "Switch" },
-                    },
-                },
-                .{
-                    .title = "Loops",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#for-loop", .text = "For Loop" },
-                    },
+    },
+    .{
+        .title = "CONTROL FLOW",
+        .sections = &[_]SidebarProps.Section{
+            .{
+                .title = "Conditionals",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/examples#if-else", .text = "If/Else" },
+                    .{ .href = "/examples#switch", .text = "Switch" },
                 },
             },
-        },
-        .{
-            .title = "COMPONENTS",
-            .sections = &[_]SidebarProps.Section{
-                .{
-                    .title = "Building Blocks",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#components", .text = "Component Props" },
-                        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-                    },
+            .{
+                .title = "Loops",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/examples#for-loop", .text = "For Loop" },
                 },
             },
         },
-        .{
-            .title = "FORMS",
-            .sections = &[_]SidebarProps.Section{
-                .{
-                    .title = "Form Handling",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#form-handling", .text = "Basic Form" },
-                    },
+    },
+    .{
+        .title = "COMPONENTS",
+        .sections = &[_]SidebarProps.Section{
+            .{
+                .title = "Building Blocks",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/examples#components", .text = "Component Props" },
+                    .{ .href = "/examples#dynamic-attributes", .text = "Dynamic Attributes" },
                 },
             },
         },
-        .{
-            .title = "EXPERIMENTAL (CSR)",
-            .sections = &[_]SidebarProps.Section{
-                .{ .title = "Counter App", .href = "/examples/wasm/simple" },
-                .{ .title = "Todo App", .href = "/examples/wasm" },
+    },
+    .{
+        .title = "FORMS",
+        .sections = &[_]SidebarProps.Section{
+            .{
+                .title = "Form Handling",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/examples#form-handling", .text = "Basic Form" },
+                },
             },
         },
-    };
+    },
+    .{
+        .title = "CACHING (Alpha)",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "Overview", .href = "/examples#caching" },
+            .{ .title = "Components", .href = "/examples#caching-components" },
+            .{ .title = "Pages", .href = "/examples#caching-pages" },
+            .{ .title = "Layouts", .href = "/examples#caching-layouts" },
+        },
+    },
+    .{
+        .title = "EXPERIMENTAL",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "Counter App (CSR)", .href = "/examples/wasm/simple" },
+            .{ .title = "Todo App (CSR)", .href = "/examples/wasm" },
+            .{ .title = "Streaming", .href = "/examples/streaming" },
+        },
+    },
+};
 
-    const toc_links = [_]SidebarProps.Link{
-        .{ .href = "#if-else", .text = "If/Else" },
-        .{ .href = "#switch", .text = "Switch" },
-        .{ .href = "#for-loop", .text = "For Loop" },
-        .{ .href = "#components", .text = "Component Props" },
-        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-        .{ .href = "#form-handling", .text = "Form Handling" },
-    };
+const toc_links = [_]SidebarProps.Link{
+    .{ .href = "/examples#if-else", .text = "If/Else" },
+    .{ .href = "/examples#switch", .text = "Switch" },
+    .{ .href = "/examples#for-loop", .text = "For Loop" },
+    .{ .href = "/examples#components", .text = "Component Props" },
+    .{ .href = "/examples#dynamic-attributes", .text = "Dynamic Attributes" },
+    .{ .href = "/examples#form-handling", .text = "Form Handling" },
+    .{ .href = "/examples#caching", .text = "Caching" },
+};
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;

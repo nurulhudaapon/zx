@@ -95,6 +95,18 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#comments", .text = "Comments" },
                 },
             },
+            .{
+                .title = "Caching",
+                .href = "/docs#caching",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#caching-overview", .text = "Overview" },
+                    .{ .href = "/docs#caching-components", .text = "Component Caching" },
+                    .{ .href = "/docs#caching-pages", .text = "Page Caching" },
+                    .{ .href = "/docs#caching-layouts", .text = "Layout Caching" },
+                    .{ .href = "/docs#cache-invalidation", .text = "Invalidation" },
+                    .{ .href = "/docs#caching-best-practices", .text = "Best Practices" },
+                },
+            },
         },
     },
     .{
@@ -146,6 +158,7 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "/docs#fragments", .text = "Fragments" },
     .{ .href = "/docs#children-props", .text = "Children Props" },
     .{ .href = "/docs#syntax", .text = "Syntax" },
+    .{ .href = "/docs#caching", .text = "Caching" },
     .{ .href = "/docs#plugins", .text = "Plugins" },
     .{ .href = "/docs#cli", .text = "CLI" },
 };

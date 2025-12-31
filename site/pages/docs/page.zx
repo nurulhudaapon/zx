@@ -509,6 +509,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <CodeBlock code={comments_example} />
                 <p>Comments are stripped from the output and do not appear in the rendered HTML.</p>
             </section>
+            <CachingSection />
             <PluginsSection />
             <CLISection />
             // <ExamplesSection />
@@ -745,6 +746,169 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
 
             <div class="callout tip">
                 <strong>Tip:</strong> Look at the builtin plugins (<code>tailwind.zig</code> and <code>esbuild.zig</code> in the ZX source) for examples of how to structure complex plugins with many options.
+            </div>
+        </section>
+    );
+}
+
+fn CachingSection(allocator: zx.Allocator) zx.Component {
+    // Component caching examples
+    const component_caching_basic =
+        \\// Cache for 10 seconds
+        \\(<Header @caching="10s" />)
+        \\
+        \\// Cache for 5 minutes
+        \\(<Sidebar @caching="5m" />)
+        \\
+        \\// Cache for 1 hour
+        \\(<Footer @caching="1h" />)
+        \\
+        \\// Cache for 1 day
+        \\(<StaticContent @caching="1d" />)
+    ;
+
+    const component_caching_key =
+        \\// Cache with a custom key for manual invalidation
+        \\(<UserProfile @caching="10m:user-profile" user={user} />)
+        \\
+        \\// Cache navigation with key
+        \\(<Navigation @caching="1h:main-nav" />)
+    ;
+
+    const page_caching_example =
+        \\pub fn Page(ctx: zx.PageContext) zx.Component {
+        \\    return (
+        \\        <div @allocator={ctx.arena}>
+        \\            <h1>Cached Page</h1>
+        \\            <p>This page is cached for 5 minutes.</p>
+        \\        </div>
+        \\    );
+        \\}
+        \\
+        \\// Enable page-level caching
+        \\pub const options = zx.PageOptions{
+        \\    .caching = .{ .seconds = 300 }, // 5 minutes
+        \\};
+    ;
+
+    const layout_caching_example =
+        \\pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+        \\    return (
+        \\        <html @allocator={ctx.arena}>
+        \\            <body>
+        \\                <Header />
+        \\                {children}
+        \\                <Footer />
+        \\            </body>
+        \\        </html>
+        \\    );
+        \\}
+        \\
+        \\// Cache the entire layout for 1 hour
+        \\pub const options = zx.LayoutOptions{
+        \\    .caching = .{ .seconds = 3600 },
+        \\};
+    ;
+
+    const cache_invalidation_example =
+        \\// Delete a specific cache entry by key
+        \\_ = zx.cache.del("cmp:user-profile");
+        \\
+        \\// Delete all entries matching a prefix
+        \\// Useful for invalidating related content
+        \\_ = zx.cache.delPrefix("cmp:user");
+    ;
+
+    return (
+        <section id="caching" class="section" @allocator={allocator}>
+            <h2>Caching <span class="badge">Alpha</span></h2>
+            <p>ZX provides built-in caching for components, pages, and layouts to improve performance. Cached content is stored in memory and served directly without re-rendering.</p>
+
+            <h3 id="caching-overview">Overview</h3>
+            <p>Caching can be applied at three levels:</p>
+            <ul>
+                <li><strong>Component caching</strong> — Cache individual components using the <code>@caching</code> attribute</li>
+                <li><strong>Page caching</strong> — Cache entire pages using <code>PageOptions.caching</code></li>
+                <li><strong>Layout caching</strong> — Cache layouts using <code>LayoutOptions.caching</code></li>
+            </ul>
+
+            <h3 id="caching-components">Component Caching</h3>
+            <p>Use the <code>@caching</code> attribute on any component to cache its rendered HTML output. The syntax is <code>{"<duration>"}</code> or <code>{"<duration>:key"}</code>.</p>
+
+            <h4>Time Units</h4>
+            <table class="options-table">
+                <thead>
+                    <tr>
+                        <th>Unit</th>
+                        <th>Description</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>s</code></td>
+                        <td>Seconds</td>
+                        <td><code>"10s"</code> = 10 seconds</td>
+                    </tr>
+                    <tr>
+                        <td><code>m</code></td>
+                        <td>Minutes</td>
+                        <td><code>"5m"</code> = 300 seconds</td>
+                    </tr>
+                    <tr>
+                        <td><code>h</code></td>
+                        <td>Hours</td>
+                        <td><code>"2h"</code> = 7200 seconds</td>
+                    </tr>
+                    <tr>
+                        <td><code>d</code></td>
+                        <td>Days</td>
+                        <td><code>"1d"</code> = 86400 seconds</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>Basic Usage</h4>
+            <CodeBlock code={component_caching_basic} />
+
+            <h4>Custom Cache Keys</h4>
+            <p>Add a custom key after the duration with a colon (<code>:</code>) separator. Keys are useful for manual cache invalidation:</p>
+            <CodeBlock code={component_caching_key} />
+            <p>The cache key is prefixed with <code>cmp:</code> internally, so <code>"10m:user-profile"</code> creates a key <code>cmp:user-profile</code>.</p>
+
+            <h3 id="caching-pages">Page Caching</h3>
+            <p>Enable page-level caching by exporting a <code>options</code> constant with caching settings:</p>
+            <CodeBlock code={page_caching_example} filename="page.zx" />
+            <p>Page caching stores the entire rendered response including headers. The server adds <code>ETag</code> and <code>Cache-Control</code> headers automatically.</p>
+
+            <h3 id="caching-layouts">Layout Caching</h3>
+            <p>Layouts can also be cached using <code>LayoutOptions</code>:</p>
+            <CodeBlock code={layout_caching_example} filename="layout.zx" />
+            <div class="callout note">
+                <strong>Note:</strong> Layout caching caches the entire layout including children. Use with caution as it may cache dynamic page content unintentionally.
+            </div>
+
+            <h3 id="cache-invalidation">Cache Invalidation</h3>
+            <p>Manually invalidate cache entries using <code>zx.cache</code> functions:</p>
+            <CodeBlock code={cache_invalidation_example} />
+            <p><strong>Available functions:</strong></p>
+            <ul>
+                <li><code>zx.cache.del(key)</code> — Delete a specific cache entry by exact key. Returns <code>true</code> if deleted.</li>
+                <li><code>zx.cache.delPrefix(prefix)</code> — Delete all entries matching a prefix. Returns the count of deleted entries.</li>
+                <li><code>zx.cache.get(key)</code> — Get cached HTML by key. Returns <code>?[]const u8</code>.</li>
+            </ul>
+
+            <h3 id="caching-best-practices">Best Practices</h3>
+            <ul>
+                <li><strong>Cache static content aggressively</strong> — Headers, footers, navigation, and other rarely-changing content benefit most from caching.</li>
+                <li><strong>Use custom keys for related content</strong> — Group related cache entries with a common prefix for easy bulk invalidation.</li>
+                <li><strong>Be careful with user-specific content</strong> — Don't cache components that display user-specific data without including user identity in the cache key.</li>
+                <li><strong>Start with short TTLs</strong> — Begin with shorter cache durations and increase as you verify correctness.</li>
+                <li><strong>Invalidate on data changes</strong> — Call <code>zx.cache.del()</code> or <code>zx.cache.delPrefix()</code> when underlying data changes.</li>
+            </ul>
+
+            <div class="callout tip">
+                <strong>Performance tip:</strong> Component caching is most effective for expensive-to-render components with stable output, such as markdown content, syntax-highlighted code blocks, or complex nested structures.
             </div>
         </section>
     );

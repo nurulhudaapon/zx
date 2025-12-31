@@ -58,6 +58,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <ComponentsSection zx_code={zx_components} zig_code={zig_components} html_code={html_components} />
             <DynamicAttrSection zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
             <FormSection zx_code={zx_form} zig_code={zig_form} html_code={html_form} />
+            <CachingSection />
 
             <script src="/assets/main.js" />
         </fragment>
@@ -143,7 +144,92 @@ fn FormSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component
     );
 }
 
+fn CachingSection(allocator: zx.Allocator) zx.Component {
+    // Component caching examples
+    const component_caching_example =
+        \\// Cache a component for 10 seconds
+        \\fn Page(allocator: zx.Allocator) zx.Component {
+        \\    return (
+        \\        <div @allocator={allocator}>
+        \\            <Header @caching="1h" />
+        \\            <Content />
+        \\            <Sidebar @caching="30m:sidebar" />
+        \\        </div>
+        \\    );
+        \\}
+        \\
+        \\fn Header(allocator: zx.Allocator) zx.Component {
+        \\    return (<header @allocator={allocator}>Site Header</header>);
+        \\}
+        \\
+        \\fn Sidebar(allocator: zx.Allocator) zx.Component {
+        \\    return (<aside @allocator={allocator}>Sidebar</aside>);
+        \\}
+    ;
+
+    const page_caching_example =
+        \\pub fn Page(ctx: zx.PageContext) zx.Component {
+        \\    return (
+        \\        <div @allocator={ctx.arena}>
+        \\            <h1>Cached Page</h1>
+        \\            <p>This entire page is cached for 5 minutes.</p>
+        \\            <p>Current time: {std.time.timestamp()}</p>
+        \\        </div>
+        \\    );
+        \\}
+        \\
+        \\// Page-level caching configuration
+        \\pub const options = zx.PageOptions{
+        \\    .caching = .{ .seconds = 300 }, // 5 minutes
+        \\};
+    ;
+
+    const layout_caching_example =
+        \\pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+        \\    return (
+        \\        <html @allocator={ctx.arena}>
+        \\            <head><title>My Site</title></head>
+        \\            <body>
+        \\                <nav>Navigation</nav>
+        \\                <main>{children}</main>
+        \\                <footer>Footer</footer>
+        \\            </body>
+        \\        </html>
+        \\    );
+        \\}
+        \\
+        \\// Layout caching (caches entire layout including children)
+        \\pub const options = zx.LayoutOptions{
+        \\    .caching = .{ .seconds = 3600 }, // 1 hour
+        \\};
+    ;
+
+    return (
+        <section id="caching" class="section" @allocator={allocator}>
+            <h2>Caching <span class="badge">Alpha</span></h2>
+            <p>ZX provides built-in caching at multiple levels to improve performance. Cache rendered HTML and serve it directly without re-rendering.</p>
+
+            <h3 id="caching-components">Component Caching</h3>
+            <p>Use the <code>@caching</code> attribute to cache individual components. Specify duration with units: <code>s</code> (seconds), <code>m</code> (minutes), <code>h</code> (hours), or <code>d</code> (days). Add a key after <code>:</code> for manual invalidation.</p>
+            <CodeBlock code={component_caching_example} filename="component_caching.zx" />
+
+            <h3 id="caching-pages">Page Caching</h3>
+            <p>Cache entire pages by exporting <code>options</code> with caching configuration. The server automatically adds <code>ETag</code> and <code>Cache-Control</code> headers.</p>
+            <CodeBlock code={page_caching_example} filename="cached_page.zx" />
+
+            <h3 id="caching-layouts">Layout Caching</h3>
+            <p>Layouts can also be cached. Be careful: this caches the entire layout including page content.</p>
+            <CodeBlock code={layout_caching_example} filename="cached_layout.zx" />
+
+            <div class="callout tip">
+                <strong>Tip:</strong> Use <code>zx.cache.del("cmp:key")</code> or <code>zx.cache.delPrefix("cmp:prefix")</code> to manually invalidate cached content when data changes.
+            </div>
+        </section>
+    );
+}
+
 const std = @import("std");
+const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const zx = @import("zx");
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;

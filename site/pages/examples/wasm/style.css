@@ -1,30 +1,38 @@
-body {
-    margin: 0;
-}
 :root {
     --primary: #00d9ff;
     --primary-dark: #00a8cc;
-    --bg: #000000;
-    --card-bg: #111111;
-    --border: #262626;
-    --text: #ffffff;
-    --text-muted: #737373;
+    --bg: #ffffff;
+    --card-bg: #f5f5f5;
+    --card-bg-hover: #ebebeb;
+    --border: #e0e0e0;
+    --text: #1a1a1a;
+    --text-muted: #666666;
+    --danger-bg: #fff0f0;
+    --danger-border: #ff4444;
+    --danger-text: #cc0000;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #000000;
+        --card-bg: #111111;
+        --card-bg-hover: #141414;
+        --border: #262626;
+        --text: #ffffff;
+        --text-muted: #737373;
+        --danger-bg: #1a0000;
+        --danger-border: #ff4444;
+        --danger-text: #ff4444;
+    }
 }
 
 .todo-container {
-    min-height: 100vh;
     color: var(--text);
     padding: 4rem 2rem;
     display: flex;
     justify-content: center;
     align-items: flex-start;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-/* attribute data-name="todo-app" */
-[data-name="TodoApp"] {
-    max-width: 600px;
-    width: 100%;
 }
 
 .todo-app {
@@ -83,7 +91,7 @@ body {
     border-radius: 0;
     font-family: inherit;
     font-size: 1rem;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .todo-add-btn:hover {
@@ -136,12 +144,12 @@ body {
     padding: 1.25rem 1.5rem;
     background: var(--card-bg);
     border: 1px solid var(--border);
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .todo-item:hover {
     border-color: var(--primary);
-    background: #141414;
+    background: var(--card-bg-hover);
 }
 
 .todo-item-completed {
@@ -160,7 +168,8 @@ body {
     color: var(--primary);
     font-weight: 700;
     font-size: 0.875rem;
-    transition: all 0.3s ease;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .todo-item-completed .todo-checkbox {
@@ -169,13 +178,13 @@ body {
     color: var(--bg);
 }
 
-.todo-text {
+.todo-item span {
     flex: 1;
     color: var(--text);
     font-size: 1rem;
 }
 
-.todo-item-completed .todo-text {
+.todo-item-completed span {
     text-decoration: line-through;
     color: var(--text-muted);
 }
@@ -192,13 +201,13 @@ body {
     border-radius: 0;
     font-family: inherit;
     font-size: 0.875rem;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
 .todo-clear-btn:hover {
-    background: #1a0000;
-    border-color: #ff4444;
-    color: #ff4444;
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    color: var(--danger-text);
 }
 
 @media (max-width: 768px) {
