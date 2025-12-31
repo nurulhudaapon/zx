@@ -80,9 +80,10 @@ fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
 
 const initial_todos = [_]Todo{
     .{ .id = 1, .text = "Build a fast web app with ZX", .completed = true },
-    .{ .id = 3, .text = "Implement server-side rendering", .completed = true },
-    .{ .id = 4, .text = "Implement client-side rendering", .completed = false },
+    .{ .id = 2, .text = "Implement server-side rendering", .completed = true },
+    .{ .id = 3, .text = "Implement client-side rendering", .completed = false },
 };
+var next_todo_id: u32 = 4; // Start after initial todos (1, 2, 3)
 var initialized: bool = false;
 fn initTodos(allocator: zx.Allocator) void {
     if (initialized) return;
@@ -100,7 +101,9 @@ fn addTodo(ctx: zx.EventContext) void {
     const text = input.ref.getAlloc(js.String, allocator, "value") catch return;
     if (text.len == 0) return;
 
-    todos.append(allocator, .{ .id = todos.items.len + 1, .text = text, .completed = false }) catch @panic("OOM");
+    const id = next_todo_id;
+    next_todo_id += 1;
+    todos.append(allocator, .{ .id = id, .text = text, .completed = false }) catch @panic("OOM");
     input.ref.set("value", js.string("")) catch return;
 }
 
@@ -111,7 +114,9 @@ fn handleInputChange(ctx: zx.EventContext) void {
     const event = client.Event.idInit(allocator, ctx.id) catch return;
     const value = event.target.value;
 
-    todos.append(allocator, .{ .id = todos.items.len, .text = value, .completed = false }) catch @panic("OOM");
+    const id = next_todo_id;
+    next_todo_id += 1;
+    todos.append(allocator, .{ .id = id, .text = value, .completed = false }) catch @panic("OOM");
 }
 fn toggleTodo(ctx: zx.EventContext) void {
     if (builtin.os.tag != .freestanding) return;
