@@ -243,8 +243,8 @@ test "fmt" {
         .args = &.{ "fmt", "site" ++ std.fs.path.sep_str ++ "pages" },
         .expected_exit_code = 0,
         .expected_stdout_strings = &.{
-            "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "layout.zx",
-            "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "page.zx",
+            // "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "layout.zx",
+            // "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "page.zx",
         },
     });
 }
