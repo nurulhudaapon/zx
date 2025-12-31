@@ -41,6 +41,7 @@ async function main() {
 
     // Create a temporary tsconfig for this package
     const tempTsConfigPath = join(pkgDir, "temp-tsconfig.json");
+    const projectRoot = join(pkgDir, "../..");
     const tsConfig = {
       compilerOptions: {
         target: "ES2020",
@@ -52,21 +53,29 @@ async function main() {
         forceConsistentCasingInFileNames: true,
         moduleResolution: "node",
         resolveJsonModule: true,
-        rootDir: "./src",
+        rootDir: projectRoot,
         outDir: pkgDistDir,
         declaration: true,
         sourceMap: true,
         emitDeclarationOnly: true,
       },
       exclude: ["node_modules", "dist", "test"],
-      include: ["./src/**/*.ts"],
+      include: ["./src/**/*.ts", "../../vendor/jsz/js/src/**/*.ts"],
     };
 
     writeFileSync(tempTsConfigPath, JSON.stringify(tsConfig, null, 2));
 
     // Use the temporary tsconfig and run tsc directly in the package directory
     await $`cd ${pkgDir} && tsc --project ${tempTsConfigPath}`;
-    await $`rm dist/zx.d.ts`;
+    
+    // Move nested declaration files to root of dist
+    // TypeScript outputs to dist/packages/ziex/src/ due to rootDir being project root
+    const nestedSrcDir = join(pkgDistDir, "packages/ziex/src");
+    await $`cp -r ${nestedSrcDir}/* ${pkgDistDir}/`.quiet().nothrow();
+    
+    // Clean up nested directories
+    await $`rm -rf ${join(pkgDistDir, "packages")}`.quiet().nothrow();
+    await $`rm -rf ${join(pkgDistDir, "vendor")}`.quiet().nothrow();
 
     // Clean up temporary tsconfig
     await $`rm ${tempTsConfigPath}`;

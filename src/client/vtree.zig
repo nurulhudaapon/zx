@@ -53,7 +53,9 @@ pub const VElement = struct {
                 if (element.attributes) |attributes| {
                     for (attributes) |attr| {
                         if (std.mem.eql(u8, attr.name, "key")) continue;
-                        const attr_val = if (attr.value) |val| val else "true";
+                        if (attr.name.len >= 2 and std.mem.eql(u8, attr.name[0..2], "on")) continue;
+                        const attr_val = if (attr.value) |val| val else "";
+
                         dom_element.setAttribute(attr.name, attr_val);
                     }
                 }
@@ -241,6 +243,7 @@ pub fn diff(
                     if (old_element.attributes) |old_attrs| {
                         for (old_attrs) |old_attr| {
                             if (std.mem.eql(u8, old_attr.name, "key")) continue;
+                            if (old_attr.name.len >= 2 and std.mem.eql(u8, old_attr.name[0..2], "on")) continue;
 
                             var found = false;
                             if (new_element.attributes) |new_attrs| {
@@ -266,6 +269,7 @@ pub fn diff(
                     if (new_element.attributes) |new_attrs| {
                         for (new_attrs) |new_attr| {
                             if (std.mem.eql(u8, new_attr.name, "key")) continue;
+                            if (new_attr.name.len >= 2 and std.mem.eql(u8, new_attr.name[0..2], "on")) continue;
 
                             var found = false;
                             if (old_element.attributes) |old_attrs| {
