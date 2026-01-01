@@ -2,7 +2,16 @@
 # Sync vendored dependencies from upstream
 # Usage: ./tools/syncvendor [name]
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENDOR_DIR="vendor"
+VENDORS_FILE="$SCRIPT_DIR/vendors.json"
+
+update_commit_tracking() {
+    local name=$1
+    local commit=$2
+    local tmp=$(mktemp)
+    jq ".[\"$name\"].commit = \"$commit\"" "$VENDORS_FILE" > "$tmp" && mv "$tmp" "$VENDORS_FILE"
+}
 
 update_vendor() {
     local name=$1
@@ -19,6 +28,12 @@ update_vendor() {
         return 1
     fi
     
+    # Get the commit hash before removing .git
+    local commit=$(git -C "$target" rev-parse HEAD)
+    
+    # Update tracking file
+    update_commit_tracking "$name" "$commit"
+    
     # Cleanup
     rm -rf "$target/.git" "$target/.github" "$target/example" "$target/examples"
     rm -f "$target/.editorconfig" "$target/.envrc" "$target/.gitignore"
@@ -27,7 +42,7 @@ update_vendor() {
     rm -f "$target/RELEASE-NOTES.md" "$target/CONTRIBUTING.md" 
     rm -f "$target/CODE_OF_CONDUCT.md" "$target/CHANGELOG.md"
     
-    echo "✓"
+    echo "✓ (${commit:0:7})"
 }
 
 main() {

@@ -1,0 +1,26 @@
+{
+  "cachez": {
+    "repo": "git@github.com:nurulhudaapon/cachez.git",
+    "https": "https://github.com/nurulhudaapon/cachez",
+    "branch": "master",
+    "commit": "9f3329b05b3e98da928fe9988d74971da70328b4"
+  },
+  "cliz": {
+    "repo": "git@github.com:nurulhudaapon/cliz.git",
+    "https": "https://github.com/nurulhudaapon/cliz",
+    "branch": "main",
+    "commit": "aff3b54879e7514afaf8c87f1abe22121b8992d4"
+  },
+  "jsz": {
+    "repo": "git@github.com:nurulhudaapon/jsz.git",
+    "https": "https://github.com/nurulhudaapon/jsz",
+    "branch": "main",
+    "commit": "04db83c617da1956ac5adc1cb9ba1e434c1cb6fd"
+  },
+  "zig-tree-sitter": {
+    "repo": "git@github.com:nurulhudaapon/zig-tree-sitter.git",
+    "https": "https://github.com/nurulhudaapon/zig-tree-sitter",
+    "branch": "master",
+    "commit": "5373b8395bcf6cf17e6a02be1a9996bedb34abf6"
+  }
+}

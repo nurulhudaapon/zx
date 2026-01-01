@@ -1,0 +1,253 @@
+#!/bin/bash
+# Upstream local vendor changes to the original repository
+# Usage: ./tools/upstreamvendor <name> [file]
+# Example: ./tools/upstreamvendor cachez cache.zig
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENDOR_DIR="vendor"
+VENDORS_FILE="$SCRIPT_DIR/vendors.json"
+TMP_DIR="/tmp/upstream-vendor"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+get_vendor_info() {
+    local name=$1
+    local field=$2
+    jq -r ".[\"$name\"].$field // empty" "$VENDORS_FILE"
+}
+
+list_vendors() {
+    echo "Available vendors:"
+    jq -r 'keys[]' "$VENDORS_FILE" | while read name; do
+        local commit=$(get_vendor_info "$name" "commit")
+        local branch=$(get_vendor_info "$name" "branch")
+        if [[ -n "$commit" ]]; then
+            echo "  $name ($branch @ ${commit:0:7})"
+        else
+            echo "  $name ($branch @ not tracked)"
+        fi
+    done
+}
+
+update_commit() {
+    local name=$1
+    local commit=$2
+    local tmp=$(mktemp)
+    jq ".[\"$name\"].commit = \"$commit\"" "$VENDORS_FILE" > "$tmp" && mv "$tmp" "$VENDORS_FILE"
+    echo -e "${GREEN}Updated $name commit to ${commit:0:7}${NC}"
+}
+
+upstream_vendor() {
+    local name=$1
+    local file=$2
+    
+    local repo=$(get_vendor_info "$name" "repo")
+    local https=$(get_vendor_info "$name" "https")
+    local branch=$(get_vendor_info "$name" "branch")
+    local tracked_commit=$(get_vendor_info "$name" "commit")
+    
+    if [[ -z "$repo" ]]; then
+        echo -e "${RED}Error: Unknown vendor '$name'${NC}"
+        echo ""
+        list_vendors
+        exit 1
+    fi
+    
+    local vendor_path="$VENDOR_DIR/$name"
+    if [[ ! -d "$vendor_path" ]]; then
+        echo -e "${RED}Error: Vendor directory '$vendor_path' does not exist${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Upstreaming changes from $name${NC}"
+    echo "  Repo: $https"
+    echo "  Branch: $branch"
+    [[ -n "$tracked_commit" ]] && echo "  Tracked commit: ${tracked_commit:0:7}"
+    echo ""
+    
+    # Clone the upstream repo
+    rm -rf "$TMP_DIR"
+    mkdir -p "$TMP_DIR"
+    
+    echo -e "${YELLOW}Cloning upstream repository...${NC}"
+    git clone --branch "$branch" "$repo" "$TMP_DIR/$name" 2>/dev/null
+    
+    cd "$TMP_DIR/$name"
+    local latest_commit=$(git rev-parse HEAD)
+    echo "  Latest upstream commit: ${latest_commit:0:7}"
+    
+    # Create a new branch for the changes
+    local branch_name="upstream-from-zx-$(date +%Y%m%d-%H%M%S)"
+    git checkout -b "$branch_name"
+    
+    # Copy files from vendor to the cloned repo
+    cd - > /dev/null
+    
+    if [[ -n "$file" ]]; then
+        # Copy specific file
+        local src_file="$vendor_path/$file"
+        if [[ ! -f "$src_file" ]]; then
+            # Try with src/ prefix
+            src_file="$vendor_path/src/$file"
+        fi
+        
+        if [[ ! -f "$src_file" ]]; then
+            echo -e "${RED}Error: File '$file' not found in $vendor_path or $vendor_path/src${NC}"
+            exit 1
+        fi
+        
+        local rel_path="${src_file#$vendor_path/}"
+        cp "$src_file" "$TMP_DIR/$name/$rel_path"
+        echo -e "${GREEN}Copied: $rel_path${NC}"
+    else
+        # Copy all files (preserving structure, excluding .git)
+        rsync -av --exclude='.git' "$vendor_path/" "$TMP_DIR/$name/" > /dev/null
+        echo -e "${GREEN}Copied all files from $vendor_path${NC}"
+    fi
+    
+    cd "$TMP_DIR/$name"
+    
+    # Show the diff
+    echo ""
+    echo -e "${YELLOW}Changes to be upstreamed:${NC}"
+    echo "─────────────────────────────────────────"
+    git diff --stat
+    echo "─────────────────────────────────────────"
+    
+    if git diff --quiet; then
+        echo -e "${GREEN}No changes detected. Vendor is in sync with upstream.${NC}"
+        
+        # Offer to update the tracked commit
+        if [[ "$tracked_commit" != "$latest_commit" ]]; then
+            echo ""
+            read -p "Update tracked commit to ${latest_commit:0:7}? [y/N] " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                cd - > /dev/null
+                update_commit "$name" "$latest_commit"
+            fi
+        fi
+        
+        rm -rf "$TMP_DIR"
+        exit 0
+    fi
+    
+    echo ""
+    git diff
+    echo ""
+    
+    # Prompt to create PR
+    read -p "Create a PR with these changes? [y/N] " -n 1 -r
+    echo
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        rm -rf "$TMP_DIR"
+        exit 0
+    fi
+    
+    # Commit and push
+    read -p "Enter commit message: " commit_msg
+    if [[ -z "$commit_msg" ]]; then
+        commit_msg="chore: upstream changes from zx"
+    fi
+    
+    git add -A
+    git commit -m "$commit_msg"
+    
+    echo ""
+    echo -e "${YELLOW}Pushing to origin/$branch_name...${NC}"
+    git push -u origin "$branch_name"
+    
+    # Create PR using gh CLI
+    echo ""
+    echo -e "${YELLOW}Creating pull request...${NC}"
+    
+    if command -v gh &> /dev/null; then
+        gh pr create --title "$commit_msg" --body "Upstreamed from zx vendor directory" --base "$branch" --head "$branch_name"
+        
+        echo ""
+        echo -e "${GREEN}Pull request created successfully!${NC}"
+        
+        # Update tracked commit after successful PR
+        cd - > /dev/null
+        read -p "Update tracked commit to ${latest_commit:0:7}? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            update_commit "$name" "$latest_commit"
+        fi
+    else
+        echo -e "${YELLOW}gh CLI not found. Please create PR manually:${NC}"
+        echo "  $https/compare/$branch...$branch_name"
+    fi
+    
+    rm -rf "$TMP_DIR"
+}
+
+show_usage() {
+    echo "Usage: ./tools/upstreamvendor <name> [file]"
+    echo ""
+    echo "Commands:"
+    echo "  <name>           Upstream all changes from vendor/<name>"
+    echo "  <name> <file>    Upstream specific file (e.g., cache.zig)"
+    echo "  --list           List all vendors and their tracked commits"
+    echo "  --sync <name>    Fetch latest commit from upstream and update tracking"
+    echo ""
+    echo "Examples:"
+    echo "  ./tools/upstreamvendor cachez           # Upstream all cachez changes"
+    echo "  ./tools/upstreamvendor cachez cache.zig # Upstream only cache.zig"
+    echo "  ./tools/upstreamvendor --list           # List vendors"
+    echo "  ./tools/upstreamvendor --sync cachez    # Update tracked commit"
+}
+
+sync_commit() {
+    local name=$1
+    local repo=$(get_vendor_info "$name" "repo")
+    local branch=$(get_vendor_info "$name" "branch")
+    
+    if [[ -z "$repo" ]]; then
+        echo -e "${RED}Error: Unknown vendor '$name'${NC}"
+        exit 1
+    fi
+    
+    echo -e "${YELLOW}Fetching latest commit for $name...${NC}"
+    local latest=$(git ls-remote "$repo" "refs/heads/$branch" | cut -f1)
+    
+    if [[ -n "$latest" ]]; then
+        update_commit "$name" "$latest"
+    else
+        echo -e "${RED}Failed to fetch commit${NC}"
+        exit 1
+    fi
+}
+
+main() {
+    case "$1" in
+        --help|-h|"")
+            show_usage
+            ;;
+        --list)
+            list_vendors
+            ;;
+        --sync)
+            if [[ -z "$2" ]]; then
+                echo "Usage: ./tools/upstreamvendor --sync <name>"
+                exit 1
+            fi
+            sync_commit "$2"
+            ;;
+        *)
+            upstream_vendor "$1" "$2"
+            ;;
+    esac
+}
+
+main "$@"
+
