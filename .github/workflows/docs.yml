@@ -42,10 +42,10 @@ jobs:
         run: cd site && bun install
         
       - name: Build Site
-        run: zig build -Ddoc
+        run: zig build -Ddoc -Doptimize=ReleaseSmall
 
       - name: Export Site
-        run: zig build export -Ddoc
+        run: zig build export -Ddoc -Doptimize=ReleaseSmall
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

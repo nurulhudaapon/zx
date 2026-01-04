@@ -89,9 +89,10 @@ const zx = @import("zx");
     - [x] Virtual DOM and diffing
     - [x] Rendering only changed nodes
     - [x] `on`event handler
-    - [ ] State managment
-    - [ ] Hydration
+    - [x] State managment
+    - [x] Hydration
     - [ ] Lifecycle hook
+    - [ ] Server Actions
 - [x] Client Side Rendering (CSR) via React
 - [x] Routing
     - [x] File-system Routing
@@ -116,7 +117,7 @@ const zx = @import("zx");
     - [x] HTML (optimized by default)
 - [ ] Middleware (_cancalled_)
 - [ ] Caching (configurable)
-    - [ ] Component
+    - [x] Component
     - [ ] Layout
     - [x] Page
     - [ ] Assets
@@ -144,8 +145,8 @@ const zx = @import("zx");
     - [x] `update` Update the version of ZX dependency
     - [x] `upgrade` Upgrade the version of ZX CLI
 - [ ] Platform
-    - [x] Web Server
-    - [x] Web Browser
+    - [x] Server
+    - [x] Browser
     - [ ] iOS
     - [ ] Android
     - [ ] macOS
