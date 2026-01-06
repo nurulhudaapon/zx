@@ -91,15 +91,11 @@ pub fn build(b: *std.Build) !void {
                         .bin = b.path("site/node_modules/.bin/esbuild"),
                         .input = b.path("site/main.ts"),
                         .output = b.path("{outdir}/assets/main.js"),
-                        .sourcemap = .none,
-                        .minify = true,
                     }),
                     plugins.esbuild(b, .{
                         .bin = b.path("site/node_modules/.bin/esbuild"),
                         .input = b.path("site/scripts/docs.ts"),
                         .output = b.path("{outdir}/assets/docs.js"),
-                        .minify = true,
-                        .sourcemap = .none,
                     }),
                     plugins.tailwind(b, .{
                         .bin = b.path("site/node_modules/.bin/tailwindcss"),

@@ -153,10 +153,11 @@ pub fn getVElementById(self: *Client, id: u64) ?*vtree_mod.VElement {
 
 /// Dispatch an event to the appropriate handler
 /// This looks up the handler in the registry and calls it with an EventContext
+/// event_ref is a u64 NaN-boxed reference to the JS event object
 /// Returns true if a handler was found and called
-pub fn dispatchEvent(self: *Client, velement_id: u64, event_type: EventType, event_id: u64) bool {
+pub fn dispatchEvent(self: *Client, velement_id: u64, event_type: EventType, event_ref: u64) bool {
     if (self.getHandler(velement_id, event_type)) |handler| {
-        const event_context = zx.EventContext.init(event_id);
+        const event_context = zx.EventContext.init(event_ref);
         handler(event_context);
         return true;
     }

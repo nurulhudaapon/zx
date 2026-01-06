@@ -1,7 +1,6 @@
 import { ZigJS } from "../../../../vendor/jsz/js/src";
 
 const DEFAULT_URL = "/assets/main.wasm";
-const MAX_EVENTS = 100;
 
 const DELEGATED_EVENTS = [
     'click', 'dblclick',
@@ -38,28 +37,14 @@ const EVENT_TYPE_MAP: Record<DelegatedEvent, number> = {
 };
 
 export const jsz = new ZigJS();
-const importObject = {
-    ...jsz.importObject(),
-};
 
 class ZXInstance {
 
     exports: WebAssembly.Exports;
-    events: Event[];
     #eventDelegationInitialized: boolean = false;
 
-    constructor({ exports, events = [] }: ZXInstanceOptions) {
+    constructor({ exports }: ZXInstanceOptions) {
         this.exports = exports;
-        this.events = events;
-    }
-
-    addEvent(event: Event) {
-        if (this.events.length >= MAX_EVENTS)
-            this.events.length = 0;
-
-        const idx = this.events.push(event);
-
-        return idx - 1;
     }
 
     /**
@@ -93,13 +78,17 @@ class ZXInstance {
             const zxRef = target.__zx_ref;
 
             if (zxRef !== undefined) {
-                const eventId = this.addEvent(event);
+                // Store the event in jsz's value store and get its reference
+                const eventRef = storeValueGetRef(event);
+
                 const handleEvent = this.exports.handleEvent as EventHandler | undefined;
                 if (typeof handleEvent === 'function') {
                     const eventTypeId = EVENT_TYPE_MAP[eventType] ?? 0;
-                    handleEvent(BigInt(zxRef), eventTypeId, BigInt(eventId));
+                    handleEvent(BigInt(zxRef), eventTypeId, eventRef);
                 }
 
+                // Clean up the event reference after handling
+                // (The Zig side should deinit the value when done)
                 break;
             }
 
@@ -114,19 +103,33 @@ class ZXInstance {
 
 export async function init(options: InitOptions = {}) {
     const url = options?.url ?? DEFAULT_URL;
-    const wasmInstiatedSource = await WebAssembly.instantiateStreaming(fetch(url), Object.assign({}, importObject, options.importObject));
+    const importObject = Object.assign({}, jsz.importObject(), options.importObject);
+    const wasmInstiatedSource = await WebAssembly.instantiateStreaming(fetch(url), importObject);
     const { instance } = wasmInstiatedSource;
 
     jsz.memory = instance.exports.memory as WebAssembly.Memory;
-    window._zx = new ZXInstance({ exports: instance.exports });
+    const zxInstance = new ZXInstance({ exports: instance.exports });
 
     // Initialize event delegation
-    window._zx.initEventDelegation(options.eventDelegationRoot ?? 'body');
+    zxInstance.initEventDelegation(options.eventDelegationRoot ?? 'body');
 
     const main = instance.exports.mainClient;
     if (typeof main === 'function') main();
 
     return wasmInstiatedSource;
+}
+
+
+const tempRefBuffer = new ArrayBuffer(8);
+const tempRefView = new DataView(tempRefBuffer);
+
+/** Store a value using jsz.storeValue and get the 64-bit reference. */
+export function storeValueGetRef(val: any): bigint {
+    const originalMemory = jsz.memory;
+    jsz.memory = { buffer: tempRefBuffer } as WebAssembly.Memory;
+    jsz.storeValue(0, val);
+    jsz.memory = originalMemory;
+    return tempRefView.getBigUint64(0, true);
 }
 
 export type InitOptions = {
@@ -139,7 +142,6 @@ export type InitOptions = {
 
 type ZXInstanceOptions = {
     exports: ZXInstance['exports'];
-    events?: ZXInstance['events']
 }
 
 type DelegatedEvent = typeof DELEGATED_EVENTS[number];

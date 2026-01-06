@@ -76,43 +76,78 @@ pub const Event = struct {
         value: ?[]const u8 = null,
     };
 
-    id: u64,
+    /// The js.Object reference to the event
     ref: if (is_wasm) @import("js").Object else void,
 
     target: ?EventTarget = null,
     data: ?[]const u8 = null,
 
-    pub fn idInit(allocator: std.mem.Allocator, id: u64) !Event {
-        if (!is_wasm) return .{ .id = id, .ref = {}, .target = null, .data = null };
+    /// Create an Event from a u64 NaN-boxed reference (passed from JS via jsz)
+    pub fn fromRef(event_ref: u64) Event {
+        if (!is_wasm) return .{ .ref = {}, .target = null, .data = null };
         const real_js = @import("js");
-        const obj: real_js.Object = try real_js.global.get(real_js.Object, "_zx");
-        const ob_val: real_js.Object = try obj.get(real_js.Object, "events");
 
-        const current_event: real_js.Object = try ob_val.call(real_js.Object, "at", .{id});
-        const target: ?real_js.Object = current_event.get(real_js.Object, "target") catch null;
+        // Convert the u64 reference to a js.Value, then wrap in js.Object
+        const event_value: real_js.Value = @enumFromInt(event_ref);
+        const event_obj = real_js.Object{ .value = event_value };
+
+        return .{
+            .ref = event_obj,
+            .target = null,
+            .data = null,
+        };
+    }
+
+    /// Create an Event from a u64 reference and load target/data properties
+    pub fn fromRefWithData(allocator: std.mem.Allocator, event_ref: u64) Event {
+        if (!is_wasm) return .{ .ref = {}, .target = null, .data = null };
+        const real_js = @import("js");
+
+        // Convert the u64 reference to a js.Value, then wrap in js.Object
+        const event_value: real_js.Value = @enumFromInt(event_ref);
+        const event_obj = real_js.Object{ .value = event_value };
+
+        // Get target and its value
+        const target: ?real_js.Object = event_obj.get(real_js.Object, "target") catch null;
         const target_value: ?[]const u8 = if (target) |t| t.getAlloc(real_js.String, allocator, "value") catch null else null;
 
         const event_target: ?EventTarget = if (target_value) |v| .{ .value = v } else null;
-        const event_data: ?[]const u8 = current_event.getAlloc(real_js.String, allocator, "data") catch null;
+        const event_data: ?[]const u8 = event_obj.getAlloc(real_js.String, allocator, "data") catch null;
 
         return .{
-            .id = id,
-            .ref = current_event,
+            .ref = event_obj,
             .target = event_target,
             .data = event_data,
         };
     }
 
-    pub fn preventDefault(id: u64) void {
+    /// Call preventDefault on the event
+    pub fn preventDefault(self: Event) void {
         if (!is_wasm) return;
-        const real_js = @import("js");
-        const obj: real_js.Object = real_js.global.get(real_js.Object, "_zx") catch @panic("Failed to get _zx");
-        const ob_val: real_js.Object = obj.get(real_js.Object, "events") catch @panic("Failed to get events");
-        const current_event: real_js.Object = ob_val.call(real_js.Object, "at", .{id}) catch @panic("Failed to call at");
-
-        current_event.call(void, "preventDefault", .{}) catch @panic("Failed to call preventDefault");
+        self.ref.call(void, "preventDefault", .{}) catch @panic("Failed to call preventDefault");
     }
 
+    /// Call stopPropagation on the event
+    pub fn stopPropagation(self: Event) void {
+        if (!is_wasm) return;
+        self.ref.call(void, "stopPropagation", .{}) catch @panic("Failed to call stopPropagation");
+    }
+
+    /// Get the event type as a string
+    pub fn getType(self: Event, allocator: std.mem.Allocator) ?[]const u8 {
+        if (!is_wasm) return null;
+        const real_js = @import("js");
+        return self.ref.getAlloc(real_js.String, allocator, "type") catch null;
+    }
+
+    /// Get the target element (returns js.Object in WASM, void otherwise)
+    pub fn getTarget(self: Event) if (is_wasm) ?@import("js").Object else ?void {
+        if (!is_wasm) return null;
+        const real_js = @import("js");
+        return self.ref.get(real_js.Object, "target") catch null;
+    }
+
+    /// Deinit the event (releases the JS reference)
     pub fn deinit(self: Event) void {
         if (!is_wasm) return;
         self.ref.deinit();

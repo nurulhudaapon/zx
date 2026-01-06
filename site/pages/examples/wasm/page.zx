@@ -103,21 +103,28 @@ fn addTodo(ctx: zx.EventContext) void {
 }
 
 fn handleInputChange(ctx: zx.EventContext) void {
-    const event = client.Event.idInit(todos_allocator, ctx.id) catch return;
-    const value = event.target.value;
+    if (comptime builtin.cpu.arch != .wasm32) return;
+
+    const event = ctx.getEvent();
+    defer event.deinit();
+    const target = event.getTarget() orelse return;
+    defer target.deinit();
+    const value = target.getAlloc(js.String, todos_allocator, "value") catch return;
 
     const id = next_todo_id;
     next_todo_id += 1;
     todos.append(todos_allocator, .{ .id = id, .text = value, .completed = false }) catch @panic("OOM");
 }
 fn toggleTodo(ctx: zx.EventContext) void {
-    const event = client.Event.idInit(todos_allocator, ctx.id) catch return;
+    if (comptime builtin.cpu.arch != .wasm32) return;
+
+    const event = ctx.getEvent();
+    defer event.deinit();
     var id: ?u32 = null;
-    const target = event.target;
-    if (target) |t| {
-        const value = t.value;
-        if (value) |v| {
-            id = std.fmt.parseInt(u32, v, 10) catch return;
+    if (event.getTarget()) |target| {
+        defer target.deinit();
+        if (target.getAlloc(js.String, todos_allocator, "value") catch null) |v| {
+            id = std.fmt.parseInt(u32, v, 10) catch null;
         }
     }
 
@@ -137,13 +144,15 @@ fn clearTodos(ctx: zx.EventContext) void {
 }
 
 fn deleteTodo(ctx: zx.EventContext) void {
-    const event = client.Event.idInit(todos_allocator, ctx.id) catch return;
+    if (comptime builtin.cpu.arch != .wasm32) return;
+
+    const event = ctx.getEvent();
+    defer event.deinit();
     var id: ?u32 = null;
-    const target = event.target;
-    if (target) |t| {
-        const value = t.value;
-        if (value) |v| {
-            id = std.fmt.parseInt(u32, v, 10) catch return;
+    if (event.getTarget()) |target| {
+        defer target.deinit();
+        if (target.getAlloc(js.String, todos_allocator, "value") catch null) |v| {
+            id = std.fmt.parseInt(u32, v, 10) catch null;
         }
     }
 
@@ -164,16 +173,22 @@ fn countCompleted() u32 {
     return count;
 }
 
-export fn onFetchComplete(ptr: [*]const u8, len: usize) void {
+export fn onFetchComplete(text_ref: u64) void {
     if (comptime builtin.cpu.arch != .wasm32) return;
 
     const console = zx.Client.bom.Console.init();
 
-    const result: []const u8 = ptr[0..len];
+    // Convert the jsz reference to a js.Value, then read the string
+    const text_value: js.Value = @enumFromInt(text_ref);
+    const text = text_value.string(todos_allocator) catch {
+        console.str("Failed to read fetch response");
+        return;
+    };
+    defer todos_allocator.free(text);
+    defer text_value.deinit();
 
     console.str("Fetch completed! Response:");
-    console.str(result);
-
+    console.str(text);
 }
 
 extern "env" fn zxFetch(url_ptr: [*]const u8, url_len: usize) void;
@@ -189,18 +204,6 @@ fn apiCall(_: zx.EventContext) void {
 
     console.str("Fetch initiated (async)");
 }
-
-/// Export allocator functions for JS to allocate/free WASM memory
-export fn wasmAlloc(len: usize) ?[*]u8 {
-    const slice = todos_allocator.alloc(u8, len) catch return null;
-    return slice.ptr;
-}
-
-export fn wasmFree(ptr: [*]u8, len: usize) void {
-    todos_allocator.free(ptr[0..len]);
-}
-
-
 
 // This is temporarily here to validated pagecontext is buildable for wasm target
 fn Counter(allocator: zx.Allocator) zx.Component {

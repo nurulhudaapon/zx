@@ -1727,13 +1727,20 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 
 pub const ComponentContext = struct { allocator: Allocator, children: ?Component = null };
 pub const EventContext = struct {
-    id: u64,
-    pub fn init(id: u64) EventContext {
-        return .{ .id = id };
+    /// The JS event object reference (as a u64 NaN-boxed value)
+    event_ref: u64,
+
+    pub fn init(event_ref: u64) EventContext {
+        return .{ .event_ref = event_ref };
+    }
+
+    /// Get the underlying js.Object for the event
+    pub fn getEvent(self: EventContext) Client.bom.Event {
+        return Client.bom.Event.fromRef(self.event_ref);
     }
 
     pub fn preventDefault(self: EventContext) void {
-        Client.bom.Event.preventDefault(self.id);
+        self.getEvent().preventDefault();
     }
 };
 
