@@ -3,10 +3,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <div @allocator={ctx.arena} class="todo-container">
             <TodoApp @rendering={.client} />
 
-            <style @escaping={.none}>
-                {@embedFile("style.css")}
-            </style>
-            <script type="module" src="/assets/main.js" />
         </div>
     );
 }
@@ -87,7 +83,6 @@ fn resetTodosForSSR(allocator: zx.Allocator) void {
 fn addTodo(ctx: zx.EventContext) void {
     ctx.preventDefault();
     if (comptime builtin.cpu.arch != .wasm32) return;
-    apiCall(ctx);
 
     const document = zx.Client.bom.Document.init(todos_allocator);
     const input = document.getElementById("todo-input") catch return;
@@ -103,8 +98,6 @@ fn addTodo(ctx: zx.EventContext) void {
 }
 
 fn handleInputChange(ctx: zx.EventContext) void {
-    if (comptime builtin.cpu.arch != .wasm32) return;
-
     const event = ctx.getEvent();
     defer event.deinit();
     const target = event.getTarget() orelse return;
@@ -137,11 +130,11 @@ fn toggleTodo(ctx: zx.EventContext) void {
     zx.requestRender();
 }
 
-fn clearTodos(ctx: zx.EventContext) void {
+fn clearTodos(_: zx.EventContext) void {
     todos.clearRetainingCapacity();
     zx.requestRender();
-    apiCall(ctx);
 }
+
 
 fn deleteTodo(ctx: zx.EventContext) void {
     if (comptime builtin.cpu.arch != .wasm32) return;
@@ -173,37 +166,6 @@ fn countCompleted() u32 {
     return count;
 }
 
-export fn onFetchComplete(text_ref: u64) void {
-    if (comptime builtin.cpu.arch != .wasm32) return;
-
-    const console = zx.Client.bom.Console.init();
-
-    // Convert the jsz reference to a js.Value, then read the string
-    const text_value: js.Value = @enumFromInt(text_ref);
-    const text = text_value.string(todos_allocator) catch {
-        console.str("Failed to read fetch response");
-        return;
-    };
-    defer todos_allocator.free(text);
-    defer text_value.deinit();
-
-    console.str("Fetch completed! Response:");
-    console.str(text);
-}
-
-extern "env" fn zxFetch(url_ptr: [*]const u8, url_len: usize) void;
-
-fn apiCall(_: zx.EventContext) void {
-    if (comptime builtin.cpu.arch != .wasm32) return;
-
-    const console = zx.Client.bom.Console.init();
-    console.str("Starting fetch request...");
-
-    const url = "https://jsonplaceholder.typicode.com/todos/1";
-    zxFetch(url.ptr, url.len);
-
-    console.str("Fetch initiated (async)");
-}
 
 // This is temporarily here to validated pagecontext is buildable for wasm target
 fn Counter(allocator: zx.Allocator) zx.Component {

@@ -231,6 +231,90 @@
     background: var(--danger-bg);
 }
 
+/* Timer Demo */
+.timer-demo {
+    padding: 2rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    max-width: 600px;
+    width: 100%;
+}
+
+.timer-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 0.5rem 0;
+}
+
+.timer-subtitle {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 0 0 1.5rem 0;
+}
+
+.timer-buttons {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.timer-btn {
+    padding: 0.75rem 1.5rem;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.timer-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.timeout-btn:hover {
+    border-color: #ffa500;
+    color: #ffa500;
+}
+
+.interval-btn:hover {
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
+.fetch-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.timer-output {
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+.timer-label {
+    color: var(--text-muted);
+}
+
+.timer-count {
+    color: var(--primary);
+    font-size: 1.25rem;
+}
+
+.timer-hint {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin: 0;
+    font-style: italic;
+}
+
 @media (max-width: 768px) {
     .todo-container {
         padding: 2rem 1rem;
@@ -254,5 +338,13 @@
 
     .todo-delete-btn {
         opacity: 1;
+    }
+
+    .timer-buttons {
+        flex-direction: column;
+    }
+
+    .timer-btn {
+        width: 100%;
     }
 }

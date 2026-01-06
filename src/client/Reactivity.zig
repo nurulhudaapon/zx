@@ -29,9 +29,6 @@ const js = if (is_wasm) @import("js") else struct {
 /// Global signal ID counter for unique identification
 var next_signal_id: u64 = 0;
 
-/// Global client reference for triggering re-renders
-var global_client: ?*@import("Client.zig") = null;
-
 /// Registry of signal_id → text node references for direct DOM updates.
 /// This is the key to SolidJS-like fine-grained reactivity: no tree walking,
 /// just direct reference lookups.
@@ -119,27 +116,21 @@ fn runEffects(signal_id: u64) void {
     }
 }
 
-/// Set the global client reference (called during client initialization)
-pub fn setGlobalClient(client: *@import("Client.zig")) void {
-    global_client = client;
-}
-
-/// Get the global client reference
-pub fn getGlobalClient() ?*@import("Client.zig") {
-    return global_client;
-}
+const Client = @import("Client.zig");
 
 /// Request a full re-render of all components.
 /// Useful when state is modified outside of event handlers.
 pub fn requestRender() void {
-    if (global_client) |client| {
+    if (!is_wasm) return;
+    if (Client.global_client) |client| {
         client.renderAll();
     }
 }
 
 /// Request a re-render of a specific component by ID.
 pub fn scheduleRender(component_id: []const u8) void {
-    if (global_client) |client| {
+    if (!is_wasm) return;
+    if (Client.global_client) |client| {
         for (client.components) |cmp| {
             if (std.mem.eql(u8, cmp.id, component_id)) {
                 client.render(cmp) catch {};

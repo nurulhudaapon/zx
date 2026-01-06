@@ -3,11 +3,6 @@ pub const Client = @This();
 pub const bom = @import("bom.zig");
 pub const reactivity = @import("Reactivity.zig");
 
-// pub const Signal = reactivity.Signal;
-// pub const Computed = reactivity.Computed;
-// pub const Effect = reactivity.Effect;
-// pub const scheduleRender = reactivity.scheduleRender;
-
 pub const ComponentMeta = struct {
     type: zx.BuiltinAttribute.Rendering,
     id: []const u8,
@@ -76,13 +71,6 @@ pub fn init(allocator: std.mem.Allocator, options: InitOptions) Client {
         .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
         .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),
     };
-}
-
-/// Set this client as the global instance for Signal reactivity.
-/// Must be called on a Client that's stored in a stable location (e.g., global var).
-/// This is automatically called by renderAll(), but can be called manually if needed.
-pub fn setAsGlobal(self: *Client) void {
-    reactivity.setGlobalClient(self);
 }
 
 pub fn deinit(self: *Client) void {
@@ -185,8 +173,8 @@ pub fn info(self: *Client) void {
 }
 
 pub fn renderAll(self: *Client) void {
-    // Ensure global client reference is set for Signal reactivity
-    self.setAsGlobal();
+    // Set global for WASM exports (__zx_eventbridge, etc.)
+    global_client = self;
 
     const console = Console.init();
     defer console.deinit();
@@ -336,8 +324,28 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zx_info = @import("zx_info");
 
+/// Global client pointer for WASM exports (set automatically in renderAll)
+pub var global_client: ?*Client = null;
+
 const VDOMTree = vtree_mod.VDOMTree;
 const Patch = vtree_mod.Patch;
 const Document = bom.Document;
 const Console = bom.Console;
 const areComponentsSameType = vtree_mod.areComponentsSameType;
+
+/// Handle DOM events from JS bridge.
+export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) void {
+    if (builtin.os.tag != .freestanding) return;
+    if (global_client) |client| {
+        const event_type: EventType = @enumFromInt(event_type_id);
+        _ = client.dispatchEvent(velement_id, event_type, event_ref);
+    }
+}
+
+/// Handle async callbacks (setTimeout, setInterval, fetch) from JS bridge.
+export fn __zx_cb(callback_type: u8, callback_id: u64, data_ref: u64) void {
+    if (builtin.os.tag != .freestanding) return;
+
+    const cb_type: bom.CallbackType = @enumFromInt(callback_type);
+    _ = bom.dispatchCallback(cb_type, callback_id, data_ref, std.heap.wasm_allocator);
+}

@@ -1,0 +1,14 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <section @allocator={ctx.arena}>
+            {children}
+
+            <style @escaping={.none}>
+                {@embedFile("style.css")}
+            </style>
+            <script type="module" src="/assets/main.js" />
+        </section>
+    );
+}
+
+const zx = @import("zx");

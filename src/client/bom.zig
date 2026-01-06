@@ -163,3 +163,179 @@ pub fn eval(T: type, code: []const u8) !T {
 }
 
 pub const Document = @import("bom/dom.zig").Document;
+
+// =============================================================================
+// Async APIs: setTimeout, setInterval, fetch
+// =============================================================================
+
+/// Callback types for async operations (must match bridge.ts CallbackType)
+pub const CallbackType = enum(u8) {
+    event = 0,
+    fetch_success = 1,
+    fetch_error = 2,
+    timeout = 3,
+    interval = 4,
+};
+
+/// Result type for fetch callbacks
+pub const FetchResult = union(enum) {
+    success: []const u8,
+    @"error": []const u8,
+};
+
+/// Callback function types
+pub const TimeoutCallback = *const fn () void;
+pub const IntervalCallback = *const fn () void;
+pub const FetchCallback = *const fn (result: FetchResult) void;
+
+/// Maximum number of concurrent callbacks
+const MAX_CALLBACKS = 64;
+
+/// Callback registry entry
+const CallbackEntry = struct {
+    callback_type: CallbackType,
+    timeout_fn: ?TimeoutCallback = null,
+    interval_fn: ?IntervalCallback = null,
+    fetch_fn: ?FetchCallback = null,
+    active: bool = false,
+};
+
+/// Global callback registry
+var callbacks: [MAX_CALLBACKS]CallbackEntry = [_]CallbackEntry{.{
+    .callback_type = .event,
+    .active = false,
+}} ** MAX_CALLBACKS;
+var next_callback_id: u64 = 1;
+
+/// Bridge extern declarations (provided by ZxBridge in JS)
+extern "__zx" fn _setTimeout(callback_id: u64, delay_ms: u32) void;
+extern "__zx" fn _setInterval(callback_id: u64, interval_ms: u32) void;
+extern "__zx" fn _clearInterval(callback_id: u64) void;
+extern "__zx" fn _fetch(url_ptr: [*]const u8, url_len: usize, callback_id: u64) void;
+
+/// Register a callback and get its ID
+fn registerCallback(entry: CallbackEntry) ?u64 {
+    const id = next_callback_id;
+    const index: usize = @intCast(id % MAX_CALLBACKS);
+
+    if (callbacks[index].active) {
+        // Slot is occupied, find another
+        for (&callbacks, 0..) |*slot, i| {
+            if (!slot.active) {
+                slot.* = entry;
+                slot.active = true;
+                next_callback_id = i + 1;
+                return @intCast(i);
+            }
+        }
+        return null; // No free slots
+    }
+
+    callbacks[index] = entry;
+    callbacks[index].active = true;
+    next_callback_id += 1;
+    return id;
+}
+
+/// Set a timeout that calls the callback after delay_ms milliseconds
+pub fn setTimeout(callback: TimeoutCallback, delay_ms: u32) ?u64 {
+    if (!is_wasm) return null;
+
+    const id = registerCallback(.{
+        .callback_type = .timeout,
+        .timeout_fn = callback,
+        .active = true,
+    }) orelse return null;
+
+    _setTimeout(id, delay_ms);
+    return id;
+}
+
+/// Set an interval that calls the callback every interval_ms milliseconds
+pub fn setInterval(callback: IntervalCallback, interval_ms: u32) ?u64 {
+    if (!is_wasm) return null;
+
+    const id = registerCallback(.{
+        .callback_type = .interval,
+        .interval_fn = callback,
+        .active = true,
+    }) orelse return null;
+
+    _setInterval(id, interval_ms);
+    return id;
+}
+
+/// Clear an interval by its ID
+pub fn clearInterval(callback_id: u64) void {
+    if (!is_wasm) return;
+
+    const index: usize = @intCast(callback_id % MAX_CALLBACKS);
+    if (callbacks[index].active and callbacks[index].callback_type == .interval) {
+        callbacks[index].active = false;
+        _clearInterval(callback_id);
+    }
+}
+
+/// Fetch a URL and call the callback with the result
+pub fn fetch(url: []const u8, callback: FetchCallback) ?u64 {
+    if (!is_wasm) return null;
+
+    const id = registerCallback(.{
+        .callback_type = .fetch_success, // Will handle both success and error
+        .fetch_fn = callback,
+        .active = true,
+    }) orelse return null;
+
+    _fetch(url.ptr, url.len, id);
+    return id;
+}
+
+/// Dispatch a callback from JS (called by __zx_cb export)
+/// Returns true if a callback was found and invoked
+pub fn dispatchCallback(callback_type: CallbackType, callback_id: u64, data_ref: u64, allocator: std.mem.Allocator) bool {
+    const index: usize = @intCast(callback_id % MAX_CALLBACKS);
+    const entry = &callbacks[index];
+
+    if (!entry.active) return false;
+
+    switch (callback_type) {
+        .timeout => {
+            if (entry.timeout_fn) |cb| {
+                cb();
+                entry.active = false; // One-shot
+                return true;
+            }
+        },
+        .interval => {
+            if (entry.interval_fn) |cb| {
+                cb();
+                // Keep active for next tick
+                return true;
+            }
+        },
+        .fetch_success, .fetch_error => {
+            if (entry.fetch_fn) |cb| {
+                if (!is_wasm) return false;
+                const real_js = @import("js");
+
+                const text_value: real_js.Value = @enumFromInt(data_ref);
+                defer text_value.deinit();
+
+                const text = text_value.string(allocator) catch "";
+                defer if (text.len > 0) allocator.free(text);
+
+                const result: FetchResult = if (callback_type == .fetch_success)
+                    .{ .success = text }
+                else
+                    .{ .@"error" = text };
+
+                cb(result);
+                entry.active = false; // One-shot
+                return true;
+            }
+        },
+        .event => return false,
+    }
+
+    return false;
+}

@@ -3,6 +3,7 @@ const std = @import("std");
 const zx = @import("zx");
 
 const config = zx.App.Config{ .meta = @import("meta.zig").meta, .server = .{ .port = 5588 } };
+
 pub fn main() !void {
     if (builtin.os.tag == .freestanding) return;
 
@@ -13,32 +14,16 @@ pub fn main() !void {
     const app = try zx.App.init(allocator, config);
     defer app.deinit();
 
-    var aw = std.Io.Writer.Allocating.init(allocator);
-    defer aw.deinit();
-
     app.info();
     try app.start();
 }
 
-pub var client = zx.Client.init(
-    if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator,
+var client = zx.Client.init(
+    zx.client_allocator,
     .{ .components = &@import(".zx/components.zig").components },
 );
 
 export fn mainClient() void {
-    if (builtin.os.tag != .freestanding) return;
     client.info();
     client.renderAll();
-}
-
-export fn handleEvent(velement_id: u64, event_type_id: u8, event_ref: u64) void {
-    if (builtin.os.tag != .freestanding) return;
-
-    const event_type: zx.Client.EventType = @enumFromInt(event_type_id);
-    const handled = client.dispatchEvent(velement_id, event_type, event_ref);
-
-    // if (handled) {
-    //     client.renderAll();
-    // }
-    _ = handled;
 }

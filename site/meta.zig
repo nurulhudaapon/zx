@@ -57,6 +57,7 @@ pub const routes = [_]zx.App.Meta.Route{
         .path = "/examples/wasm",
         .page = wrapPage(@import(".zx/pages/examples/wasm/page.zig").Page),
         .page_opts = getOptions(@import(".zx/pages/examples/wasm/page.zig"), zx.PageOptions),
+        .layout = @import(".zx/pages/examples/wasm/layout.zig").Layout,
     },
     .{
         .path = "/examples/streaming",
@@ -67,6 +68,11 @@ pub const routes = [_]zx.App.Meta.Route{
         .path = "/examples/wasm/simple",
         .page = wrapPage(@import(".zx/pages/examples/wasm/simple/page.zig").Page),
         .page_opts = getOptions(@import(".zx/pages/examples/wasm/simple/page.zig"), zx.PageOptions),
+    },
+    .{
+        .path = "/examples/wasm/async",
+        .page = wrapPage(@import(".zx/pages/examples/wasm/async/page.zig").Page),
+        .page_opts = getOptions(@import(".zx/pages/examples/wasm/async/page.zig"), zx.PageOptions),
     },
     .{
         .path = "/examples/react",

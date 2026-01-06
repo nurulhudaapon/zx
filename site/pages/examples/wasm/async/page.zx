@@ -1,0 +1,105 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="todo-container">
+            <TimerDemo @rendering={.client} />
+        </div>
+    );
+}
+
+
+// Timer state
+var interval_count: u32 = 0;
+var interval_id: ?u64 = null;
+
+/// Timer Demo Component
+pub fn TimerDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @{allocator} class="timer-demo">
+            <h3 class="timer-title">⏱️ Timer Demo</h3>
+            <p class="timer-subtitle">Test setTimeout and setInterval from WASM</p>
+            
+            <div class="timer-buttons">
+                <button class="timer-btn timeout-btn" onclick={startTimeout}>
+                    setTimeout (2s)
+                </button>
+                <button class="timer-btn interval-btn" onclick={toggleInterval}>
+                    {if (interval_id != null) "Stop Interval" else "Start Interval (1s)"}
+                </button>
+                <button class="timer-btn fetch-btn" onclick={doFetch}>
+                    Fetch API
+                </button>
+            </div>
+            
+            <div class="timer-output">
+                <span class="timer-label">Interval ticks: </span>
+                <strong class="timer-count">{interval_count}</strong>
+            </div>
+            
+            <p class="timer-hint">Check browser console for output</p>
+        </div>
+    );
+}
+
+fn startTimeout(_: zx.EventContext) void {
+    const console = zx.Client.bom.Console.init();
+    console.str("setTimeout started (2 seconds)...");
+    
+    _ = bom.setTimeout(&onTimeoutFired, 2000);
+}
+
+fn toggleInterval(_: zx.EventContext) void {
+    const console = zx.Client.bom.Console.init();
+    
+    if (interval_id) |id| {
+        // Stop the interval
+        bom.clearInterval(id);
+        interval_id = null;
+        console.str("Interval stopped");
+    } else {
+        // Start the interval
+        interval_count = 0;
+        interval_id = bom.setInterval(&onIntervalTick, 1000);
+        console.str("Interval started (every 1 second)");
+    }
+    
+    zx.requestRender();
+}
+
+fn onIntervalTick() void {
+    interval_count += 1;
+    zx.requestRender();
+}
+
+fn onTimeoutFired() void {
+    const console = zx.Client.bom.Console.init();
+    console.str("setTimeout fired after 2 seconds!");
+}
+
+fn onFetchComplete(result: bom.FetchResult) void {
+    const console = zx.Client.bom.Console.init();
+    
+    switch (result) {
+        .success => |text| {
+            console.str("Fetch completed! Response:");
+            console.str(text);
+        },
+        .@"error" => |err| {
+            console.str("Fetch error:");
+            console.str(err);
+        },
+    }
+}
+
+fn doFetch(_: zx.EventContext) void {
+    const console = zx.Client.bom.Console.init();
+    console.str("Starting fetch request...");
+
+    _ = bom.fetch("https://jsonplaceholder.typicode.com/todos/1", &onFetchComplete);
+
+    console.str("Fetch initiated (async)");
+}
+
+const bom = zx.Client.bom;
+
+const zx = @import("zx");
+const std = @import("std");

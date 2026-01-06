@@ -1843,6 +1843,10 @@ pub const BuiltinAttribute = struct {
         }
     };
 };
+
+const builtin = @import("builtin");
+pub const client_allocator = if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator;
+
 pub const Headers = @import("app/Headers.zig");
 pub const Request = @import("app/Request.zig");
 pub const Response = @import("app/Response.zig");
