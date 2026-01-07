@@ -74,18 +74,21 @@ export type PreparedComponent = {
 };
 
 /**
- * Finds a comment marker in the DOM by its ID.
+ * Finds a comment marker in the DOM by its ID and extracts props from the marker content.
  * 
- * Searches for comment nodes matching the format `<!--$id-->` where `id` is the component ID.
+ * Searches for comment nodes matching the format `<!--$id name {"prop":"value"}-->` 
+ * where `id` is the component ID, `name` is the component name, and props are JSON-encoded.
  * 
  * @param id - The component ID to search for (e.g., "zx-abc123-0")
- * @returns The start and end comment nodes, or null if not found
+ * @returns The start/end comment nodes, component name, and parsed props, or null if not found
  */
 function findCommentMarker(id: string): { 
   startComment: Comment; 
   endComment: Comment;
+  name: string;
+  props: Record<string, any>;
 } | null {
-  const startMarker = `$${id}`;
+  const startPrefix = `$${id} `;
   const endMarker = `/$${id}`;
   
   // Use TreeWalker to efficiently find comment nodes
@@ -97,14 +100,33 @@ function findCommentMarker(id: string): {
   
   let startComment: Comment | null = null;
   let endComment: Comment | null = null;
+  let name = "";
+  let props: Record<string, any> = {};
   
   let node: Comment | null;
   while ((node = walker.nextNode() as Comment | null)) {
     const text = node.textContent?.trim() || "";
     
-    // Check for start marker: $id
-    if (text === startMarker) {
+    // Check for start marker: $id name props
+    if (text.startsWith(startPrefix)) {
       startComment = node;
+      
+      // Extract name and props from the comment content
+      // Format: "$id name {json}" or "$id name" (no props)
+      const content = text.slice(startPrefix.length);
+      const jsonStart = content.indexOf("{");
+      
+      if (jsonStart !== -1) {
+        name = content.slice(0, jsonStart).trim();
+        const jsonStr = content.slice(jsonStart);
+        try {
+          props = JSON.parse(jsonStr);
+        } catch {
+          // Invalid JSON, leave props empty
+        }
+      } else {
+        name = content.trim();
+      }
     }
     
     // Check for end marker: /$id
@@ -115,32 +137,10 @@ function findCommentMarker(id: string): {
   }
   
   if (startComment && endComment) {
-    return { startComment, endComment };
+    return { startComment, endComment, name, props };
   }
   
   return null;
-}
-
-/**
- * Gets component metadata from the companion script element.
- * 
- * Searches for a script element with `data-zx="id"` attribute that contains
- * the component's name and props as JSON.
- * 
- * @param id - The component ID
- * @returns Parsed metadata with name and props, or default values if not found
- */
-function getComponentMetadata(id: string): { name: string; props: Record<string, any> } {
-  const script = document.querySelector(`script[data-zx="${id}"]`);
-  if (script?.textContent) {
-    try {
-      const data = JSON.parse(script.textContent);
-      return { name: data.name || "", props: data.props || {} };
-    } catch {
-      // Ignore parse errors
-    }
-  }
-  return { name: "", props: {} };
 }
 
 /**
@@ -214,9 +214,8 @@ export async function prepareComponent(component: ComponentMetadata): Promise<Pr
     throw new Error(`Comment marker for ${component.id} not found`, { cause: component });
   }
 
-  // Get props from the companion script element
-  const metadata = getComponentMetadata(component.id);
-  const props = metadata.props;
+  // Props are extracted directly from the comment marker
+  const props = marker.props;
   
   // Create a container for React to render into
   const domNode = createContainerBetweenMarkers(marker.startComment, marker.endComment);
@@ -245,8 +244,8 @@ export type DiscoveredComponent = {
  * Finds all React component markers in the DOM and returns their metadata.
  * 
  * This is a DOM-first approach that:
- * 1. Walks the DOM once to find all `<!--$id-->` markers
- * 2. Reads metadata from companion `<script data-zx="id">` elements
+ * 1. Walks the DOM to find all `<!--$id name props-->` comment markers
+ * 2. Extracts name and props directly from the comment content (JSON-encoded)
  * 3. Creates containers for React to render into
  * 
  * @returns Array of discovered components with their containers and props
@@ -254,32 +253,73 @@ export type DiscoveredComponent = {
 export function discoverComponents(): DiscoveredComponent[] {
   const components: DiscoveredComponent[] = [];
   
-  // Find all metadata scripts
-  const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[data-zx]'));
+  // Walk the DOM to find all component markers
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_COMMENT,
+    null
+  );
   
-  for (const script of scripts) {
-    const id = script.getAttribute('data-zx');
-    if (!id) continue;
-    
-    // Parse metadata
-    let name = "";
-    let props: Record<string, any> = {};
-    try {
-      const data = JSON.parse(script.textContent || "{}");
-      name = data.name || "";
-      props = data.props || {};
-    } catch {
-      continue;
+  // Collect all start marker info in one pass (before DOM modifications)
+  const markers: Array<{
+    id: string;
+    name: string;
+    props: Record<string, any>;
+    startComment: Comment;
+    endComment: Comment | null;
+  }> = [];
+  
+  let node: Comment | null;
+  while ((node = walker.nextNode() as Comment | null)) {
+    const text = node.textContent?.trim() || "";
+    // Match start markers: $id name props (must start with $ but not /$)
+    if (text.startsWith("$") && !text.startsWith("/$")) {
+      const spaceIdx = text.indexOf(" ");
+      if (spaceIdx !== -1) {
+        const id = text.slice(1, spaceIdx); // Extract id without $
+        const content = text.slice(spaceIdx + 1);
+        const jsonStart = content.indexOf("{");
+        
+        let name = "";
+        let props: Record<string, any> = {};
+        
+        if (jsonStart !== -1) {
+          name = content.slice(0, jsonStart).trim();
+          try {
+            props = JSON.parse(content.slice(jsonStart));
+          } catch {
+            // Invalid JSON, leave props empty
+          }
+        } else {
+          name = content.trim();
+        }
+        
+        markers.push({ id, name, props, startComment: node, endComment: null });
+      }
     }
-    
-    // Find the comment markers
-    const marker = findCommentMarker(id);
-    if (!marker) continue;
+    // Match end markers and pair with start markers
+    else if (text.startsWith("/$")) {
+      const id = text.slice(2); // Extract id without /$
+      const marker = markers.find(m => m.id === id && !m.endComment);
+      if (marker) {
+        marker.endComment = node;
+      }
+    }
+  }
+  
+  // Process each discovered marker pair
+  for (const marker of markers) {
+    if (!marker.endComment) continue;
     
     // Create container
     const container = createContainerBetweenMarkers(marker.startComment, marker.endComment);
     
-    components.push({ id, name, props, container });
+    components.push({ 
+      id: marker.id, 
+      name: marker.name, 
+      props: marker.props, 
+      container 
+    });
   }
   
   return components;

@@ -79,6 +79,7 @@ pub const routes = [_]zx.App.Meta.Route{
     .{
         .path = "/examples/react",
         .page = wrapPage(@import(".zx/pages/examples/wasm/react/page.zig").Page),
+        .layout = @import(".zx/pages/examples/wasm/layout.zig").Layout,
         .page_opts = getOptions(@import(".zx/pages/examples/wasm/react/page.zig"), zx.PageOptions),
     },
     .{

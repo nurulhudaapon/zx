@@ -463,6 +463,8 @@ pub const Component = union(enum) {
         writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
         /// SSR-rendered content of the component (for hydration)
         children: ?*const Component = null,
+        /// Whether this is a React component (uses JSON) or Zig component (uses ZON)
+        is_react: bool = false,
     };
 
     pub const ComponentFn = struct {
@@ -735,19 +737,36 @@ pub const Component = union(enum) {
                 try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
-                // Start comment marker: <!--$id.{.p=.{...}}--> or <!--$id-->
-                // Format: $ prefix + id + ZON struct payload
-                if (component_csr.writeProps) |writeProps| {
-                    if (component_csr.props_ptr) |props_ptr| {
-                        try writer.print("<!--${s}.{{.p=", .{component_csr.id});
-                        try writeProps(writer, props_ptr);
-                        try writer.print("}}-->", .{});
+                // Start comment marker format depends on component type:
+                // - React: <!--$id name {"prop":"value"}--> (JSON)
+                // - Zig:   <!--$id.{.p=.{...}}--> (ZON)
+                if (component_csr.is_react) {
+                    // React component: use JSON format
+                    if (component_csr.writeProps) |writeProps| {
+                        if (component_csr.props_ptr) |props_ptr| {
+                            try writer.print("<!--${s} {s} ", .{ component_csr.id, component_csr.name });
+                            try writeProps(writer, props_ptr);
+                            try writer.print("-->", .{});
+                        } else {
+                            try writer.print("<!--${s} {s}-->", .{ component_csr.id, component_csr.name });
+                        }
                     } else {
-                        try writer.print("<!--${s}-->", .{component_csr.id});
+                        try writer.print("<!--${s} {s}-->", .{ component_csr.id, component_csr.name });
                     }
                 } else {
-                    // No props - just marker
-                    try writer.print("<!--${s}-->", .{component_csr.id});
+                    // Zig component: use ZON format
+                    if (component_csr.writeProps) |writeProps| {
+                        if (component_csr.props_ptr) |props_ptr| {
+                            try writer.print("<!--${s}.{{.p=", .{component_csr.id});
+                            try writeProps(writer, props_ptr);
+                            try writer.print("}}-->", .{});
+                        } else {
+                            try writer.print("<!--${s}-->", .{component_csr.id});
+                        }
+                    } else {
+                        // No props - just marker
+                        try writer.print("<!--${s}-->", .{component_csr.id});
+                    }
                 }
 
                 // Render SSR content
@@ -1576,6 +1595,8 @@ pub const ZxContext = struct {
         return allocated;
     }
 
+    /// Creates a React client-side rendered component.
+    /// Uses JSON serialization for props to match React's expected format.
     pub fn client(self: *ZxContext, options: ClientComponentOptions, props: anytype) Component {
         const allocator = self.getAlloc();
         const Props = @TypeOf(props);
@@ -1585,7 +1606,8 @@ pub const ZxContext = struct {
         const id_copy = allocator.alloc(u8, options.id.len) catch @panic("OOM");
         @memcpy(id_copy, options.id);
 
-        const props_data = propsSerializer(Props, allocator, props);
+        // Use JSON serializer for React components
+        const props_data = propsSerializerJson(Props, allocator, props);
 
         return .{
             .component_csr = .{
@@ -1593,12 +1615,14 @@ pub const ZxContext = struct {
                 .id = id_copy,
                 .props_ptr = props_data.ptr,
                 .writeProps = props_data.writeFn,
+                .is_react = true,
             },
         };
     }
 };
 
 /// Returns props pointer and serializer function for direct-to-writer serialization at render time
+/// For Zig components, uses ZON format. For React components, use propsSerializerJson.
 fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Props) struct {
     ptr: ?*const anyopaque,
     writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
@@ -1618,6 +1642,34 @@ fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Pr
             fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
                 const typed_props: *const Props = @ptrCast(@alignCast(ptr));
                 try std.zon.stringify.serialize(typed_props.*, .{ .whitespace = false }, writer);
+            }
+        }.write,
+    };
+}
+
+/// Returns props pointer and JSON serializer function for React components
+fn propsSerializerJson(comptime Props: type, allocator: std.mem.Allocator, props: Props) struct {
+    ptr: ?*const anyopaque,
+    writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
+} {
+    const type_info = @typeInfo(Props);
+
+    if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };
+    if (type_info.@"struct".fields.len == 0) return .{ .ptr = null, .writeFn = null };
+    if (!comptime isPropsSerializable(Props)) return .{ .ptr = null, .writeFn = null };
+
+    const props_copy = allocator.create(Props) catch return .{ .ptr = null, .writeFn = null };
+    props_copy.* = props;
+
+    return .{
+        .ptr = props_copy,
+        .writeFn = &struct {
+            fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
+                const typed_props: *const Props = @ptrCast(@alignCast(ptr));
+                std.json.Stringify.value(typed_props.*, .{}, writer) catch |err| {
+                    std.debug.print("JSON stringify error: {}\n", .{err});
+                    return err;
+                };
             }
         }.write,
     };

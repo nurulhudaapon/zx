@@ -9,7 +9,7 @@
         "react": "^19.2.3",
         "react-dom": "^19.2.3",
         "tailwindcss": "^4.1.18",
-        "ziex": "^0.0.1-dev.7",
+        "ziex": "^0.1.0-dev.526",
       },
       "devDependencies": {
         "@types/react": "^19.2.7",
@@ -217,7 +217,7 @@
 
     "to-regex-range": ["to-regex-range@5.0.1", "", { "dependencies": { "is-number": "^7.0.0" } }, "sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ=="],
 
-    "ziex": ["ziex@0.0.1-dev.7", "", {}, "sha512-8BGznCnUrDyi8o6IFPP3G3qLYjvQQbSklra6j41/uSsVeAjuAmwozgkwO6rBZwHQXTjyzHW0dsC14abc3B5hFQ=="],
+    "ziex": ["ziex@0.1.0-dev.526", "", {}, "sha512-NFXokdPz4lKYORRXpvPQam+6Qmub0l3iJAXXcSjP/yV7oqHgeVYj8BoapJuDyeEv5V+35+//QTHLhHFIeZGmQg=="],
 
     "@tailwindcss/oxide-wasm32-wasi/@emnapi/core": ["@emnapi/core@1.7.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.1.0", "tslib": "^2.4.0" }, "bundled": true }, "sha512-o1uhUASyo921r2XtHYOHy7gdkGLge8ghBEQHMWmyJFoXlpU58kIrhhN3w26lpQb6dspetweapMn2CSNwQ8I4wg=="],
 

@@ -610,8 +610,9 @@ fn genReactComponents(allocator: std.mem.Allocator, components: []const ClientCo
 
     const before = main_csr_react[0..placeholder_index];
     const after = main_csr_react[placeholder_index + placeholder.len ..];
+    const registry_exp = "export const registry = Object.fromEntries(components.map(c => [c.name, c.import]));";
 
-    const main_csr_react_z = try std.mem.concat(allocator, u8, &.{ before, json_str, after });
+    const main_csr_react_z = try std.mem.concat(allocator, u8, &.{ before, json_str, after, registry_exp });
     defer allocator.free(main_csr_react_z);
 
     _ = output_dir;

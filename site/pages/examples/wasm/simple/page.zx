@@ -1,12 +1,14 @@
+var count: i32 = 0;
 pub fn Page(ctx: zx.PageContext) zx.Component {
+    count += 1;
+
     return (
         <div @allocator={ctx.arena}>
-            <CounterComponent @rendering={.client} count={10} />
+            <CounterComponent @rendering={.client} count={count} />
         </div>
     );
 }
 
-const zx = @import("zx");
-const std = @import("std");
-
 pub const CounterComponent = @import("../../client_counter.zx").CounterComponent;
+
+const zx = @import("zx");
