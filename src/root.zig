@@ -458,9 +458,9 @@ pub const Component = union(enum) {
 
     pub const ComponentCsr = struct {
         name: []const u8,
-        // path: []const u8,
         id: []const u8,
-        props_json: ?[]const u8 = null,
+        props_ptr: ?*const anyopaque = null,
+        writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
         /// SSR-rendered content of the component (for hydration)
         children: ?*const Component = null,
     };
@@ -605,13 +605,8 @@ pub const Component = union(enum) {
                 func.deinit();
             },
             .component_csr => |component_csr| {
-                // Free allocated strings
                 allocator.free(component_csr.name);
-                allocator.free(component_csr.path);
                 allocator.free(component_csr.id);
-                if (component_csr.props_json) |props_json| {
-                    allocator.free(props_json);
-                }
             },
         }
     }
@@ -740,24 +735,28 @@ pub const Component = union(enum) {
                 try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
-                // Start comment marker: <!--$id-->
-                try writer.print("<!--${s}-->", .{component_csr.id});
+                // Start comment marker: <!--$id.{.p=.{...}}--> or <!--$id-->
+                // Format: $ prefix + id + ZON struct payload
+                if (component_csr.writeProps) |writeProps| {
+                    if (component_csr.props_ptr) |props_ptr| {
+                        try writer.print("<!--${s}.{{.p=", .{component_csr.id});
+                        try writeProps(writer, props_ptr);
+                        try writer.print("}}-->", .{});
+                    } else {
+                        try writer.print("<!--${s}-->", .{component_csr.id});
+                    }
+                } else {
+                    // No props - just marker
+                    try writer.print("<!--${s}-->", .{component_csr.id});
+                }
 
                 // Render SSR content
                 if (component_csr.children) |children| {
                     try children.renderInner(writer, options);
                 }
 
-                // End comment marker
+                // End comment marker: <!--/$id-->
                 try writer.print("<!--/${s}-->", .{component_csr.id});
-
-                // Output metadata script for React components (with props_json)
-                // Format: <script type="application/json" data-zx="id">{"name":"...","props":{...}}</script>
-                if (component_csr.props_json) |props_json| {
-                    try writer.print("<script type=\"application/json\" data-zx=\"{s}\">", .{component_csr.id});
-                    try writer.print("{{\"name\":\"{s}\",\"props\":{s}}}", .{ component_csr.name, props_json });
-                    try writer.print("</script>", .{});
-                }
             },
             .signal_text => |sig| {
                 if (options.escaping == .none) {
@@ -1545,8 +1544,6 @@ pub const ZxContext = struct {
         if (options.client) |client_opts| {
             const name_copy = allocator.alloc(u8, client_opts.name.len) catch @panic("OOM");
             @memcpy(name_copy, client_opts.name);
-            // const path_copy = allocator.alloc(u8, client_opts.path.len) catch @panic("OOM");
-            // @memcpy(path_copy, client_opts.path);
             const id_copy = allocator.alloc(u8, client_opts.id.len) catch @panic("OOM");
             @memcpy(id_copy, client_opts.id);
 
@@ -1555,12 +1552,14 @@ pub const ZxContext = struct {
             const children_ptr = allocator.create(Component) catch @panic("OOM");
             children_ptr.* = rendered;
 
+            const props_data = propsSerializer(@TypeOf(props), allocator, props);
+
             return .{
                 .component_csr = .{
                     .name = name_copy,
-                    // .path = path_copy,
                     .id = id_copy,
-                    .props_json = null,
+                    .props_ptr = props_data.ptr,
+                    .writeProps = props_data.writeFn,
                     .children = children_ptr,
                 },
             };
@@ -1579,26 +1578,68 @@ pub const ZxContext = struct {
 
     pub fn client(self: *ZxContext, options: ClientComponentOptions, props: anytype) Component {
         const allocator = self.getAlloc();
+        const Props = @TypeOf(props);
 
         const name_copy = allocator.alloc(u8, options.name.len) catch @panic("OOM");
         @memcpy(name_copy, options.name);
-        // const path_copy = allocator.alloc(u8, options.path.len) catch @panic("OOM");
-        // @memcpy(path_copy, options.path);
         const id_copy = allocator.alloc(u8, options.id.len) catch @panic("OOM");
         @memcpy(id_copy, options.id);
 
-        const props_json = std.json.Stringify.valueAlloc(allocator, props, .{}) catch @panic("OOM");
+        const props_data = propsSerializer(Props, allocator, props);
 
         return .{
             .component_csr = .{
                 .name = name_copy,
-                // .path = path_copy,
                 .id = id_copy,
-                .props_json = props_json,
+                .props_ptr = props_data.ptr,
+                .writeProps = props_data.writeFn,
             },
         };
     }
 };
+
+/// Returns props pointer and serializer function for direct-to-writer serialization at render time
+fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Props) struct {
+    ptr: ?*const anyopaque,
+    writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
+} {
+    const type_info = @typeInfo(Props);
+
+    if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };
+    if (type_info.@"struct".fields.len == 0) return .{ .ptr = null, .writeFn = null };
+    if (!comptime isPropsSerializable(Props)) return .{ .ptr = null, .writeFn = null };
+
+    const props_copy = allocator.create(Props) catch return .{ .ptr = null, .writeFn = null };
+    props_copy.* = props;
+
+    return .{
+        .ptr = props_copy,
+        .writeFn = &struct {
+            fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
+                const typed_props: *const Props = @ptrCast(@alignCast(ptr));
+                try std.zon.stringify.serialize(typed_props.*, .{ .whitespace = false }, writer);
+            }
+        }.write,
+    };
+}
+
+fn isPropsSerializable(comptime T: type) bool {
+    const type_info = @typeInfo(T);
+    return switch (type_info) {
+        .int, .comptime_int, .float, .comptime_float, .bool => true,
+        .pointer => |ptr| ptr.size == .slice and ptr.child == u8,
+        .array => |arr| isPropsSerializable(arr.child),
+        .optional => |opt| isPropsSerializable(opt.child),
+        .@"struct" => |s| blk: {
+            for (s.fields) |field| {
+                if (!isPropsSerializable(field.type)) break :blk false;
+            }
+            break :blk true;
+        },
+        .@"enum" => true,
+        else => false,
+    };
+}
 
 /// Initialize a ZxContext without an allocator
 /// The allocator must be provided via @allocator attribute on the parent element
@@ -1761,6 +1802,7 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 }
 
 pub const ComponentContext = struct { allocator: Allocator, children: ?Component = null };
+
 pub const EventContext = struct {
     /// The JS event object reference (as a u64 NaN-boxed value)
     event_ref: u64,

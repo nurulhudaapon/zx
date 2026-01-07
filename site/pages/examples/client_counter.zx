@@ -1,22 +1,26 @@
 var count: zx.Signal(i32) = .init(0);
 var doubled: zx.Computed(i32, i32) = .init(&count, doubleValue);
 
-pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
+
+pub fn CounterComponent(ctx: *zx.ComponentCtx(struct { count: i32 })) zx.Component {
     zx.effect(&count, &onCountChange);
-    zx.effect(&doubled, &onDoubledChange);
+    // zx.effect(&doubled, &onDoubledChange);
+
+    std.log.info("CounterComponent ctx.props.count: {d}", .{ctx.props.count});
 
     return (
-        <div @allocator={allocator}>
-            <button onclick={handleReset}>Reset</button>
-            <h5>Count: {&count}</h5>
-            <h5>Doubled: {&doubled}</h5>
-            <NestedCounterComponent count={&count} />
-            <button onclick={handleDecrement}>Decrement</button>
-            <button onclick={handleIncrement}>Increment</button>
-            // <button onclick={handleSubmit}>Submit</button>
-            <p>{&message}</p>
-        </div>
-    );
+    <div @allocator={ctx.allocator}>
+        <button onclick={handleReset}>Reset</button>
+        <h5>Count: {&count}</h5>
+        <h5>Doubled: {&doubled}</h5>
+        <h5>Server Count: {ctx.props.count}</h5>
+        <NestedCounterComponent count={&count} />
+        <button onclick={handleDecrement}>Decrement</button>
+        <button onclick={handleIncrement}>Increment</button>             
+        // <button onclick={handleSubmit}>Submit</button>
+        <p>{&message}</p>
+    </div>
+);
 }
 
 pub fn NestedCounterComponent(ctx: *zx.ComponentCtx(struct { count: *zx.Signal(i32) })) zx.Component {
@@ -51,9 +55,8 @@ fn onCountChange(newCount: i32) zx.CleanupFn {
     const new_msg = std.fmt.allocPrint(zx.client_allocator, "Count Changed: {d}", .{newCount}) catch "Count Changed";
     message.set(new_msg);
 
-    std.log.err("onCountChange newCount: {d}", .{newCount});
+    std.log.info("onCountChange newCount: {d}", .{newCount});
 
-    
     return onCleanup;
 }
 
@@ -62,7 +65,7 @@ fn onCleanup() void {
 }
 
 fn onDoubledChange(newDoubled: i32) void {
-    std.log.err("onDoubledChange newDoubled: {d}", .{newDoubled});
+    std.log.info("onDoubledChange newDoubled: {d}", .{newDoubled});
 }
 
 const std = @import("std");

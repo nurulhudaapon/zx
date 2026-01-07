@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.client(.{ .name = "CounterComponent", .path = "test/data/component/react.tsx", .id = "zx-d21801dd93a6d316561a1f2d43a8f9a7-0" }, .{ .max_count = max_count }),
+                _zx.client(.{ .name = "CounterComponent", .path = "test/data/component/react.tsx", .id = "cc92487" }, .{ .max_count = max_count }),
             },
         },
     );

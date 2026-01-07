@@ -9,7 +9,82 @@ pub const ComponentMeta = struct {
     name: []const u8,
     path: []const u8,
     route: ?[]const u8,
-    import: *const fn (allocator: std.mem.Allocator) zx.Component,
+    import: *const fn (allocator: std.mem.Allocator, data_zon: ?[]const u8) zx.Component,
+
+    pub fn init(comptime func: anytype) *const fn (std.mem.Allocator, ?[]const u8) zx.Component {
+        // TODO: Reuse from root.zig
+        const FuncInfo = @typeInfo(@TypeOf(func));
+
+        if (FuncInfo != .@"fn") {
+            @compileError("Client.ComponentMeta.init requires a function");
+        }
+
+        const param_count = FuncInfo.@"fn".params.len;
+        if (param_count < 1 or param_count > 2) {
+            @compileError("Component function must have 1 or 2 parameters");
+        }
+
+        const FirstParamType = FuncInfo.@"fn".params[0].type.?;
+        const first_is_allocator = FirstParamType == std.mem.Allocator;
+        const first_is_ctx_ptr = @typeInfo(FirstParamType) == .pointer and
+            @hasField(@typeInfo(FirstParamType).pointer.child, "allocator") and
+            @hasField(@typeInfo(FirstParamType).pointer.child, "children");
+
+        return &struct {
+            fn wrapper(allocator: std.mem.Allocator, props_json: ?[]const u8) zx.Component {
+                // Case 1: Component takes only allocator - fn Component(allocator) Component
+                if (first_is_allocator and param_count == 1) {
+                    return func(allocator);
+                }
+
+                // Case 2: Component takes allocator and props - fn Component(allocator, props) Component
+                if (first_is_allocator and param_count == 2) {
+                    const PropsType = FuncInfo.@"fn".params[1].type.?;
+                    const props = parsePropsFromJson(PropsType, allocator, props_json);
+                    return func(allocator, props);
+                }
+
+                // Case 3: Component takes *ComponentCtx(Props) - fn Component(ctx: *ComponentCtx(Props)) Component
+                if (first_is_ctx_ptr) {
+                    const CtxType = @typeInfo(FirstParamType).pointer.child;
+                    const ctx = allocator.create(CtxType) catch @panic("OOM");
+                    ctx.allocator = allocator;
+                    ctx.children = null;
+
+                    // Parse props if the context has a props field
+                    if (@hasField(CtxType, "props")) {
+                        const PropsFieldType = @FieldType(CtxType, "props");
+                        if (PropsFieldType != void) {
+                            ctx.props = parsePropsFromJson(PropsFieldType, allocator, props_json);
+                        }
+                    }
+
+                    return func(ctx);
+                }
+
+                // Fallback - should not reach here if compile-time checks pass
+                @compileError("Unsupported component signature");
+            }
+        }.wrapper;
+    }
+
+    /// Expected format: {.p=.{...}} where .p contains the actual props
+    fn parsePropsFromJson(comptime T: type, allocator: std.mem.Allocator, props_zon: ?[]const u8) T {
+        if (props_zon) |zon_bytes| {
+            const zon_z = allocator.dupeZ(u8, zon_bytes) catch return std.mem.zeroes(T);
+            defer allocator.free(zon_z);
+
+            // Parse ZON and extract .p field (short for props)
+            const PropsWrapper = struct { p: T };
+            if (std.zon.parse.fromSlice(PropsWrapper, allocator, zon_z, null, .{ .ignore_unknown_fields = true })) |parsed| {
+                return parsed.p;
+            } else |_| {
+                return std.mem.zeroes(T);
+            }
+        }
+
+        return std.mem.zeroes(T);
+    }
 };
 
 /// Key for the handler registry: (velement_id, event_type_hash)
@@ -190,10 +265,12 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     const document = Document.init(allocator);
     // const console = Console.init();
 
-    // Find component boundary using comment markers <!--$id--> and <!--/$id-->
+    // Find component boundary using comment markers <!--$id--> or <!--$id|props-->
+    // Props ZON is embedded directly in the start comment for faster extraction
     const marker = document.findCommentMarker(cmp.id) catch return error.ContainerNotFound;
 
-    const Component = cmp.import(allocator);
+    // Call import with allocator and props_zon from the comment marker
+    const Component = cmp.import(allocator, marker.props_zon);
     const existing_vtree = self.vtrees.getPtr(cmp.id);
     const new_vtree = VDOMTree.init(allocator, Component);
 

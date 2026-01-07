@@ -528,6 +528,15 @@ fn genClientComponents(allocator: std.mem.Allocator, components: []const ClientC
         allocator.free(old_zon_str);
     }
 
+    // Replace @@@ with @ (for @import, @intCast, etc.)
+    while (std.mem.indexOf(u8, zon_str, "@@@")) |index| {
+        const old_zon_str = zon_str;
+        const before = zon_str[0..index];
+        const after = zon_str[index + 3 ..]; // Skip "@@@"
+        zon_str = try std.mem.concat(allocator, u8, &.{ before, "@", after });
+        allocator.free(old_zon_str);
+    }
+
     // Replace @@ placeholders with double quotes (for quotes inside @import())
     while (std.mem.indexOf(u8, zon_str, "@@")) |index| {
         const old_zon_str = zon_str;
@@ -1111,8 +1120,13 @@ fn transpileFile(
 
                 cloned_path = try allocator.dupe(u8, clean_path);
 
-                // Generate Zig import: use @@ as placeholder for quotes inside, @ markers on outside
-                const import_str = try std.fmt.allocPrint(allocator, "@@import(@@{s}@@).{s}@", .{ clean_path, component.name });
+                // Generate Zig import with componentWithProps wrapper for props hydration
+                // Format: zx.componentWithProps(@import("path").ComponentName)
+                // Placeholders:
+                //   "@ and @" - markers to strip outer quotes from ZON serialization
+                //   @@@ - literal @ (for @import)
+                //   @@ - literal " (for quotes inside @import())
+                const import_str = try std.fmt.allocPrint(allocator, "@zx.Client.ComponentMeta.init(@@@import(@@{s}@@).{s})@", .{ clean_path, component.name });
                 cloned_import = import_str;
             },
             .react => {

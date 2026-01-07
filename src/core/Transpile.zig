@@ -28,37 +28,32 @@ pub const ClientComponentMetadata = struct {
         };
     }
 
-    /// Generate a unique component ID based on name and path, with optional index postfix
-    /// Format: zx-<md5hash>-<index> or zx-<md5hash> if index is null
+    /// Generate a short unique component ID
+    /// Format: c<6-char-hash> (e.g., c1a2b3c)
+    /// Uses first 6 hex chars of MD5 hash for uniqueness (16M combinations)
     fn generateComponentIdInner(name: []const u8, path: []const u8, index: ?usize) struct { buf: [56]u8, len: usize } {
         var hasher = std.crypto.hash.Md5.init(.{});
         hasher.update(name);
         hasher.update(path);
+        if (index) |idx| {
+            var idx_buf: [20]u8 = undefined;
+            const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{idx}) catch unreachable;
+            hasher.update(idx_str);
+        }
         var digest: [16]u8 = undefined;
         hasher.final(&digest);
 
-        // Buffer: "zx-" (3) + 32 hex chars + "-" (1) + max 20 digits = 56
         var result: [56]u8 = undefined;
-        const prefix = "zx-";
-        @memcpy(result[0..3], prefix);
+        result[0] = 'c';
 
+        // Use first 3 bytes (6 hex chars) for compact but unique ID
         const hex_chars = "0123456789abcdef";
-        for (digest, 0..) |byte, i| {
-            result[3 + i * 2] = hex_chars[byte >> 4];
-            result[3 + i * 2 + 1] = hex_chars[byte & 0x0f];
+        for (digest[0..3], 0..) |byte, i| {
+            result[1 + i * 2] = hex_chars[byte >> 4];
+            result[1 + i * 2 + 1] = hex_chars[byte & 0x0f];
         }
 
-        var len: usize = 35; // "zx-" + 32 hex chars
-
-        // Append index as postfix if provided
-        if (index) |idx| {
-            result[len] = '-';
-            len += 1;
-            const idx_str = std.fmt.bufPrint(result[len..], "{d}", .{idx}) catch unreachable;
-            len += idx_str.len;
-        }
-
-        return .{ .buf = result, .len = len };
+        return .{ .buf = result, .len = 7 }; // "c" + 6 hex chars
     }
 };
 

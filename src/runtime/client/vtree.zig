@@ -114,7 +114,6 @@ pub const VElement = struct {
                 dom_element.setProperty("__zx_ref", velement_id);
                 dom_element.setAttribute("id", component_csr.id);
                 dom_element.setAttribute("data-name", component_csr.name);
-                dom_element.setAttribute("data-props", component_csr.props_json orelse "{}");
 
                 const velement = VElement{
                     .id = velement_id,

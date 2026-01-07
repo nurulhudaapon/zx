@@ -202,12 +202,14 @@ pub fn createTextNode(self: Document, data: []const u8) HTMLText {
     return HTMLText.init(self.allocator, ref);
 }
 
-/// Represents a hydration boundary marked by comment nodes <!--$id--> and <!--/$id-->
+/// Represents a hydration boundary marked by comment nodes <!--$id--> or <!--$id|props--> and <!--/$id-->
 pub const CommentMarker = struct {
     start_comment: JsObject,
     end_comment: JsObject,
     parent: JsObject,
     allocator: std.mem.Allocator,
+    /// Props ZON extracted from the start comment (e.g., ".{ .name = ..., .props = ... }")
+    props_zon: ?[]const u8,
 
     /// Insert a new DOM node after the start comment (before existing content)
     pub fn insertContent(self: CommentMarker, node: HTMLNode) !void {
@@ -248,26 +250,30 @@ pub const CommentMarker = struct {
     }
 };
 
-/// Find comment markers for a component ID (<!--$id--> and <!--/$id-->)
+/// Find comment markers for a component ID
+/// Start marker format: <!--$id{.p=.{...}}--> or <!--$id-->
+/// End marker format: <!--/$id-->
 pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, NotInBrowser }!CommentMarker {
     if (!is_wasm) return error.NotInBrowser;
     const real_js = @import("js");
     const allocator = self.allocator;
 
-    // Build the marker strings we're looking for
-    const start_marker = std.fmt.allocPrint(allocator, "${s}", .{id}) catch return error.MarkerNotFound;
-    defer allocator.free(start_marker);
+    // Build the patterns we're looking for
+    // Start marker: $id or $id{...}
+    const start_prefix = std.fmt.allocPrint(allocator, "${s}", .{id}) catch return error.MarkerNotFound;
+    defer allocator.free(start_prefix);
+    // End marker: /$id
     const end_marker = std.fmt.allocPrint(allocator, "/${s}", .{id}) catch return error.MarkerNotFound;
     defer allocator.free(end_marker);
 
     // Use TreeWalker to find comment nodes
-    // document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT)
     const body: real_js.Object = self.ref.get(real_js.Object, "body") catch return error.MarkerNotFound;
     const node_filter_show_comment: i32 = 128; // NodeFilter.SHOW_COMMENT
     const walker: real_js.Object = self.ref.call(real_js.Object, "createTreeWalker", .{ body, node_filter_show_comment }) catch return error.MarkerNotFound;
 
     var start_comment: ?real_js.Object = null;
     var end_comment: ?real_js.Object = null;
+    var props_zon: ?[]const u8 = null;
 
     // Iterate through all comment nodes
     while (true) {
@@ -275,28 +281,39 @@ pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, 
 
         // Get comment text content
         const text = node.getAlloc(real_js.String, allocator, "textContent") catch continue;
-        defer allocator.free(text);
 
-        if (std.mem.eql(u8, text, start_marker)) {
+        // Check for start marker: $id or $id.{...}
+        if (std.mem.startsWith(u8, text, start_prefix)) {
             start_comment = node;
+            // Extract ZON payload after $id (if present)
+            // Format: $id.{.p=.{...}} -> extract .{.p=.{...}}
+            if (text.len > start_prefix.len and std.mem.startsWith(u8, text[start_prefix.len..], ".{")) {
+                props_zon = allocator.dupe(u8, text[start_prefix.len..]) catch null;
+            }
+            allocator.free(text);
         } else if (std.mem.eql(u8, text, end_marker)) {
+            allocator.free(text);
             end_comment = node;
             break; // Found both, stop searching
+        } else {
+            allocator.free(text);
         }
     }
 
     if (start_comment) |start| {
         if (end_comment) |end| {
-            // Get parent node
             const parent: real_js.Object = start.get(real_js.Object, "parentNode") catch return error.MarkerNotFound;
             return CommentMarker{
                 .start_comment = start,
                 .end_comment = end,
                 .parent = parent,
                 .allocator = allocator,
+                .props_zon = props_zon,
             };
         }
     }
+
+    if (props_zon) |pz| std.zon.parse.free(allocator, pz);
 
     return error.MarkerNotFound;
 }
