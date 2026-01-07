@@ -2,7 +2,7 @@ var count: i32 = 0;
 pub fn Page(ctx: zx.PageContext) zx.Component {
     count += 1;
     ctx.response.setCookie("count", std.fmt.allocPrint(ctx.arena, "{d}", .{count}) catch unreachable, .{});
-    if (count == 4){
+    if (count == 4) {
         ctx.response.deleteCookie("count", .{});
         count = 0;
     }

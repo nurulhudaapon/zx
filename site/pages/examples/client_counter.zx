@@ -1,44 +1,49 @@
 var count: zx.Signal(i32) = .init(0);
 var doubled: zx.Computed(i32, i32) = .init(&count, doubleValue);
+var countEffect = zx.Effect(i32).init(&count, onCountChange);
 
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
+    countEffect.run();
+
     return (
         <div @allocator={allocator}>
             <button onclick={handleReset}>Reset</button>
             <h5>Count: {&count}</h5>
             <h5>Doubled: {&doubled}</h5>
+            <NestedCounterComponent count={&count} />
             <button onclick={handleDecrement}>Decrement</button>
             <button onclick={handleIncrement}>Increment</button>
             <p>{&message}</p>
         </div>
     );
 }
+
+pub fn NestedCounterComponent(ctx: *zx.ComponentCtx(struct { count: *zx.Signal(i32) })) zx.Component {
+    return (<h5 @allocator={ctx.allocator}>Nested Count: {ctx.props.count}</h5>);
+}
+
 fn doubleValue(val: i32) i32 {
     return val * 2;
 }
 
 fn handleIncrement(_: zx.EventContext) void {
-    countEffect.run();
     count.set(count.get() + 1);
 }
 
 fn handleDecrement(_: zx.EventContext) void {
-    countEffect.run();
     count.set(count.get() - 1);
 }
 
 fn handleReset(_: zx.EventContext) void {
-    countEffect.run();
     count.set(0);
 }
 
-// TODO: The API of effect will change
-var countEffect = zx.Effect(i32).init(&count, onCountChange);
 var message = zx.Signal([]const u8).init("Count Didn't Change");
 
 fn onCountChange(newCount: i32) void {
-    _ = newCount;
-    message.set("Count Changed");
+    const new_msg = std.fmt.allocPrint(zx.client_allocator, "Count Changed: {d}", .{newCount}) catch "Count Changed";
+    message.set(new_msg);
 }
 
+const std = @import("std");
 const zx = @import("zx");

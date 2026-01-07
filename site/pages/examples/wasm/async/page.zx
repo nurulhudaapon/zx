@@ -6,7 +6,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-
 // Timer state
 var interval_count: u32 = 0;
 var interval_id: ?u64 = null;
@@ -17,7 +16,7 @@ pub fn TimerDemo(allocator: zx.Allocator) zx.Component {
         <div @{allocator} class="timer-demo">
             <h3 class="timer-title">⏱️ Timer Demo</h3>
             <p class="timer-subtitle">Test setTimeout and setInterval from WASM</p>
-            
+
             <div class="timer-buttons">
                 <button class="timer-btn timeout-btn" onclick={startTimeout}>
                     setTimeout (2s)
@@ -29,12 +28,12 @@ pub fn TimerDemo(allocator: zx.Allocator) zx.Component {
                     Fetch API
                 </button>
             </div>
-            
+
             <div class="timer-output">
                 <span class="timer-label">Interval ticks: </span>
                 <strong class="timer-count">{interval_count}</strong>
             </div>
-            
+
             <p class="timer-hint">Check browser console for output</p>
         </div>
     );
@@ -43,13 +42,13 @@ pub fn TimerDemo(allocator: zx.Allocator) zx.Component {
 fn startTimeout(_: zx.EventContext) void {
     const console = zx.Client.bom.Console.init();
     console.str("setTimeout started (2 seconds)...");
-    
+
     _ = bom.setTimeout(&onTimeoutFired, 2000);
 }
 
 fn toggleInterval(_: zx.EventContext) void {
     const console = zx.Client.bom.Console.init();
-    
+
     if (interval_id) |id| {
         // Stop the interval
         bom.clearInterval(id);
@@ -61,7 +60,7 @@ fn toggleInterval(_: zx.EventContext) void {
         interval_id = bom.setInterval(&onIntervalTick, 1000);
         console.str("Interval started (every 1 second)");
     }
-    
+
     zx.requestRender();
 }
 
@@ -77,7 +76,7 @@ fn onTimeoutFired() void {
 
 fn onFetchComplete(result: bom.FetchResult) void {
     const console = zx.Client.bom.Console.init();
-    
+
     switch (result) {
         .success => |text| {
             console.str("Fetch completed! Response:");

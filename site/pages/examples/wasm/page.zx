@@ -2,7 +2,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena} class="todo-container">
             <TodoApp @rendering={.client} />
-
         </div>
     );
 }
@@ -135,7 +134,6 @@ fn clearTodos(_: zx.EventContext) void {
     zx.requestRender();
 }
 
-
 fn deleteTodo(ctx: zx.EventContext) void {
     if (comptime builtin.cpu.arch != .wasm32) return;
 
@@ -165,7 +163,6 @@ fn countCompleted() u32 {
     }
     return count;
 }
-
 
 // This is temporarily here to validated pagecontext is buildable for wasm target
 fn Counter(allocator: zx.Allocator) zx.Component {
