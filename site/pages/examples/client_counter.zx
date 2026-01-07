@@ -13,6 +13,7 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
             <NestedCounterComponent count={&count} />
             <button onclick={handleDecrement}>Decrement</button>
             <button onclick={handleIncrement}>Increment</button>
+            // <button onclick={handleSubmit}>Submit</button>
             <p>{&message}</p>
         </div>
     );
@@ -37,6 +38,10 @@ fn handleDecrement(_: zx.EventContext) void {
 fn handleReset(_: zx.EventContext) void {
     count.set(0);
 }
+
+// fn handleSubmit(ctx: zx.ActionContext) zx.ActionResult(void) {
+//     std.log.info("handleSubmit", .{});
+// }
 
 var message = zx.Signal([]const u8).init("Count Didn't Change");
 

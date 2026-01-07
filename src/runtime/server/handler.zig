@@ -965,5 +965,5 @@ const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const Printer = zx.Printer;
 const App = zx.App;
-const Request = @import("Request.zig");
-const Response = @import("Response.zig");
+const Request = @import("../core/Request.zig");
+const Response = @import("../core/Response.zig");

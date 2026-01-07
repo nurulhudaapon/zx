@@ -14,6 +14,7 @@ export const CallbackType = {
 
 export type CallbackTypeValue = typeof CallbackType[keyof typeof CallbackType];
 type CallbackHandler = (callbackType: number, id: bigint, dataRef: bigint) => void;
+type FetchCompleteHandler = (fetchId: bigint, statusCode: number, bodyPtr: number, bodyLen: number, isError: number) => void;
 
 export const jsz = new ZigJS();
 
@@ -36,11 +37,15 @@ function readString(ptr: number, len: number): string {
     return new TextDecoder().decode(memory.slice(ptr, ptr + len));
 }
 
+/** Write bytes to WASM memory at a specific location */
+function writeBytes(ptr: number, data: Uint8Array): void {
+    const memory = new Uint8Array(jsz.memory!.buffer);
+    memory.set(data, ptr);
+}
 
 /** ZX Bridge - provides JS APIs that callback into WASM */
 export class ZxBridge {
     #exports: WebAssembly.Exports;
-    #nextCallbackId: bigint = BigInt(1);
     #intervals: Map<bigint, number> = new Map();
 
     constructor(exports: WebAssembly.Exports) {
@@ -51,8 +56,8 @@ export class ZxBridge {
         return this.#exports.__zx_cb as CallbackHandler | undefined;
     }
 
-    #getNextId(): bigint {
-        return this.#nextCallbackId++;
+    get #fetchCompleteHandler(): FetchCompleteHandler | undefined {
+        return this.#exports.__zx_fetch_complete as FetchCompleteHandler | undefined;
     }
 
     /** Invoke the unified callback handler */
@@ -66,18 +71,91 @@ export class ZxBridge {
         handler(type, id, dataRef);
     }
 
-    /** Fetch a URL and callback with the response */
-    fetch(urlPtr: number, urlLen: number, callbackId: bigint): void {
+    /**
+     * Async fetch with full options support.
+     * Calls __zx_fetch_complete when done.
+     */
+    fetchAsync(
+        urlPtr: number,
+        urlLen: number,
+        methodPtr: number,
+        methodLen: number,
+        headersPtr: number,
+        headersLen: number,
+        bodyPtr: number,
+        bodyLen: number,
+        timeoutMs: number,
+        fetchId: bigint
+    ): void {
         const url = readString(urlPtr, urlLen);
-        
-        fetch(url)
-            .then(response => response.text())
-            .then(text => {
-                this.#invoke(CallbackType.FetchSuccess, callbackId, text);
+        const method = methodLen > 0 ? readString(methodPtr, methodLen) : 'GET';
+        const headersJson = headersLen > 0 ? readString(headersPtr, headersLen) : '{}';
+        const body = bodyLen > 0 ? readString(bodyPtr, bodyLen) : undefined;
+
+        // Parse headers from JSON
+        let headers: Record<string, string> = {};
+        try {
+            headers = JSON.parse(headersJson);
+        } catch {
+            // Fallback: try line-based format "name:value\n"
+            for (const line of headersJson.split('\n')) {
+                const colonIdx = line.indexOf(':');
+                if (colonIdx > 0) {
+                    headers[line.slice(0, colonIdx)] = line.slice(colonIdx + 1);
+                }
+            }
+        }
+
+        const controller = new AbortController();
+        const timeout = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+        const fetchOptions: RequestInit = {
+            method,
+            headers: Object.keys(headers).length > 0 ? headers : undefined,
+            body: method !== 'GET' && method !== 'HEAD' ? body : undefined,
+            signal: controller.signal,
+        };
+
+        fetch(url, fetchOptions)
+            .then(async (response) => {
+                if (timeout) clearTimeout(timeout);
+                const text = await response.text();
+                this.#notifyFetchComplete(fetchId, response.status, text, false);
             })
-            .catch(error => {
-                this.#invoke(CallbackType.FetchError, callbackId, error.message ?? 'Fetch failed');
+            .catch((error) => {
+                if (timeout) clearTimeout(timeout);
+                const isAbort = error.name === 'AbortError';
+                const errorMsg = isAbort ? 'Request timeout' : (error.message ?? 'Fetch failed');
+                this.#notifyFetchComplete(fetchId, 0, errorMsg, true);
             });
+    }
+
+    /** Notify WASM that a fetch completed */
+    #notifyFetchComplete(fetchId: bigint, statusCode: number, body: string, isError: boolean): void {
+        const handler = this.#fetchCompleteHandler;
+        if (!handler) {
+            console.warn('__zx_fetch_complete not exported from WASM');
+            return;
+        }
+
+        // Write the body to WASM memory
+        const encoded = new TextEncoder().encode(body);
+        
+        // Allocate memory for body
+        const allocFn = this.#exports.__zx_alloc as ((size: number) => number) | undefined;
+        let ptr = 0;
+        
+        if (allocFn) {
+            ptr = allocFn(encoded.length);
+        } else {
+            // Fallback: use a fixed buffer area
+            const heapBase = (this.#exports.__heap_base as WebAssembly.Global)?.value ?? 0x10000;
+            ptr = heapBase + Number(fetchId % BigInt(256)) * 0x10000; // 64KB per request
+        }
+        
+        writeBytes(ptr, encoded);
+        
+        handler(fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
     }
 
     /** Set a timeout and callback when it fires */
@@ -117,8 +195,27 @@ export class ZxBridge {
         return {
             ...jsz.importObject(),
             __zx: {
-                _fetch: (urlPtr: number, urlLen: number, callbackId: bigint) => {
-                    bridgeRef.current?.fetch(urlPtr, urlLen, callbackId);
+                // Async fetch with full options
+                _fetchAsync: (
+                    urlPtr: number,
+                    urlLen: number,
+                    methodPtr: number,
+                    methodLen: number,
+                    headersPtr: number,
+                    headersLen: number,
+                    bodyPtr: number,
+                    bodyLen: number,
+                    timeoutMs: number,
+                    fetchId: bigint
+                ) => {
+                    bridgeRef.current?.fetchAsync(
+                        urlPtr, urlLen,
+                        methodPtr, methodLen,
+                        headersPtr, headersLen,
+                        bodyPtr, bodyLen,
+                        timeoutMs,
+                        fetchId
+                    );
                 },
                 _setTimeout: (callbackId: bigint, delayMs: number) => {
                     bridgeRef.current?.setTimeout(callbackId, delayMs);
@@ -177,8 +274,6 @@ export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'bo
     }
 }
 
-
-
 export type InitOptions = {
     url?: string;
     eventDelegationRoot?: string;
@@ -186,6 +281,7 @@ export type InitOptions = {
 };
 
 const DEFAULT_URL = "/assets/main.wasm";
+
 /** Initialize WASM with the ZX Bridge */
 export async function init(options: InitOptions = {}): Promise<{ source: WebAssembly.WebAssemblyInstantiatedSource; bridge: ZxBridge }> {
     const url = options.url ?? DEFAULT_URL;
@@ -222,4 +318,3 @@ declare global {
         __zx_ref?: number;
     }
 }
-

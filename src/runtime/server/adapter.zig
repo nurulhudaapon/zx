@@ -6,10 +6,10 @@
 
 const std = @import("std");
 const httpz = @import("httpz");
-const Request = @import("Request.zig");
-const Response = @import("Response.zig");
-const Headers = @import("Headers.zig");
-const common = @import("common.zig");
+const Request = @import("../core/Request.zig");
+const Response = @import("../core/Response.zig");
+const Headers = @import("../core/Headers.zig");
+const common = @import("../core/common.zig");
 
 // --- Type Conversion Helpers --- //
 

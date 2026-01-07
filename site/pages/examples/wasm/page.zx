@@ -83,7 +83,7 @@ fn addTodo(ctx: zx.EventContext) void {
     ctx.preventDefault();
     if (comptime builtin.cpu.arch != .wasm32) return;
 
-    const document = zx.Client.bom.Document.init(todos_allocator);
+    const document = zx.client.Document.init(todos_allocator);
     const input = document.getElementById("todo-input") catch return;
 
     const text = input.ref.getAlloc(js.String, todos_allocator, "value") catch return;
@@ -191,5 +191,5 @@ pub const CounterPage = @import("./simple/page.zx").Page;
 const zx = @import("zx");
 const std = @import("std");
 const builtin = @import("builtin");
-const client = zx.Client.bom;
+const client = zx.client;
 const js = zx.Client.js;

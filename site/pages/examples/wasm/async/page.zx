@@ -1,4 +1,18 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    std.log.info("Starting fetch request (server-side)...", .{});
+
+    // Server-side: use blocking Io
+    const result = try zx.fetch(.blocking, ctx.arena, "https://jsonplaceholder.typicode.com/todos/1", .{});
+    var res = result orelse return error.FetchError;
+    defer res.deinit();
+
+    const t = res.text() catch |err| {
+        std.log.err("Fetch text error: {s}", .{@errorName(err)});
+        return error.FetchTextError;
+    };
+
+    std.log.info("Fetch completed (server-side): {s}", .{t});
+
     return (
         <div @allocator={ctx.arena} class="todo-container">
             <TimerDemo @rendering={.client} />
@@ -40,25 +54,20 @@ pub fn TimerDemo(allocator: zx.Allocator) zx.Component {
 }
 
 fn startTimeout(_: zx.EventContext) void {
-    const console = zx.Client.bom.Console.init();
-    console.str("setTimeout started (2 seconds)...");
-
-    _ = bom.setTimeout(&onTimeoutFired, 2000);
+    std.log.info("setTimeout started (2 seconds)...", .{});
+    _ = zx.client.setTimeout(&onTimeoutFired, 2000);
 }
 
 fn toggleInterval(_: zx.EventContext) void {
-    const console = zx.Client.bom.Console.init();
 
     if (interval_id) |id| {
-        // Stop the interval
-        bom.clearInterval(id);
+        zx.client.clearInterval(id);
         interval_id = null;
-        console.str("Interval stopped");
+        std.log.info("Interval stopped", .{});
     } else {
-        // Start the interval
         interval_count = 0;
-        interval_id = bom.setInterval(&onIntervalTick, 1000);
-        console.str("Interval started (every 1 second)");
+        interval_id = zx.client.setInterval(&onIntervalTick, 1000);
+        std.log.info("Interval started (every 1 second)", .{});
     }
 
     zx.requestRender();
@@ -70,35 +79,42 @@ fn onIntervalTick() void {
 }
 
 fn onTimeoutFired() void {
-    const console = zx.Client.bom.Console.init();
-    console.str("setTimeout fired after 2 seconds!");
+    std.log.info("setTimeout fired after 2 seconds!", .{});
 }
 
-fn onFetchComplete(result: bom.FetchResult) void {
-    const console = zx.Client.bom.Console.init();
+/// Callback for fetch completion
+fn onFetchComplete(response: ?*zx.Fetch.Response, err: ?zx.Fetch.FetchError) void {
+    if (err) |e| {
+        std.log.err("Fetch error!", .{});
+        std.log.err("Fetch error: {s}", .{@errorName(e)});
+        return;
+    }
 
-    switch (result) {
-        .success => |text| {
-            console.str("Fetch completed! Response:");
-            console.str(text);
-        },
-        .@"error" => |err| {
-            console.str("Fetch error:");
-            console.str(err);
-        },
+    if (response) |res| {
+        defer res.deinit();
+        const text = res.text() catch |e| {
+            std.log.err("Fetch text error: {s}", .{@errorName(e)});
+            return;
+        };
+        std.log.info("Fetch completed! Response:", .{});
+        std.log.info("Fetch text: {s}", .{text});
     }
 }
 
 fn doFetch(_: zx.EventContext) void {
-    const console = zx.Client.bom.Console.init();
-    console.str("Starting fetch request...");
+    std.log.info("Starting fetch request (client-side)...", .{});
 
-    _ = bom.fetch("https://jsonplaceholder.typicode.com/todos/1", &onFetchComplete);
+    _ = zx.fetch(
+        .wasm(&onFetchComplete),
+        zx.client_allocator,
+        "https://jsonplaceholder.typicode.com/todos/1",
+        .{},
+    ) catch |err| {
+        std.log.err("Fetch init error: {s}", .{@errorName(err)});
+    };
 
-    console.str("Fetch initiated (async)");
+    std.log.info("Fetch initiated (async)", .{});
 }
-
-const bom = zx.Client.bom;
 
 const zx = @import("zx");
 const std = @import("std");

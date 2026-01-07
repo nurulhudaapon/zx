@@ -1,6 +1,6 @@
 pub const Client = @This();
 
-pub const bom = @import("bom.zig");
+const bom = @import("bom.zig");
 pub const reactivity = @import("Reactivity.zig");
 
 pub const ComponentMeta = struct {

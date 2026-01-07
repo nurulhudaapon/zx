@@ -796,4 +796,4 @@ pub fn updateComponents(self: *VDOMTree, new_component: zx.Component) void {
 
 const zx = @import("../../root.zig");
 const std = @import("std");
-const Document = zx.Client.bom.Document;
+const Document = zx.client.Document;

@@ -1615,6 +1615,7 @@ const routing = @import("routing.zig");
 
 pub const info = @import("zx_info");
 pub const Client = @import("runtime/client/Client.zig");
+pub const client = @import("runtime/client/bom.zig");
 pub const App = @import("runtime/server/app.zig").App;
 
 pub const Allocator = std.mem.Allocator;
@@ -1769,14 +1770,33 @@ pub const EventContext = struct {
     }
 
     /// Get the underlying js.Object for the event
-    pub fn getEvent(self: EventContext) Client.bom.Event {
-        return Client.bom.Event.fromRef(self.event_ref);
+    pub fn getEvent(self: EventContext) client.Event {
+        return client.Event.fromRef(self.event_ref);
     }
 
     pub fn preventDefault(self: EventContext) void {
         self.getEvent().preventDefault();
     }
 };
+
+pub const ActionContext = struct {
+    request: Request,
+    response: Response,
+    allocator: Allocator,
+    arena: Allocator,
+    action_ref: u64,
+    pub fn init(action_ref: u64) ActionContext {
+        return .{ .action_ref = action_ref };
+    }
+};
+
+pub fn ActionResult(comptime T: type) type {
+    if (T == void) return void;
+    return struct {
+        success: bool,
+        data: T,
+    };
+}
 
 pub const EventHandler = *const fn (event: EventContext) void;
 
@@ -1905,9 +1925,31 @@ pub const Platform = enum {
 /// - `windows` if running on a Windows environment
 pub const platform: Platform = if (builtin.os.tag == .freestanding) .browser else .server;
 
-pub const Headers = @import("runtime/server/Headers.zig");
-pub const Request = @import("runtime/server/Request.zig");
-pub const Response = @import("runtime/server/Response.zig");
+pub const Headers = @import("runtime/core/Headers.zig");
+pub const Request = @import("runtime/core/Request.zig");
+pub const Response = @import("runtime/core/Response.zig");
+pub const Fetch = @import("runtime/core/Fetch.zig");
+
+/// Io determines how fetch operations are executed.
+/// - `Io.blocking` - Blocks until complete (server-side)
+/// - `Io.wasm(&callback)` - Uses callback when complete (WASM)
+pub const Io = Fetch.Io;
+
+/// Perform an HTTP fetch request (works on both browser and server).
+///
+/// This is a convenience function that delegates to `Fetch.fetch()`.
+///
+/// **Example:**
+/// ```zig
+/// var response = try zx.fetch(allocator, "/api/users", .{});
+/// defer response.deinit();
+///
+/// if (response.ok()) {
+///     const user = try response.json(User);
+///     defer user.deinit();
+/// }
+/// ```
+pub const fetch = Fetch.fetch;
 
 /// Default std_options for zx apps.
 /// Re-export this in your main.zig:

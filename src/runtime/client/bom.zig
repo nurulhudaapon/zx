@@ -54,31 +54,6 @@ pub const Console = struct {
             .err => self.ref.call(void, "error", .{j.string(data)}) catch @panic("Failed to call console.error"),
         }
     }
-
-    pub fn @"error"(self: Console, args: anytype) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "error", args) catch @panic("Failed to call console.error");
-    }
-
-    pub fn warn(self: Console, args: anytype) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "warn", args) catch @panic("Failed to call console.warn");
-    }
-
-    pub fn info(self: Console, args: anytype) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "info", args) catch @panic("Failed to call console.info");
-    }
-
-    pub fn debug(self: Console, args: anytype) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "debug", args) catch @panic("Failed to call console.debug");
-    }
-
-    pub fn table(self: Console, args: anytype) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "table", args) catch @panic("Failed to call console.table");
-    }
 };
 
 pub const Event = struct {
@@ -175,28 +150,21 @@ pub fn eval(T: type, code: []const u8) !T {
 pub const Document = @import("bom/dom.zig").Document;
 
 // =============================================================================
-// Async APIs: setTimeout, setInterval, fetch
+// Async APIs: setTimeout, setInterval
 // =============================================================================
 
 /// Callback types for async operations (must match bridge.ts CallbackType)
 pub const CallbackType = enum(u8) {
     event = 0,
-    fetch_success = 1,
-    fetch_error = 2,
+    fetch_success = 1, // kept for compatibility with dispatchCallback
+    fetch_error = 2, // kept for compatibility with dispatchCallback
     timeout = 3,
     interval = 4,
-};
-
-/// Result type for fetch callbacks
-pub const FetchResult = union(enum) {
-    success: []const u8,
-    @"error": []const u8,
 };
 
 /// Callback function types
 pub const TimeoutCallback = *const fn () void;
 pub const IntervalCallback = *const fn () void;
-pub const FetchCallback = *const fn (result: FetchResult) void;
 
 /// Maximum number of concurrent callbacks
 const MAX_CALLBACKS = 64;
@@ -206,7 +174,6 @@ const CallbackEntry = struct {
     callback_type: CallbackType,
     timeout_fn: ?TimeoutCallback = null,
     interval_fn: ?IntervalCallback = null,
-    fetch_fn: ?FetchCallback = null,
     active: bool = false,
 };
 
@@ -221,7 +188,6 @@ var next_callback_id: u64 = 1;
 extern "__zx" fn _setTimeout(callback_id: u64, delay_ms: u32) void;
 extern "__zx" fn _setInterval(callback_id: u64, interval_ms: u32) void;
 extern "__zx" fn _clearInterval(callback_id: u64) void;
-extern "__zx" fn _fetch(url_ptr: [*]const u8, url_len: usize, callback_id: u64) void;
 
 /// Register a callback and get its ID
 fn registerCallback(entry: CallbackEntry) ?u64 {
@@ -286,23 +252,12 @@ pub fn clearInterval(callback_id: u64) void {
     }
 }
 
-/// Fetch a URL and call the callback with the result
-pub fn fetch(url: []const u8, callback: FetchCallback) ?u64 {
-    if (!is_wasm) return null;
-
-    const id = registerCallback(.{
-        .callback_type = .fetch_success, // Will handle both success and error
-        .fetch_fn = callback,
-        .active = true,
-    }) orelse return null;
-
-    _fetch(url.ptr, url.len, id);
-    return id;
-}
-
 /// Dispatch a callback from JS (called by __zx_cb export)
 /// Returns true if a callback was found and invoked
 pub fn dispatchCallback(callback_type: CallbackType, callback_id: u64, data_ref: u64, allocator: std.mem.Allocator) bool {
+    _ = data_ref;
+    _ = allocator;
+
     const index: usize = @intCast(callback_id % MAX_CALLBACKS);
     const entry = &callbacks[index];
 
@@ -323,28 +278,7 @@ pub fn dispatchCallback(callback_type: CallbackType, callback_id: u64, data_ref:
                 return true;
             }
         },
-        .fetch_success, .fetch_error => {
-            if (entry.fetch_fn) |cb| {
-                if (!is_wasm) return false;
-                const real_js = @import("js");
-
-                const text_value: real_js.Value = @enumFromInt(data_ref);
-                defer text_value.deinit();
-
-                const text = text_value.string(allocator) catch "";
-                defer if (text.len > 0) allocator.free(text);
-
-                const result: FetchResult = if (callback_type == .fetch_success)
-                    .{ .success = text }
-                else
-                    .{ .@"error" = text };
-
-                cb(result);
-                entry.active = false; // One-shot
-                return true;
-            }
-        },
-        .event => return false,
+        .fetch_success, .fetch_error, .event => return false,
     }
 
     return false;
