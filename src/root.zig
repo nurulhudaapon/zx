@@ -771,7 +771,7 @@ pub const Component = union(enum) {
             .component_csr => |component_csr| {
                 // Start comment marker format depends on component type:
                 // - React: <!--$id name {"prop":"value"}--> (JSON)
-                // - Zig:   <!--$id.{.p=.{...}}--> (ZON)
+                // - Zig:   <!--$id.{.{...}}--> (ZON tuple, first element is props)
                 if (component_csr.is_react) {
                     // React component: use JSON format
                     if (component_csr.writeProps) |writeProps| {
@@ -786,10 +786,10 @@ pub const Component = union(enum) {
                         try writer.print("<!--${s} {s}-->", .{ component_csr.id, component_csr.name });
                     }
                 } else {
-                    // Zig component: use ZON format
+                    // Zig component: use ZON tuple format
                     if (component_csr.writeProps) |writeProps| {
                         if (component_csr.props_ptr) |props_ptr| {
-                            try writer.print("<!--${s}.{{.p=", .{component_csr.id});
+                            try writer.print("<!--${s}.{{", .{component_csr.id});
                             try writeProps(writer, props_ptr);
                             try writer.print("}}-->", .{});
                         } else {

@@ -202,7 +202,7 @@ pub fn createTextNode(self: Document, data: []const u8) HTMLText {
     return HTMLText.init(self.allocator, ref);
 }
 
-/// Represents a hydration boundary marked by comment nodes <!--$id--> or <!--$id|props--> and <!--/$id-->
+/// Represents a hydration boundary marked by comment nodes <!--$id--> or <!--$id.{.{props}}--> and <!--/$id-->
 pub const CommentMarker = struct {
     start_comment: JsObject,
     end_comment: JsObject,
@@ -251,7 +251,7 @@ pub const CommentMarker = struct {
 };
 
 /// Find comment markers for a component ID
-/// Start marker format: <!--$id{.p=.{...}}--> or <!--$id-->
+/// Start marker format: <!--$id.{.{...}}--> (ZON tuple) or <!--$id-->
 /// End marker format: <!--/$id-->
 pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, NotInBrowser }!CommentMarker {
     if (!is_wasm) return error.NotInBrowser;
@@ -285,8 +285,8 @@ pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, 
         // Check for start marker: $id or $id.{...}
         if (std.mem.startsWith(u8, text, start_prefix)) {
             start_comment = node;
-            // Extract ZON payload after $id (if present)
-            // Format: $id.{.p=.{...}} -> extract .{.p=.{...}}
+            // Extract ZON tuple payload after $id (if present)
+            // Format: $id.{.{...}} -> extract .{.{...}}
             if (text.len > start_prefix.len and std.mem.startsWith(u8, text[start_prefix.len..], ".{")) {
                 props_zon = allocator.dupe(u8, text[start_prefix.len..]) catch null;
             }

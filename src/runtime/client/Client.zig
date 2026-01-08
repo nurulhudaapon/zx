@@ -100,22 +100,22 @@ pub const ComponentMeta = struct {
         }.wrapper;
     }
 
-    /// Expected format: {.p=.{...}} where .p contains the actual props
-    fn parsePropsFromJson(comptime T: type, allocator: std.mem.Allocator, props_zon: ?[]const u8) T {
+    /// Expected format: {.{...}} - tuple with props as first element (extensible for future fields)
+    fn parsePropsFromJson(comptime PropT: type, allocator: std.mem.Allocator, props_zon: ?[]const u8) PropT {
         if (props_zon) |zon_bytes| {
-            const zon_z = allocator.dupeZ(u8, zon_bytes) catch return std.mem.zeroes(T);
+            const zon_z = allocator.dupeZ(u8, zon_bytes) catch return std.mem.zeroes(PropT);
             defer allocator.free(zon_z);
 
-            // Parse ZON and extract .p field (short for props)
-            const PropsWrapper = struct { p: T };
+            // Parse ZON tuple and extract first element (props)
+            const PropsWrapper = struct { PropT };
             if (std.zon.parse.fromSlice(PropsWrapper, allocator, zon_z, null, .{ .ignore_unknown_fields = true })) |parsed| {
-                return parsed.p;
+                return parsed[0];
             } else |_| {
-                return std.mem.zeroes(T);
+                return std.mem.zeroes(PropT);
             }
         }
 
-        return std.mem.zeroes(T);
+        return std.mem.zeroes(PropT);
     }
 };
 
