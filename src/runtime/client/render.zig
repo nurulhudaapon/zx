@@ -10,6 +10,7 @@ pub const VElement = struct {
     component: zx.Component,
     children: std.ArrayList(VElement),
     key: ?[]const u8 = null,
+    parent_dom: ?Document.HTMLElement = null, // Stored for fragments
 
     fn nextId() u64 {
         const id = next_velement_id;
@@ -60,6 +61,33 @@ pub const VElement = struct {
                 return velement;
             },
             .element => |element| {
+                // Fragment: no DOM element, children rendered directly to parent
+                if (element.tag == .fragment) {
+                    var velement = VElement{
+                        .id = nextId(),
+                        .dom = .{ .text = document.createTextNode("") }, // marker
+                        .component = component,
+                        .children = std.ArrayList(VElement).empty,
+                        .key = null,
+                        .parent_dom = parent_dom, // Store for patching
+                    };
+
+                    // Append marker to parent first
+                    if (parent_dom) |parent| {
+                        try parent.appendChild(velement.dom);
+                    }
+
+                    // Render children directly to parent_dom
+                    if (element.children) |children| {
+                        for (children) |child| {
+                            const child_velement = try createFromComponent(allocator, document, parent_dom, child);
+                            try velement.children.append(allocator, child_velement);
+                        }
+                    }
+
+                    return velement;
+                }
+
                 const dom_element = document.createElement(@tagName(element.tag));
                 const velement_id = nextId();
 
@@ -189,6 +217,14 @@ pub const VElement = struct {
             child.deinit(allocator);
         }
         self.children.deinit(allocator);
+    }
+
+    /// Get the actual DOM parent element (uses stored parent for fragments)
+    pub fn getDomParent(self: *const VElement) ?Document.HTMLElement {
+        return switch (self.dom) {
+            .element => |elem| elem,
+            .text => self.parent_dom, // For fragments, use stored parent
+        };
     }
 };
 
@@ -655,105 +691,76 @@ pub fn applyPatches(
                 const parent = placement_data.parent;
                 const new_child = placement_data.velement;
 
-                switch (parent.dom) {
-                    .element => |parent_element| {
-                        if (placement_data.reference) |ref| {
-                            switch (ref.dom) {
-                                .element => |ref_element| {
-                                    try parent_element.insertBefore(new_child.dom, .{ .element = ref_element });
-                                },
-                                .text => |ref_text| {
-                                    try parent_element.insertBefore(new_child.dom, .{ .text = ref_text });
-                                },
-                            }
-                        } else {
-                            try parent_element.appendChild(new_child.dom);
-                        }
+                const parent_element = parent.getDomParent() orelse return error.CannotAppendToTextNode;
 
-                        const index = @min(placement_data.index, parent.children.items.len);
-                        try parent.children.insert(allocator, index, new_child);
-                    },
-                    .text => {
-                        return error.CannotAppendToTextNode;
-                    },
+                if (placement_data.reference) |ref| {
+                    try parent_element.insertBefore(new_child.dom, ref.dom);
+                } else {
+                    try parent_element.appendChild(new_child.dom);
                 }
+
+                const index = @min(placement_data.index, parent.children.items.len);
+                try parent.children.insert(allocator, index, new_child);
             },
             .DELETION => {
                 const info = deletion_infos.items[deletion_idx];
                 deletion_idx += 1;
 
-                switch (info.parent.dom) {
-                    .element => |parent_element| {
-                        try parent_element.removeChild(info.velement_dom);
+                const parent_element = info.parent.getDomParent() orelse return error.CannotRemoveFromTextNode;
+                try parent_element.removeChild(info.velement_dom);
 
-                        const children = &info.parent.children;
-                        for (children.items, 0..) |child, i| {
-                            if (child.id == info.velement_id) {
-                                var removed = children.orderedRemove(i);
-                                removed.deinit(allocator);
-                                break;
-                            }
-                        }
-                    },
-                    .text => {
-                        return error.CannotRemoveFromTextNode;
-                    },
+                const children = &info.parent.children;
+                for (children.items, 0..) |child, i| {
+                    if (child.id == info.velement_id) {
+                        var removed = children.orderedRemove(i);
+                        removed.deinit(allocator);
+                        break;
+                    }
                 }
             },
             .REPLACE => {
                 const info = replace_infos.items[replace_idx];
                 replace_idx += 1;
 
-                switch (info.parent.dom) {
-                    .element => |parent_element| {
-                        try parent_element.replaceChild(info.new_velement.dom, info.old_velement_dom);
+                const parent_element = info.parent.getDomParent() orelse return error.CannotReplaceInTextNode;
+                try parent_element.replaceChild(info.new_velement.dom, info.old_velement_dom);
 
-                        const children = &info.parent.children;
-                        for (children.items, 0..) |*child, i| {
-                            if (child.id == info.old_velement_id) {
-                                var old_child = children.items[i];
-                                children.items[i] = info.new_velement;
-                                old_child.deinit(allocator);
-                                break;
-                            }
-                        }
-                    },
-                    .text => {
-                        return error.CannotReplaceInTextNode;
-                    },
+                const children = &info.parent.children;
+                for (children.items, 0..) |*child, i| {
+                    if (child.id == info.old_velement_id) {
+                        var old_child = children.items[i];
+                        children.items[i] = info.new_velement;
+                        old_child.deinit(allocator);
+                        break;
+                    }
                 }
             },
             .MOVE => {
                 const info = move_infos.items[move_idx];
                 move_idx += 1;
 
-                switch (info.parent.dom) {
-                    .element => |parent_element| {
-                        if (info.reference) |ref| {
-                            try parent_element.insertBefore(info.velement_dom, ref.dom);
-                        } else {
-                            try parent_element.appendChild(info.velement_dom);
-                        }
+                const parent_element = info.parent.getDomParent() orelse return error.CannotMoveInTextNode;
 
-                        const children = &info.parent.children;
-                        var old_idx: ?usize = null;
+                if (info.reference) |ref| {
+                    try parent_element.insertBefore(info.velement_dom, ref.dom);
+                } else {
+                    try parent_element.appendChild(info.velement_dom);
+                }
 
-                        for (children.items, 0..) |child, i| {
-                            if (child.id == info.velement_id) {
-                                old_idx = i;
-                                break;
-                            }
-                        }
+                const children = &info.parent.children;
+                var old_idx: ?usize = null;
 
-                        if (old_idx) |idx| {
-                            const removed = children.orderedRemove(idx);
-                            const new_idx = @min(info.new_index, children.items.len);
-                            try children.insert(allocator, new_idx, removed);
-                        }
-                    },
-                    .text => {
-                        return error.CannotMoveInTextNode;
-                    },
+                for (children.items, 0..) |child, i| {
+                    if (child.id == info.velement_id) {
+                        old_idx = i;
+                        break;
+                    }
+                }
+
+                if (old_idx) |idx| {
+                    const removed = children.orderedRemove(idx);
+                    const new_idx = @min(info.new_index, children.items.len);
+                    try children.insert(allocator, new_idx, removed);
                 }
             },
         }
