@@ -7,7 +7,7 @@ export default function Page(props: { html: string, visit_count: number }) {
         <main>
             <button onClick={() => setVisitCount(visit_count + 1)}>Increment</button>
             <button onClick={() => setVisitCount(visit_count - 1)}>Decrement</button>
-            <p>Visit Count:{visit_count}</p>
+            <p>Visit Count: {visit_count}</p>
         </main>
     );
 }

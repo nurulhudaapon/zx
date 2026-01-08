@@ -1859,26 +1859,21 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-const routing = @import("routing.zig");
-
-pub const info = @import("zx_info");
-pub const Client = @import("runtime/client/Client.zig");
-/// Client-side browser APIs (Document, Window, etc.)
-pub const client = @import("runtime/client/window.zig");
-/// Props hydration parser for positional array format
-pub const hydration = @import("runtime/client/hydration.zig");
-pub const App = @import("runtime/server/app.zig").App;
-
 pub const Allocator = std.mem.Allocator;
+pub const info = @import("zx_info");
+const routing = @import("runtime/core/routing.zig");
+pub const App = @import("runtime/server/app.zig");
 
+pub const Client = @import("runtime/client/Client.zig");
+pub const client = @import("runtime/client/window.zig");
+pub const hydration = @import("runtime/client/hydration.zig");
 pub const Signal = Client.reactivity.Signal;
-/// Alias for Signal(T).Instance - helps IDE/ZLS with type inference
 pub const SignalInstance = Client.reactivity.SignalInstance;
 pub const Computed = Client.reactivity.Computed;
 pub const Effect = Client.reactivity.Effect;
+pub const CleanupFn = Client.reactivity.CleanupFn;
 pub const effect = Client.reactivity.effect;
 pub const effectDeferred = Client.reactivity.effectDeferred;
-pub const CleanupFn = Client.reactivity.CleanupFn;
 pub const requestRender = Client.reactivity.requestRender;
 
 const PageOptionsStatic = struct {};

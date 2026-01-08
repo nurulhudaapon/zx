@@ -1,465 +1,465 @@
-pub const App = struct {
-    pub const ExportType = enum { static };
-    pub const ExportOptions = struct {
-        type: ExportType,
-        outdir: ?[]const u8 = "dist",
+pub const App = @This();
+
+pub const ExportType = enum { static };
+pub const ExportOptions = struct {
+    type: ExportType,
+    outdir: ?[]const u8 = "dist",
+};
+
+pub const Meta = struct {
+    /// Route handler function type for API routes
+    pub const RouteHandler = *const fn (ctx: zx.RouteContext) anyerror!void;
+
+    /// Custom method entry for non-standard HTTP methods
+    pub const CustomMethod = struct {
+        method: []const u8,
+        handler: RouteHandler,
     };
 
-    pub const Meta = struct {
-        /// Route handler function type for API routes
-        pub const RouteHandler = *const fn (ctx: zx.RouteContext) anyerror!void;
+    /// Struct containing all HTTP method handlers for an API route
+    pub const RouteHandlers = struct {
+        handler: ?RouteHandler = null, // Catch-all Route function
+        get: ?RouteHandler = null,
+        post: ?RouteHandler = null,
+        put: ?RouteHandler = null,
+        delete: ?RouteHandler = null,
+        patch: ?RouteHandler = null,
+        head: ?RouteHandler = null,
+        options: ?RouteHandler = null,
+        custom_methods: ?[]const CustomMethod = null, // Arbitrary uppercase methods
+    };
 
-        /// Custom method entry for non-standard HTTP methods
-        pub const CustomMethod = struct {
-            method: []const u8,
-            handler: RouteHandler,
-        };
+    // Standard HTTP methods to exclude from custom detection
 
-        /// Struct containing all HTTP method handlers for an API route
-        pub const RouteHandlers = struct {
-            handler: ?RouteHandler = null, // Catch-all Route function
-            get: ?RouteHandler = null,
-            post: ?RouteHandler = null,
-            put: ?RouteHandler = null,
-            delete: ?RouteHandler = null,
-            patch: ?RouteHandler = null,
-            head: ?RouteHandler = null,
-            options: ?RouteHandler = null,
-            custom_methods: ?[]const CustomMethod = null, // Arbitrary uppercase methods
-        };
-
-        // Standard HTTP methods to exclude from custom detection
-
-        fn isStandardMethod(name: []const u8) bool {
-            const standard_methods = [_][]const u8{ "Route", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS" };
-            for (standard_methods) |std_method| {
-                if (std.mem.eql(u8, name, std_method)) return true;
-            }
-            return false;
+    fn isStandardMethod(name: []const u8) bool {
+        const standard_methods = [_][]const u8{ "Route", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS" };
+        for (standard_methods) |std_method| {
+            if (std.mem.eql(u8, name, std_method)) return true;
         }
+        return false;
+    }
 
-        fn isAllUppercase(name: []const u8) bool {
-            if (name.len == 0) return false;
-            for (name) |c| {
-                if (c >= 'a' and c <= 'z') return false;
-            }
-            // Must have at least one letter
-            for (name) |c| {
-                if (c >= 'A' and c <= 'Z') return true;
-            }
-            return false;
+    fn isAllUppercase(name: []const u8) bool {
+        if (name.len == 0) return false;
+        for (name) |c| {
+            if (c >= 'a' and c <= 'z') return false;
         }
+        // Must have at least one letter
+        for (name) |c| {
+            if (c >= 'A' and c <= 'Z') return true;
+        }
+        return false;
+    }
 
-        /// Comptime function to build RouteHandlers from a route module
-        /// Optionally takes a page module to validate for method conflicts
-        pub fn route(comptime T: type, comptime PageModule: ?type) RouteHandlers {
-            // Validate for method conflicts when page module is provided
-            if (PageModule) |P| {
-                const page_methods = if (@hasDecl(P, "options") and @hasField(@TypeOf(P.options), "methods"))
-                    P.options.methods
-                else
-                    &[_]zx.PageMethod{.GET};
+    /// Comptime function to build RouteHandlers from a route module
+    /// Optionally takes a page module to validate for method conflicts
+    pub fn route(comptime T: type, comptime PageModule: ?type) RouteHandlers {
+        // Validate for method conflicts when page module is provided
+        if (PageModule) |P| {
+            const page_methods = if (@hasDecl(P, "options") and @hasField(@TypeOf(P.options), "methods"))
+                P.options.methods
+            else
+                &[_]zx.PageMethod{.GET};
 
-                // Check for specific method conflicts
+            // Check for specific method conflicts
+            inline for (page_methods) |method| {
+                const method_name = @tagName(method);
+                if (@hasDecl(T, method_name)) {
+                    @compileError("route.zig cannot define " ++ method_name ++ " handler when page.zx handles it. Remove the method from route.zig or page_opts.methods.");
+                }
+            }
+
+            // Check for Route() catch-all conflict when page handles non-GET methods
+            // Route() would intercept methods that page.zx should handle
+            if (@hasDecl(T, "Route")) {
                 inline for (page_methods) |method| {
-                    const method_name = @tagName(method);
-                    if (@hasDecl(T, method_name)) {
-                        @compileError("route.zig cannot define " ++ method_name ++ " handler when page.zx handles it. Remove the method from route.zig or page_opts.methods.");
-                    }
-                }
-
-                // Check for Route() catch-all conflict when page handles non-GET methods
-                // Route() would intercept methods that page.zx should handle
-                if (@hasDecl(T, "Route")) {
-                    inline for (page_methods) |method| {
-                        if (method != .GET) {
-                            @compileError("route.zig cannot define Route() catch-all handler when page.zx handles " ++ @tagName(method) ++ ". Use specific method handlers (POST, PUT, etc.) in route.zig instead.");
-                        }
+                    if (method != .GET) {
+                        @compileError("route.zig cannot define Route() catch-all handler when page.zx handles " ++ @tagName(method) ++ ". Use specific method handlers (POST, PUT, etc.) in route.zig instead.");
                     }
                 }
             }
+        }
 
-            // Count custom methods first
-            comptime var custom_count: usize = 0;
-            const decls = @typeInfo(T).@"struct".decls;
+        // Count custom methods first
+        comptime var custom_count: usize = 0;
+        const decls = @typeInfo(T).@"struct".decls;
+        for (decls) |decl| {
+            if (!isStandardMethod(decl.name) and isAllUppercase(decl.name)) {
+                const field = @field(T, decl.name);
+                const FieldType = @TypeOf(field);
+                if (@typeInfo(FieldType) == .@"fn") {
+                    custom_count += 1;
+                }
+            }
+        }
+
+        // Build custom methods array as const
+        const custom_methods = comptime blk: {
+            var methods: [custom_count]CustomMethod = undefined;
+            var idx: usize = 0;
             for (decls) |decl| {
                 if (!isStandardMethod(decl.name) and isAllUppercase(decl.name)) {
                     const field = @field(T, decl.name);
                     const FieldType = @TypeOf(field);
                     if (@typeInfo(FieldType) == .@"fn") {
-                        custom_count += 1;
+                        methods[idx] = .{
+                            .method = decl.name,
+                            .handler = wrapRoute(field),
+                        };
+                        idx += 1;
+                    }
+                }
+            }
+            break :blk methods;
+        };
+
+        return .{
+            .handler = if (@hasDecl(T, "Route")) wrapRoute(T.Route) else null,
+            .get = if (@hasDecl(T, "GET")) wrapRoute(T.GET) else null,
+            .post = if (@hasDecl(T, "POST")) wrapRoute(T.POST) else null,
+            .put = if (@hasDecl(T, "PUT")) wrapRoute(T.PUT) else null,
+            .delete = if (@hasDecl(T, "DELETE")) wrapRoute(T.DELETE) else null,
+            .patch = if (@hasDecl(T, "PATCH")) wrapRoute(T.PATCH) else null,
+            .head = if (@hasDecl(T, "HEAD")) wrapRoute(T.HEAD) else null,
+            .options = if (@hasDecl(T, "OPTIONS")) wrapRoute(T.OPTIONS) else null,
+            .custom_methods = if (custom_count > 0) &custom_methods else null,
+        };
+    }
+
+    /// Wrapper to allow routes to return void or !void
+    fn wrapRoute(comptime routeFn: anytype) RouteHandler {
+        const R = @typeInfo(@TypeOf(routeFn)).@"fn".return_type.?;
+        return struct {
+            fn wrapper(ctx: zx.RouteContext) anyerror!void {
+                // Handle both errorable and non-errorable return types
+                if (R == void) {
+                    routeFn(ctx);
+                } else {
+                    try routeFn(ctx);
+                }
+            }
+        }.wrapper;
+    }
+
+    pub const Route = struct {
+        path: []const u8,
+        page: ?*const fn (ctx: zx.PageContext) anyerror!Component = null,
+        layout: ?*const fn (ctx: zx.LayoutContext, component: Component) Component = null,
+        notfound: ?*const fn (ctx: zx.NotFoundContext) Component = null,
+        @"error": ?*const fn (ctx: zx.ErrorContext) Component = null,
+        page_opts: ?zx.PageOptions = null,
+        layout_opts: ?zx.LayoutOptions = null,
+        notfound_opts: ?zx.NotFoundOptions = null,
+        error_opts: ?zx.ErrorOptions = null,
+        route: ?RouteHandlers = null,
+        route_opts: ?zx.RouteOptions = null,
+    };
+    pub const CliCommand = enum { dev, serve, @"export" };
+
+    routes: []const Route,
+    rootdir: []const u8,
+    cli_command: ?CliCommand = null,
+};
+pub const Config = struct {
+    server: httpz.Config,
+    meta: Meta,
+    cache: CacheConfig = .{},
+};
+
+pub const version = module_config.version_string;
+
+allocator: std.mem.Allocator,
+meta: Meta,
+handler: Handler,
+server: httpz.Server(*Handler),
+
+_is_listening: bool = false,
+
+pub fn init(allocator: std.mem.Allocator, config: Config) !*App {
+    const app = try allocator.create(App);
+    errdefer allocator.destroy(app);
+
+    app.allocator = allocator;
+    app.meta = config.meta;
+    app.handler = try Handler.init(allocator, &app.meta, config.cache);
+    errdefer app.handler.deinit();
+    app.server = try httpz.Server(*Handler).init(allocator, config.server, &app.handler);
+
+    // -- Routing -- //
+    var router = try app.server.router(.{});
+
+    // Static assets
+    router.get("/assets/*", Handler.assets, .{});
+    router.get("/*", Handler.public, .{});
+
+    // Routes
+    for (config.meta.routes) |*route| {
+        // Check if this is an API-only route (no page)
+        const is_api_only = route.page == null;
+
+        if (!is_api_only) {
+            // Page routes
+            var method_found = false;
+            var get_method_found = false;
+            if (route.page_opts) |pg_opts| {
+                for (pg_opts.methods) |method| {
+                    method_found = true;
+                    switch (method) {
+                        .GET => {
+                            get_method_found = true;
+                            router.get(route.path, Handler.page, .{ .data = route });
+                        },
+                        .POST => router.post(route.path, Handler.page, .{ .data = route }),
+                        .PUT => router.put(route.path, Handler.page, .{ .data = route }),
+                        .DELETE => router.delete(route.path, Handler.page, .{ .data = route }),
+                        .PATCH => router.patch(route.path, Handler.page, .{ .data = route }),
+                        .OPTIONS => router.options(route.path, Handler.page, .{ .data = route }),
+                        .HEAD => router.head(route.path, Handler.page, .{ .data = route }),
+                        .CONNECT => router.connect(route.path, Handler.page, .{ .data = route }),
+                        .TRACE => router.trace(route.path, Handler.page, .{ .data = route }),
+                        .ALL => router.all(route.path, Handler.page, .{ .data = route }),
                     }
                 }
             }
 
-            // Build custom methods array as const
-            const custom_methods = comptime blk: {
-                var methods: [custom_count]CustomMethod = undefined;
-                var idx: usize = 0;
-                for (decls) |decl| {
-                    if (!isStandardMethod(decl.name) and isAllUppercase(decl.name)) {
-                        const field = @field(T, decl.name);
-                        const FieldType = @TypeOf(field);
-                        if (@typeInfo(FieldType) == .@"fn") {
-                            methods[idx] = .{
-                                .method = decl.name,
-                                .handler = wrapRoute(field),
-                            };
-                            idx += 1;
-                        }
-                    }
-                }
-                break :blk methods;
-            };
-
-            return .{
-                .handler = if (@hasDecl(T, "Route")) wrapRoute(T.Route) else null,
-                .get = if (@hasDecl(T, "GET")) wrapRoute(T.GET) else null,
-                .post = if (@hasDecl(T, "POST")) wrapRoute(T.POST) else null,
-                .put = if (@hasDecl(T, "PUT")) wrapRoute(T.PUT) else null,
-                .delete = if (@hasDecl(T, "DELETE")) wrapRoute(T.DELETE) else null,
-                .patch = if (@hasDecl(T, "PATCH")) wrapRoute(T.PATCH) else null,
-                .head = if (@hasDecl(T, "HEAD")) wrapRoute(T.HEAD) else null,
-                .options = if (@hasDecl(T, "OPTIONS")) wrapRoute(T.OPTIONS) else null,
-                .custom_methods = if (custom_count > 0) &custom_methods else null,
-            };
+            if (!method_found or !get_method_found) {
+                router.get(route.path, Handler.page, .{ .data = route });
+            }
         }
 
-        /// Wrapper to allow routes to return void or !void
-        fn wrapRoute(comptime routeFn: anytype) RouteHandler {
-            const R = @typeInfo(@TypeOf(routeFn)).@"fn".return_type.?;
-            return struct {
-                fn wrapper(ctx: zx.RouteContext) anyerror!void {
-                    // Handle both errorable and non-errorable return types
-                    if (R == void) {
-                        routeFn(ctx);
-                    } else {
-                        try routeFn(ctx);
-                    }
+        // API routes
+        if (route.route) |handlers| {
+            if (handlers.get) |_| router.get(route.path, Handler.api, .{ .data = route });
+            if (handlers.post) |_| router.post(route.path, Handler.api, .{ .data = route });
+            if (handlers.put) |_| router.put(route.path, Handler.api, .{ .data = route });
+            if (handlers.delete) |_| router.delete(route.path, Handler.api, .{ .data = route });
+            if (handlers.patch) |_| router.patch(route.path, Handler.api, .{ .data = route });
+            if (handlers.head) |_| router.head(route.path, Handler.api, .{ .data = route });
+            if (handlers.options) |_| router.options(route.path, Handler.api, .{ .data = route });
+
+            if (handlers.handler) |_| {
+                if (handlers.get == null and is_api_only) router.get(route.path, Handler.api, .{ .data = route });
+                if (handlers.post == null) router.post(route.path, Handler.api, .{ .data = route });
+                if (handlers.put == null) router.put(route.path, Handler.api, .{ .data = route });
+                if (handlers.delete == null) router.delete(route.path, Handler.api, .{ .data = route });
+                if (handlers.patch == null) router.patch(route.path, Handler.api, .{ .data = route });
+                if (handlers.head == null) router.head(route.path, Handler.api, .{ .data = route });
+                if (handlers.options == null) router.options(route.path, Handler.api, .{ .data = route });
+            }
+
+            if (handlers.custom_methods) |custom_methods| {
+                for (custom_methods) |custom| {
+                    router.method(custom.method, route.path, Handler.api, .{ .data = route });
                 }
-            }.wrapper;
+            }
+        }
+    }
+
+    // Introspect the app, this will exit the program in some cases like --introspect flag
+    try app.introspect();
+
+    return app;
+}
+
+pub fn deinit(self: *App) void {
+    const allocator = self.allocator;
+
+    if (self._is_listening) {
+        self.server.stop();
+        self._is_listening = false;
+    }
+    self.server.deinit();
+    self.handler.deinit();
+    allocator.destroy(self);
+}
+
+pub fn start(self: *App) !void {
+    if (self._is_listening) return;
+    self._is_listening = true;
+
+    self.server.listen() catch |err| {
+        self._is_listening = false;
+
+        switch (err) {
+            error.AddressInUse => {
+                const is_dev = self.meta.cli_command == .dev;
+                const port = self.server.config.port.?;
+                var max_retries: u8 = 10;
+
+                if (is_dev) while (max_retries > 0) : (max_retries -= 1) {
+                    const new_port = port + 1;
+                    self.infoWithCrossedOutPort(port);
+                    std.debug.print("{s}Port {d} is already in use, {s}trying with port {d}...{s}\n\n", .{ colors.yellow, port, colors.reset_all, new_port, colors.reset_all });
+                    std.debug.print("To kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
+                    self.server.config.port = new_port;
+
+                    self.server.deinit();
+                    var retry_app = try init(self.allocator, .{ .server = self.server.config, .meta = self.meta });
+                    defer retry_app.deinit();
+
+                    retry_app.info();
+                    return retry_app.start();
+                } else {
+                    std.debug.print("{s}Failed to find available port after {d} retries{s}\n", .{ colors.bold, max_retries, colors.reset_all });
+                };
+
+                if (!is_dev) {
+                    self.infoWithCrossedOutPort(port);
+                    std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, port, colors.reset_all });
+                }
+
+                std.debug.print("\nTo kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
+            },
+            else => return err,
+        }
+    };
+}
+
+/// Print the app info to the console
+/// ZX - v{version} | http://localhost:{port}
+pub fn info(self: *App) void {
+    std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, App.version, colors.reset_all, self.server.config.port.? });
+}
+
+/// Print the info line with the address/port part crossed out
+fn infoWithCrossedOutPort(_: *App, port: u16) void {
+    std.debug.print(
+        "{s}{s}{s}ZX{s} {s}- v{s}{s} {s} | {s}http://localhost:{d}{s}\n",
+        .{
+            colors.move_up,
+            colors.reset,
+            colors.bold,
+            colors.reset_all,
+            colors.dim,
+            App.version,
+            colors.reset_all,
+            colors.dim,
+            colors.strikethrough,
+            port,
+            colors.reset_all,
+        },
+    );
+}
+
+fn introspect(self: *App) !void {
+    var args = try std.process.argsWithAllocator(self.allocator);
+    defer args.deinit();
+
+    // --- Flags --- //
+    // --introspect: Print the metadata to stdout and exit
+    var is_introspect = false;
+    var port = self.server.config.port orelse Constant.default_port;
+    var address = self.server.config.address orelse Constant.default_address;
+
+    while (args.next()) |arg| {
+        // --introspect: Print the metadata to stdout and exit
+        if (std.mem.eql(u8, arg, "--introspect")) is_introspect = true;
+
+        // --port: Override the configured/default port
+        if (std.mem.eql(u8, arg, "--port")) {
+            const port_str = args.next() orelse return error.MissingPort;
+            const port_int = std.fmt.parseInt(u16, port_str, 10) catch return error.InvalidPort;
+            port = port_int;
         }
 
-        pub const Route = struct {
-            path: []const u8,
-            page: ?*const fn (ctx: zx.PageContext) anyerror!Component = null,
-            layout: ?*const fn (ctx: zx.LayoutContext, component: Component) Component = null,
-            notfound: ?*const fn (ctx: zx.NotFoundContext) Component = null,
-            @"error": ?*const fn (ctx: zx.ErrorContext) Component = null,
-            page_opts: ?zx.PageOptions = null,
-            layout_opts: ?zx.LayoutOptions = null,
-            notfound_opts: ?zx.NotFoundOptions = null,
-            error_opts: ?zx.ErrorOptions = null,
-            route: ?RouteHandlers = null,
-            route_opts: ?zx.RouteOptions = null,
-        };
-        pub const CliCommand = enum { dev, serve, @"export" };
+        // --address: Override the configured/default address
+        if (std.mem.eql(u8, arg, "--address")) address = args.next() orelse return error.MissingAddress;
 
-        routes: []const Route,
-        rootdir: []const u8,
-        cli_command: ?CliCommand = null,
+        // --rootdir: Override the configured/default root directory
+        if (std.mem.eql(u8, arg, "--rootdir")) self.meta.rootdir = args.next() orelse return error.MissingRootdir;
+
+        // --cli-command: Override the CLI command
+        if (std.mem.eql(u8, arg, "--cli-command")) {
+            const cli_command_str = args.next() orelse return error.MissingCliCommand;
+            const cli_command = std.meta.stringToEnum(Meta.CliCommand, cli_command_str) orelse return error.InvalidCliCommand;
+            self.meta.cli_command = cli_command;
+
+            // log.debug("CLI command: {s}", .{cli_command_str});
+        }
+    }
+
+    var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
+    var stdout = &stdout_writer.interface;
+
+    // Overriding or setting default configs
+    self.server.config.port = port;
+    self.server.config.address = address;
+    self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
+
+    if (is_introspect) {
+        var aw = std.Io.Writer.Allocating.init(self.allocator);
+        defer aw.deinit();
+
+        var serilizable_meta = try SerilizableAppMeta.init(self.allocator, self);
+        defer serilizable_meta.deinit(self.allocator);
+        try serilizable_meta.serialize(&aw.writer);
+
+        try stdout.print("{s}\n", .{aw.written()});
+        std.process.exit(0);
+    }
+
+    if (self.meta.cli_command == .dev) {
+        var router = try self.server.router(.{});
+        router.get("/_zx/devsocket", Handler.devsocket, .{});
+    }
+
+    try stdout.flush();
+}
+
+pub const SerilizableAppMeta = struct {
+    pub const Route = struct {
+        path: []const u8,
+        has_notfound: bool = false,
     };
     pub const Config = struct {
         server: httpz.Config,
-        meta: Meta,
-        cache: CacheConfig = .{},
     };
 
-    pub const version = module_config.version_string;
+    binpath: ?[]const u8 = null,
+    rootdir: ?[]const u8 = null,
+    routes: []const Route,
+    config: SerilizableAppMeta.Config,
+    version: []const u8,
+    cli_command: ?App.Meta.CliCommand = null,
 
-    allocator: std.mem.Allocator,
-    meta: Meta,
-    handler: Handler,
-    server: httpz.Server(*Handler),
+    pub fn init(allocator: std.mem.Allocator, app: *const App) !SerilizableAppMeta {
+        var routes = try allocator.alloc(Route, app.meta.routes.len);
 
-    _is_listening: bool = false,
-
-    pub fn init(allocator: std.mem.Allocator, config: Config) !*App {
-        const app = try allocator.create(App);
-        errdefer allocator.destroy(app);
-
-        app.allocator = allocator;
-        app.meta = config.meta;
-        app.handler = try Handler.init(allocator, &app.meta, config.cache);
-        errdefer app.handler.deinit();
-        app.server = try httpz.Server(*Handler).init(allocator, config.server, &app.handler);
-
-        // -- Routing -- //
-        var router = try app.server.router(.{});
-
-        // Static assets
-        router.get("/assets/*", Handler.assets, .{});
-        router.get("/*", Handler.public, .{});
-
-        // Routes
-        for (config.meta.routes) |*route| {
-            // Check if this is an API-only route (no page)
-            const is_api_only = route.page == null;
-
-            if (!is_api_only) {
-                // Page routes
-                var method_found = false;
-                var get_method_found = false;
-                if (route.page_opts) |pg_opts| {
-                    for (pg_opts.methods) |method| {
-                        method_found = true;
-                        switch (method) {
-                            .GET => {
-                                get_method_found = true;
-                                router.get(route.path, Handler.page, .{ .data = route });
-                            },
-                            .POST => router.post(route.path, Handler.page, .{ .data = route }),
-                            .PUT => router.put(route.path, Handler.page, .{ .data = route }),
-                            .DELETE => router.delete(route.path, Handler.page, .{ .data = route }),
-                            .PATCH => router.patch(route.path, Handler.page, .{ .data = route }),
-                            .OPTIONS => router.options(route.path, Handler.page, .{ .data = route }),
-                            .HEAD => router.head(route.path, Handler.page, .{ .data = route }),
-                            .CONNECT => router.connect(route.path, Handler.page, .{ .data = route }),
-                            .TRACE => router.trace(route.path, Handler.page, .{ .data = route }),
-                            .ALL => router.all(route.path, Handler.page, .{ .data = route }),
-                        }
-                    }
-                }
-
-                if (!method_found or !get_method_found) {
-                    router.get(route.path, Handler.page, .{ .data = route });
-                }
-            }
-
-            // API routes
-            if (route.route) |handlers| {
-                if (handlers.get) |_| router.get(route.path, Handler.api, .{ .data = route });
-                if (handlers.post) |_| router.post(route.path, Handler.api, .{ .data = route });
-                if (handlers.put) |_| router.put(route.path, Handler.api, .{ .data = route });
-                if (handlers.delete) |_| router.delete(route.path, Handler.api, .{ .data = route });
-                if (handlers.patch) |_| router.patch(route.path, Handler.api, .{ .data = route });
-                if (handlers.head) |_| router.head(route.path, Handler.api, .{ .data = route });
-                if (handlers.options) |_| router.options(route.path, Handler.api, .{ .data = route });
-
-                if (handlers.handler) |_| {
-                    if (handlers.get == null and is_api_only) router.get(route.path, Handler.api, .{ .data = route });
-                    if (handlers.post == null) router.post(route.path, Handler.api, .{ .data = route });
-                    if (handlers.put == null) router.put(route.path, Handler.api, .{ .data = route });
-                    if (handlers.delete == null) router.delete(route.path, Handler.api, .{ .data = route });
-                    if (handlers.patch == null) router.patch(route.path, Handler.api, .{ .data = route });
-                    if (handlers.head == null) router.head(route.path, Handler.api, .{ .data = route });
-                    if (handlers.options == null) router.options(route.path, Handler.api, .{ .data = route });
-                }
-
-                if (handlers.custom_methods) |custom_methods| {
-                    for (custom_methods) |custom| {
-                        router.method(custom.method, route.path, Handler.api, .{ .data = route });
-                    }
-                }
-            }
-        }
-
-        // Introspect the app, this will exit the program in some cases like --introspect flag
-        try app.introspect();
-
-        return app;
-    }
-
-    pub fn deinit(self: *App) void {
-        const allocator = self.allocator;
-
-        if (self._is_listening) {
-            self.server.stop();
-            self._is_listening = false;
-        }
-        self.server.deinit();
-        self.handler.deinit();
-        allocator.destroy(self);
-    }
-
-    pub fn start(self: *App) !void {
-        if (self._is_listening) return;
-        self._is_listening = true;
-
-        self.server.listen() catch |err| {
-            self._is_listening = false;
-
-            switch (err) {
-                error.AddressInUse => {
-                    const is_dev = self.meta.cli_command == .dev;
-                    const port = self.server.config.port.?;
-                    var max_retries: u8 = 10;
-
-                    if (is_dev) while (max_retries > 0) : (max_retries -= 1) {
-                        const new_port = port + 1;
-                        self.infoWithCrossedOutPort(port);
-                        std.debug.print("{s}Port {d} is already in use, {s}trying with port {d}...{s}\n\n", .{ colors.yellow, port, colors.reset_all, new_port, colors.reset_all });
-                        std.debug.print("To kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
-                        self.server.config.port = new_port;
-
-                        self.server.deinit();
-                        var retry_app = try init(self.allocator, .{ .server = self.server.config, .meta = self.meta });
-                        defer retry_app.deinit();
-
-                        retry_app.info();
-                        return retry_app.start();
-                    } else {
-                        std.debug.print("{s}Failed to find available port after {d} retries{s}\n", .{ colors.bold, max_retries, colors.reset_all });
-                    };
-
-                    if (!is_dev) {
-                        self.infoWithCrossedOutPort(port);
-                        std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, port, colors.reset_all });
-                    }
-
-                    std.debug.print("\nTo kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
-                },
-                else => return err,
-            }
-        };
-    }
-
-    /// Print the app info to the console
-    /// ZX - v{version} | http://localhost:{port}
-    pub fn info(self: *App) void {
-        std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, App.version, colors.reset_all, self.server.config.port.? });
-    }
-
-    /// Print the info line with the address/port part crossed out
-    fn infoWithCrossedOutPort(_: *App, port: u16) void {
-        std.debug.print(
-            "{s}{s}{s}ZX{s} {s}- v{s}{s} {s} | {s}http://localhost:{d}{s}\n",
-            .{
-                colors.move_up,
-                colors.reset,
-                colors.bold,
-                colors.reset_all,
-                colors.dim,
-                App.version,
-                colors.reset_all,
-                colors.dim,
-                colors.strikethrough,
-                port,
-                colors.reset_all,
-            },
-        );
-    }
-
-    fn introspect(self: *App) !void {
-        var args = try std.process.argsWithAllocator(self.allocator);
-        defer args.deinit();
-
-        // --- Flags --- //
-        // --introspect: Print the metadata to stdout and exit
-        var is_introspect = false;
-        var port = self.server.config.port orelse Constant.default_port;
-        var address = self.server.config.address orelse Constant.default_address;
-
-        while (args.next()) |arg| {
-            // --introspect: Print the metadata to stdout and exit
-            if (std.mem.eql(u8, arg, "--introspect")) is_introspect = true;
-
-            // --port: Override the configured/default port
-            if (std.mem.eql(u8, arg, "--port")) {
-                const port_str = args.next() orelse return error.MissingPort;
-                const port_int = std.fmt.parseInt(u16, port_str, 10) catch return error.InvalidPort;
-                port = port_int;
-            }
-
-            // --address: Override the configured/default address
-            if (std.mem.eql(u8, arg, "--address")) address = args.next() orelse return error.MissingAddress;
-
-            // --rootdir: Override the configured/default root directory
-            if (std.mem.eql(u8, arg, "--rootdir")) self.meta.rootdir = args.next() orelse return error.MissingRootdir;
-
-            // --cli-command: Override the CLI command
-            if (std.mem.eql(u8, arg, "--cli-command")) {
-                const cli_command_str = args.next() orelse return error.MissingCliCommand;
-                const cli_command = std.meta.stringToEnum(Meta.CliCommand, cli_command_str) orelse return error.InvalidCliCommand;
-                self.meta.cli_command = cli_command;
-
-                // log.debug("CLI command: {s}", .{cli_command_str});
-            }
-        }
-
-        var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
-        var stdout = &stdout_writer.interface;
-
-        // Overriding or setting default configs
-        self.server.config.port = port;
-        self.server.config.address = address;
-        self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
-
-        if (is_introspect) {
-            var aw = std.Io.Writer.Allocating.init(self.allocator);
-            defer aw.deinit();
-
-            var serilizable_meta = try SerilizableAppMeta.init(self.allocator, self);
-            defer serilizable_meta.deinit(self.allocator);
-            try serilizable_meta.serialize(&aw.writer);
-
-            try stdout.print("{s}\n", .{aw.written()});
-            std.process.exit(0);
-        }
-
-        if (self.meta.cli_command == .dev) {
-            var router = try self.server.router(.{});
-            router.get("/_zx/devsocket", Handler.devsocket, .{});
-        }
-
-        try stdout.flush();
-    }
-
-    pub const SerilizableAppMeta = struct {
-        pub const Route = struct {
-            path: []const u8,
-            has_notfound: bool = false,
-        };
-        pub const Config = struct {
-            server: httpz.Config,
-        };
-
-        binpath: ?[]const u8 = null,
-        rootdir: ?[]const u8 = null,
-        routes: []const Route,
-        config: SerilizableAppMeta.Config,
-        version: []const u8,
-        cli_command: ?App.Meta.CliCommand = null,
-
-        pub fn init(allocator: std.mem.Allocator, app: *const App) !SerilizableAppMeta {
-            var routes = try allocator.alloc(Route, app.meta.routes.len);
-
-            for (app.meta.routes, 0..) |route, i| {
-                routes[i] = Route{
-                    .path = try allocator.dupe(u8, route.path),
-                    .has_notfound = route.notfound != null,
-                };
-            }
-
-            return SerilizableAppMeta{
-                .routes = routes,
-                .config = SerilizableAppMeta.Config{
-                    .server = app.server.config,
-                },
-                .version = App.version,
-                .rootdir = app.meta.rootdir,
-                .cli_command = app.meta.cli_command,
+        for (app.meta.routes, 0..) |route, i| {
+            routes[i] = Route{
+                .path = try allocator.dupe(u8, route.path),
+                .has_notfound = route.notfound != null,
             };
         }
 
-        pub fn deinit(self: *SerilizableAppMeta, allocator: std.mem.Allocator) void {
-            for (self.routes) |route| {
-                allocator.free(route.path);
-            }
-            allocator.free(self.routes);
+        return SerilizableAppMeta{
+            .routes = routes,
+            .config = SerilizableAppMeta.Config{
+                .server = app.server.config,
+            },
+            .version = App.version,
+            .rootdir = app.meta.rootdir,
+            .cli_command = app.meta.cli_command,
+        };
+    }
 
-            allocator.free(self.version);
-            if (self.rootdir) |rootdir| allocator.free(rootdir);
-            if (self.binpath) |binpath| allocator.free(binpath);
+    pub fn deinit(self: *SerilizableAppMeta, allocator: std.mem.Allocator) void {
+        for (self.routes) |route| {
+            allocator.free(route.path);
         }
+        allocator.free(self.routes);
 
-        pub fn serialize(self: *const SerilizableAppMeta, writer: anytype) !void {
-            try std.zon.stringify.serialize(self, .{
-                .whitespace = true,
-                .emit_default_optional_fields = true,
-            }, writer);
-        }
-    };
+        allocator.free(self.version);
+        if (self.rootdir) |rootdir| allocator.free(rootdir);
+        if (self.binpath) |binpath| allocator.free(binpath);
+    }
+
+    pub fn serialize(self: *const SerilizableAppMeta, writer: anytype) !void {
+        try std.zon.stringify.serialize(self, .{
+            .whitespace = true,
+            .emit_default_optional_fields = true,
+        }, writer);
+    }
 };
 
 const std = @import("std");

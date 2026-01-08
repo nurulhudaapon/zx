@@ -2,8 +2,8 @@
 //! This module is backend-agnostic - no httpz dependency.
 
 const std = @import("std");
-const Request = @import("runtime/core/Request.zig");
-const Response = @import("runtime/core/Response.zig");
+const Request = @import("Request.zig");
+const Response = @import("Response.zig");
 
 /// Base context structure that provides access to request/response objects and allocators.
 /// This is the foundation for both PageContext and LayoutContext, providing common functionality
