@@ -34,17 +34,42 @@ pub const ComponentMeta = struct {
             @hasField(@typeInfo(FirstParamType).pointer.child, "children");
 
         return &struct {
+            /// Normalize any return type (Component, ?Component, !Component, !?Component) to Component
+            fn normalizeResult(result: anytype) zx.Component {
+                const T = @TypeOf(result);
+                if (T == zx.Component) {
+                    return result;
+                }
+                // ?Component -> return .none if null
+                if (@typeInfo(T) == .optional) {
+                    return result orelse .none;
+                }
+                // !Component or !?Component
+                if (@typeInfo(T) == .error_union) {
+                    const payload = result catch |err| {
+                        std.log.err("Component error: {}", .{err});
+                        return .none;
+                    };
+                    // Check if payload is optional
+                    if (@typeInfo(@TypeOf(payload)) == .optional) {
+                        return payload orelse .none;
+                    }
+                    return payload;
+                }
+                return result;
+            }
+
             fn wrapper(allocator: std.mem.Allocator, props_json: ?[]const u8) zx.Component {
                 // Case 1: Component takes only allocator - fn Component(allocator) Component
                 if (first_is_allocator and param_count == 1) {
-                    return func(allocator);
+                    return normalizeResult(func(allocator));
                 }
 
                 // Case 2: Component takes allocator and props - fn Component(allocator, props) Component
                 if (first_is_allocator and param_count == 2) {
                     const PropsType = FuncInfo.@"fn".params[1].type.?;
                     const props = parsePropsFromJson(PropsType, allocator, props_json);
-                    return func(allocator, props);
+                    return normalizeResult(func(allocator, props));
                 }
 
                 // Case 3: Component takes *ComponentCtx(Props) - fn Component(ctx: *ComponentCtx(Props)) Component
@@ -66,7 +91,7 @@ pub const ComponentMeta = struct {
                         }
                     }
 
-                    return func(ctx);
+                    return normalizeResult(func(ctx));
                 }
 
                 // Fallback - should not reach here if compile-time checks pass

@@ -1,0 +1,19 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <None />
+            <Null />
+        </main>
+    );
+}
+
+pub fn None(_: *zx.ComponentContext) ?zx.Component {
+    if (true) return .none;
+}
+
+pub fn Null(_: *zx.ComponentContext) ?zx.Component {
+    if (true) return null;
+}
+
+
+const zx = @import("zx");

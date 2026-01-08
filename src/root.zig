@@ -441,6 +441,7 @@ const ComponentSerializable = struct {
 };
 
 pub const Component = union(enum) {
+    none,
     text: []const u8,
     element: Element,
     component_fn: ComponentFn,
@@ -530,20 +531,48 @@ pub const Component = union(enum) {
             } else null;
 
             const Wrapper = struct {
+                // Check if the function returns an optional type
+                const ReturnType = FuncInfo.@"fn".return_type.?;
+                const returns_optional = @typeInfo(ReturnType) == .optional;
+                const returns_error_union = @typeInfo(ReturnType) == .error_union;
+                const inner_is_optional = returns_error_union and @typeInfo(@typeInfo(ReturnType).error_union.payload) == .optional;
+
+                /// Normalize any return type (Component, ?Component, !Component, !?Component) to anyerror!Component
+                fn normalize(result: anytype) anyerror!Component {
+                    const T = @TypeOf(result);
+                    if (T == Component) {
+                        return result;
+                    }
+                    // ?Component -> return .none if null
+                    if (@typeInfo(T) == .optional) {
+                        return result orelse .none;
+                    }
+                    // !Component or !?Component
+                    if (@typeInfo(T) == .error_union) {
+                        const payload = try result;
+                        // Check if payload is optional
+                        if (@typeInfo(@TypeOf(payload)) == .optional) {
+                            return payload orelse .none;
+                        }
+                        return payload;
+                    }
+                    return result;
+                }
+
                 fn call(propsPtr: ?*const anyopaque, alloc: Allocator) anyerror!Component {
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
                         const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
-                        return func(ctx_ptr);
+                        return normalize(func(ctx_ptr));
                     }
                     if (first_is_allocator and param_count == 1) {
-                        return func(alloc);
+                        return normalize(func(alloc));
                     }
                     if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                         const p = propsPtr orelse @panic("propsPtr is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
-                        return func(alloc, typed_p.*);
+                        return normalize(func(alloc, typed_p.*));
                     }
                     unreachable;
                 }
@@ -588,7 +617,7 @@ pub const Component = union(enum) {
     /// Inline struct data is not freed (and will cause no issues as it's stack data)
     pub fn deinit(self: Component, allocator: std.mem.Allocator) void {
         switch (self) {
-            .text => {},
+            .none, .text, .signal_text => {},
             .element => |elem| {
                 if (elem.children) |children| {
                     // Recursively free children (e.g., Button() results)
@@ -679,6 +708,9 @@ pub const Component = union(enum) {
     };
     fn renderInner(self: Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
         switch (self) {
+            .none => {
+                // Render nothing
+            },
             .text => |text| {
                 if (options.escaping == .none) {
                     try unescapeHtmlToWriter(writer, text);
@@ -913,7 +945,7 @@ pub const Component = union(enum) {
                 // Now search the resolved component
                 return self.getElementByName(allocator, tag);
             },
-            .text, .component_csr, .signal_text => return null,
+            .none, .text, .component_csr, .signal_text => return null,
         }
     }
 

@@ -43,6 +43,22 @@ pub const VElement = struct {
         component: zx.Component,
     ) !VElement {
         switch (component) {
+            .none => {
+                // Create an empty text node for "render nothing"
+                const text_node = document.createTextNode("");
+                const velement_id = nextId();
+                const velement = VElement{
+                    .id = velement_id,
+                    .dom = .{ .text = text_node },
+                    .component = component,
+                    .children = std.ArrayList(VElement).empty,
+                    .key = null,
+                };
+                if (parent_dom) |parent| {
+                    try parent.appendChild(velement.dom);
+                }
+                return velement;
+            },
             .element => |element| {
                 const dom_element = document.createElement(@tagName(element.tag));
                 const velement_id = nextId();
@@ -493,6 +509,9 @@ fn diffChildrenKeyed(
 
 pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
     switch (old) {
+        .none => {
+            return new == .none;
+        },
         .element => |old_elem| {
             switch (new) {
                 .element => |new_elem| return old_elem.tag == new_elem.tag,

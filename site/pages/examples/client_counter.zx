@@ -1,7 +1,10 @@
 var sharedCount = zx.Signal(i32).init(0);
 
-pub fn Counter(ctx: *zx.ComponentCtx(struct { initial: i32 })) zx.Component {
+pub fn Counter(ctx: *zx.ComponentCtx(struct { initial: i32 })) ?zx.Component {
     const count = ctx.Signal(i32).init(ctx.props.initial);
+
+    if (true) return .none;
+    if (true) return null;
 
     return (
         <div @allocator={ctx.allocator}>
