@@ -309,3 +309,108 @@ pub fn getHttpzResponse(response: *const Response) ?*httpz.Response {
     }
     return null;
 }
+
+// --- Socket Adapter --- //
+
+const routing = @import("../core/routing.zig");
+const Socket = routing.Socket;
+
+/// Context for WebSocket upgrade operations
+pub const SocketUpgradeContext = struct {
+    req: *httpz.Request,
+    res: *httpz.Response,
+    upgraded: bool = false,
+    upgrade_data: ?[]const u8 = null,
+};
+
+/// Creates a Socket with upgrade capability (pre-upgrade, for RouteContext)
+pub fn createUpgradeSocket(upgrade_ctx: *SocketUpgradeContext) Socket {
+    return Socket{
+        .backend_ctx = @ptrCast(upgrade_ctx),
+        .vtable = &socket_upgrade_vtable,
+    };
+}
+
+const socket_upgrade_vtable = Socket.VTable{
+    .upgrade = &socketUpgrade,
+    .upgradeWithData = &socketUpgradeWithData,
+    .write = &socketUpgradeWrite,
+    .read = &socketUpgradeRead,
+    .close = &socketUpgradeClose,
+};
+
+fn socketUpgrade(ctx: *anyopaque) anyerror!void {
+    const upgrade_ctx: *SocketUpgradeContext = @ptrCast(@alignCast(ctx));
+    // Mark as upgraded - the actual httpz.upgradeWebsocket call happens in the handler
+    upgrade_ctx.upgraded = true;
+}
+
+fn socketUpgradeWithData(ctx: *anyopaque, data_bytes: []const u8) anyerror!void {
+    const upgrade_ctx: *SocketUpgradeContext = @ptrCast(@alignCast(ctx));
+    // Mark as upgraded and copy the data to arena memory
+    upgrade_ctx.upgraded = true;
+    // Copy data to arena so it persists after the route handler returns
+    const copied_data = upgrade_ctx.req.arena.alloc(u8, data_bytes.len) catch return error.OutOfMemory;
+    @memcpy(copied_data, data_bytes);
+    upgrade_ctx.upgrade_data = copied_data;
+}
+
+fn socketUpgradeWrite(_: *anyopaque, _: []const u8) anyerror!void {
+    // Cannot write before upgrade is complete
+    return error.WebSocketNotConnected;
+}
+
+fn socketUpgradeRead(_: *anyopaque) ?[]const u8 {
+    // Cannot read before upgrade is complete
+    return null;
+}
+
+fn socketUpgradeClose(_: *anyopaque) void {
+    // No-op before upgrade
+}
+
+/// Context for active WebSocket connections
+pub const SocketConnectionContext = struct {
+    conn: *httpz.websocket.Conn,
+};
+
+/// Creates a Socket for an active WebSocket connection (post-upgrade, for SocketContext)
+pub fn createConnectionSocket(conn_ctx: *SocketConnectionContext) Socket {
+    return Socket{
+        .backend_ctx = @ptrCast(conn_ctx),
+        .vtable = &socket_connection_vtable,
+    };
+}
+
+const socket_connection_vtable = Socket.VTable{
+    .upgrade = &socketConnectionUpgrade,
+    .upgradeWithData = &socketConnectionUpgradeWithData,
+    .write = &socketConnectionWrite,
+    .read = &socketConnectionRead,
+    .close = &socketConnectionClose,
+};
+
+fn socketConnectionUpgrade(_: *anyopaque) anyerror!void {
+    // Already upgraded
+    return error.WebSocketAlreadyConnected;
+}
+
+fn socketConnectionUpgradeWithData(_: *anyopaque, _: []const u8) anyerror!void {
+    // Already upgraded
+    return error.WebSocketAlreadyConnected;
+}
+
+fn socketConnectionWrite(ctx: *anyopaque, data: []const u8) anyerror!void {
+    const conn_ctx: *SocketConnectionContext = @ptrCast(@alignCast(ctx));
+    try conn_ctx.conn.write(data);
+}
+
+fn socketConnectionRead(_: *anyopaque) ?[]const u8 {
+    // Read is handled via clientMessage callback in httpz
+    return null;
+}
+
+fn socketConnectionClose(ctx: *anyopaque) void {
+    const conn_ctx: *SocketConnectionContext = @ptrCast(@alignCast(ctx));
+    conn_ctx.conn.close() catch {};
+}

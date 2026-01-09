@@ -108,11 +108,73 @@ pub const ErrorContext = struct {
     }
 };
 
+pub const Socket = struct {
+    pub const VTable = struct {
+        upgrade: *const fn (ctx: *anyopaque) anyerror!void,
+        upgradeWithData: *const fn (ctx: *anyopaque, data: []const u8) anyerror!void,
+        write: *const fn (ctx: *anyopaque, data: []const u8) anyerror!void,
+        read: *const fn (ctx: *anyopaque) ?[]const u8,
+        close: *const fn (ctx: *anyopaque) void,
+    };
+
+    backend_ctx: ?*anyopaque = null,
+    vtable: ?*const VTable = null,
+
+    pub fn upgrade(self: Socket, data: anytype) !void {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                const DataType = @TypeOf(data);
+                if (DataType == void) {
+                    try vt.upgrade(ctx);
+                } else {
+                    const data_bytes = std.mem.asBytes(&data);
+                    try vt.upgradeWithData(ctx, data_bytes);
+                }
+            }
+        }
+    }
+
+    /// Write data to the WebSocket connection.
+    /// This should be called from the Socket handler to send messages.
+    pub fn write(self: Socket, data: []const u8) !void {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                try vt.write(ctx, data);
+            }
+        }
+    }
+
+    pub fn read(self: Socket) ?[]const u8 {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                return vt.read(ctx);
+            }
+        }
+        return null;
+    }
+
+    /// Close the WebSocket connection.
+    pub fn close(self: Socket) void {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                vt.close(ctx);
+            }
+        }
+    }
+
+    /// Returns true if this socket has been upgraded to a WebSocket connection.
+    pub fn isUpgraded(self: Socket) bool {
+        return self.backend_ctx != null and self.vtable != null;
+    }
+};
+
 pub const RouteContext = struct {
     /// The HTTP request object (backend-agnostic)
     request: Request,
     /// The HTTP response object (backend-agnostic)
     response: Response,
+    /// WebSocket interface for upgrading connections and sending/receiving messages
+    socket: Socket,
     /// Global allocator
     allocator: std.mem.Allocator,
     /// Arena allocator for request-scoped allocations
@@ -122,8 +184,47 @@ pub const RouteContext = struct {
         return .{
             .request = request,
             .response = response,
+            .socket = .{},
+            .allocator = alloc,
+            .arena = request.arena,
+        };
+    }
+
+    pub fn initWithSocket(request: Request, response: Response, socket: Socket, alloc: std.mem.Allocator) RouteContext {
+        return .{
+            .request = request,
+            .response = response,
+            .socket = socket,
             .allocator = alloc,
             .arena = request.arena,
         };
     }
 };
+
+pub const SocketContext = SocketCtx(void);
+pub fn SocketCtx(comptime DataType: type) type {
+    return struct {
+        /// The WebSocket connection for sending messages
+        socket: Socket,
+        /// The client message data (received from WebSocket)
+        message: []const u8,
+        /// Custom data passed from upgrade handler
+        data: DataType,
+        /// Global allocator
+        allocator: std.mem.Allocator,
+        /// Arena allocator for request-scoped allocations
+        arena: std.mem.Allocator,
+
+        const Self = @This();
+
+        pub fn init(socket: Socket, message: []const u8, data: DataType, alloc: std.mem.Allocator, arena: std.mem.Allocator) Self {
+            return .{
+                .socket = socket,
+                .message = message,
+                .data = data,
+                .allocator = alloc,
+                .arena = arena,
+            };
+        }
+    };
+}

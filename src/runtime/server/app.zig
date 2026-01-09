@@ -10,6 +10,16 @@ pub const Meta = struct {
     /// Route handler function type for API routes
     pub const RouteHandler = *const fn (ctx: zx.RouteContext) anyerror!void;
 
+    /// Socket handler function type for WebSocket connections
+    /// Takes separated parameters to support both SocketContext and SocketCtx(T)
+    pub const SocketHandler = *const fn (
+        socket: zx.Socket,
+        message: []const u8,
+        upgrade_data: ?[]const u8,
+        allocator: std.mem.Allocator,
+        arena: std.mem.Allocator,
+    ) anyerror!void;
+
     /// Custom method entry for non-standard HTTP methods
     pub const CustomMethod = struct {
         method: []const u8,
@@ -27,12 +37,13 @@ pub const Meta = struct {
         head: ?RouteHandler = null,
         options: ?RouteHandler = null,
         custom_methods: ?[]const CustomMethod = null, // Arbitrary uppercase methods
+        socket: ?SocketHandler = null,
     };
 
     // Standard HTTP methods to exclude from custom detection
 
     fn isStandardMethod(name: []const u8) bool {
-        const standard_methods = [_][]const u8{ "Route", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS" };
+        const standard_methods = [_][]const u8{ "Route", "Socket", "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS" };
         for (standard_methods) |std_method| {
             if (std.mem.eql(u8, name, std_method)) return true;
         }
@@ -123,7 +134,67 @@ pub const Meta = struct {
             .head = if (@hasDecl(T, "HEAD")) wrapRoute(T.HEAD) else null,
             .options = if (@hasDecl(T, "OPTIONS")) wrapRoute(T.OPTIONS) else null,
             .custom_methods = if (custom_count > 0) &custom_methods else null,
+            .socket = if (@hasDecl(T, "Socket")) wrapSocket(T.Socket) else null,
         };
+    }
+
+    /// Wrapper to allow socket handlers to return void or !void
+    /// Supports both SocketContext (simple) and SocketCtx(T) (with custom data)
+    fn wrapSocket(comptime socketFn: anytype) SocketHandler {
+        const FnInfo = @typeInfo(@TypeOf(socketFn)).@"fn";
+        const R = FnInfo.return_type.?;
+        const CtxType = FnInfo.params[0].type.?;
+
+        // Check if the context type is the simple SocketContext or a generic SocketCtx(T)
+        const is_simple_context = CtxType == zx.SocketContext;
+
+        if (is_simple_context) {
+            // Simple SocketContext - message is in ctx.data
+            return struct {
+                fn wrapper(socket: zx.Socket, message: []const u8, _: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator) anyerror!void {
+                    const ctx = zx.SocketContext{
+                        .socket = socket,
+                        .message = message,
+                        .allocator = allocator,
+                        .arena = arena,
+                        .data = void{},
+                    };
+                    if (R == void) {
+                        socketFn(ctx);
+                    } else {
+                        try socketFn(ctx);
+                    }
+                }
+            }.wrapper;
+        } else {
+            // Generic SocketCtx(T) - has separate message and data fields
+            // Extract the data type from the context struct
+            const DataType = @TypeOf(@as(CtxType, undefined).data);
+
+            return struct {
+                fn wrapper(socket: zx.Socket, message: []const u8, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator) anyerror!void {
+                    // Interpret the upgrade_data bytes as the expected data type
+                    const data: DataType = if (upgrade_data) |bytes|
+                        std.mem.bytesToValue(DataType, bytes[0..@sizeOf(DataType)])
+                    else
+                        // If no data was passed but handler expects it, use zero-initialized
+                        std.mem.zeroes(DataType);
+
+                    const ctx = CtxType{
+                        .socket = socket,
+                        .message = message,
+                        .data = data,
+                        .allocator = allocator,
+                        .arena = arena,
+                    };
+                    if (R == void) {
+                        socketFn(ctx);
+                    } else {
+                        try socketFn(ctx);
+                    }
+                }
+            }.wrapper;
+        }
     }
 
     /// Wrapper to allow routes to return void or !void

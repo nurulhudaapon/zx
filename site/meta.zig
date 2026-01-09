@@ -104,6 +104,11 @@ pub const routes = [_]zx.App.Meta.Route{
         .route = zx.App.Meta.route(@import(".zx/routes/api/route.zig"), null),
         .route_opts = getOptions(@import(".zx/routes/api/route.zig"), zx.RouteOptions),
     },
+    .{
+        .path = "/ws",
+        .route = zx.App.Meta.route(@import(".zx/routes/ws/route.zig"), null),
+        .route_opts = getOptions(@import(".zx/routes/ws/route.zig"), zx.RouteOptions),
+    },
 };
 
 pub const meta = zx.App.Meta{

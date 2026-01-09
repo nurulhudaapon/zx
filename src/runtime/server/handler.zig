@@ -563,7 +563,6 @@ pub const Handler = struct {
         const allocator = self.allocator;
         const abstract_req = httpz_adapter.createRequest(req);
         const abstract_res = httpz_adapter.createResponse(res, req.arena);
-        const routectx = zx.RouteContext.init(abstract_req, abstract_res, allocator);
 
         if (req.route_data) |rd| {
             const route_data: *const App.Meta.Route = @ptrCast(@alignCast(rd));
@@ -593,9 +592,40 @@ pub const Handler = struct {
             };
 
             const handler = route_fn orelse return self.notFound(req, res);
-            handler(routectx) catch |err| {
-                return self.uncaughtError(req, res, err);
-            };
+
+            // Check if this route has a Socket handler and might want to upgrade
+            if (handlers.socket) |socket_handler| {
+                // Create upgrade context for socket operations
+                var upgrade_ctx = httpz_adapter.SocketUpgradeContext{
+                    .req = req,
+                    .res = res,
+                };
+                const socket = httpz_adapter.createUpgradeSocket(&upgrade_ctx);
+                const routectx = zx.RouteContext.initWithSocket(abstract_req, abstract_res, socket, allocator);
+
+                handler(routectx) catch |err| {
+                    return self.uncaughtError(req, res, err);
+                };
+
+                // If the handler called socket.upgrade(), perform the actual WebSocket upgrade
+                if (upgrade_ctx.upgraded) {
+                    const ws_ctx = WebsocketContext{
+                        .socket_handler = socket_handler,
+                        .allocator = allocator,
+                        .upgrade_data = upgrade_ctx.upgrade_data,
+                    };
+                    if (try httpz.upgradeWebsocket(WebsocketHandler, req, res, ws_ctx) == false) {
+                        res.status = 400;
+                        res.body = "Invalid WebSocket handshake";
+                    }
+                }
+            } else {
+                // No socket handler, use regular route context
+                const routectx = zx.RouteContext.init(abstract_req, abstract_res, allocator);
+                handler(routectx) catch |err| {
+                    return self.uncaughtError(req, res, err);
+                };
+            }
         }
     }
 
@@ -953,6 +983,77 @@ pub const Handler = struct {
             // }
         } else try res.startEventStream(DevSocketContext{}, DevSocketContext.handle);
     }
+
+    /// Context passed when upgrading to WebSocket
+    /// Contains the socket handler function and allocator
+    pub const WebsocketContext = struct {
+        socket_handler: ?App.Meta.SocketHandler = null,
+        allocator: std.mem.Allocator = std.heap.page_allocator,
+        /// Copied user data bytes passed during upgrade
+        upgrade_data: ?[]const u8 = null,
+    };
+
+    pub const WebsocketHandler = struct {
+        conn: *httpz.websocket.Conn,
+        socket_handler: ?App.Meta.SocketHandler,
+        allocator: std.mem.Allocator,
+        upgrade_data: ?[]const u8,
+
+        pub fn init(conn: *httpz.websocket.Conn, ctx: WebsocketContext) !WebsocketHandler {
+            return .{
+                .conn = conn,
+                .socket_handler = ctx.socket_handler,
+                .allocator = ctx.allocator,
+                .upgrade_data = ctx.upgrade_data,
+            };
+        }
+
+        pub fn clientMessage(self: *WebsocketHandler, allocator: Allocator, data: []const u8) !void {
+            if (self.socket_handler) |handler| {
+                // Route-based socket handler
+                const socket = zx.Socket{
+                    .backend_ctx = @ptrCast(self.conn),
+                    .vtable = &socket_vtable,
+                };
+                handler(socket, data, self.upgrade_data, self.allocator, allocator) catch |err| {
+                    log.err("Socket handler error: {}", .{err});
+                };
+            } else {
+                // Default echo behavior for /ws endpoint
+                try self.conn.write(data);
+            }
+        }
+
+        const socket_vtable = zx.Socket.VTable{
+            .upgrade = &socketUpgrade,
+            .upgradeWithData = &socketUpgradeWithData,
+            .write = &socketWrite,
+            .read = &socketRead,
+            .close = &socketClose,
+        };
+
+        fn socketUpgrade(_: *anyopaque) anyerror!void {
+            return error.WebSocketAlreadyConnected;
+        }
+
+        fn socketUpgradeWithData(_: *anyopaque, _: []const u8) anyerror!void {
+            return error.WebSocketAlreadyConnected;
+        }
+
+        fn socketWrite(ctx: *anyopaque, data: []const u8) anyerror!void {
+            const conn: *httpz.websocket.Conn = @ptrCast(@alignCast(ctx));
+            try conn.write(data);
+        }
+
+        fn socketRead(_: *anyopaque) ?[]const u8 {
+            return null;
+        }
+
+        fn socketClose(ctx: *anyopaque) void {
+            const conn: *httpz.websocket.Conn = @ptrCast(@alignCast(ctx));
+            conn.close(.{ .code = 1000, .reason = "closed" }) catch {};
+        }
+    };
 };
 
 const std = @import("std");

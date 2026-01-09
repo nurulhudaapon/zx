@@ -1915,6 +1915,9 @@ pub const LayoutContext = routing.LayoutContext;
 pub const NotFoundContext = routing.NotFoundContext;
 pub const ErrorContext = routing.ErrorContext;
 pub const RouteContext = routing.RouteContext;
+pub const SocketContext = routing.SocketContext;
+pub const SocketCtx = routing.SocketCtx;
+pub const Socket = routing.Socket;
 
 /// Compute the merged type of two structs for props spreading
 /// All fields from both structs are included in the result
