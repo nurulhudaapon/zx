@@ -21,6 +21,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ),
+                if (is_logged_in) _zx.txt("Welcome, User!") else _zx.txt("Please log in to continue."),
             },
         },
     );

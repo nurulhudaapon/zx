@@ -10,6 +10,28 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .admin => _zx.txt("Admin"),
                     .member => _zx.txt("Member"),
                 },
+                switch (user_type) {
+                    .admin => _zx.txt("Admin"),
+                    .member => _zx.txt("Member"),
+                },
+                switch (user_type) {
+                    .admin => _zx.ele(
+                        .p,
+                        .{
+                            .children = &.{
+                                _zx.txt("Powerful"),
+                            },
+                        },
+                    ),
+                    .member => _zx.ele(
+                        .p,
+                        .{
+                            .children = &.{
+                                _zx.txt("Powerless"),
+                            },
+                        },
+                    ),
+                },
             },
         },
     );

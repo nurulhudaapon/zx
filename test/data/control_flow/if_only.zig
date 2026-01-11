@@ -14,6 +14,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         },
                     },
                 ) else _zx.ele(.fragment, .{}),
+                _zx.ele(
+                    .div,
+                    .{
+                        .children = &.{
+                            if (is_logged_in) _zx.txt("Welcome, User!") else _zx.ele(.fragment, .{}),
+                        },
+                    },
+                ),
             },
         },
     );

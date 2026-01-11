@@ -1824,6 +1824,12 @@ fn transpileCaseValue(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         .for_expression => try transpileFor(self, node, ctx),
         .while_expression => try transpileWhile(self, node, ctx),
         .switch_expression => try transpileSwitch(self, node, ctx),
+        .string => {
+            // String literal without parentheses like "Admin" -> _zx.txt("Admin")
+            try ctx.writeM("_zx.txt(", node.startByte(), self);
+            try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
+            try ctx.write(")");
+        },
         .parenthesized_expression => {
             // Check if contains control flow or zx_block
             if (findSpecialChild(node)) |child| {

@@ -6,6 +6,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 .admin => ("Admin"),
                 .member => ("Member"),
             }}
+            {switch (user_type) {
+                .admin => "Admin",
+                .member => "Member",
+            }}
+            {switch (user_type) {
+                .admin => (<p>Powerful</p>),
+                .member => (<p>Powerless</p>),
+            }}
         </main>
     );
 }

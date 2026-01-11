@@ -3,6 +3,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             {if (is_logged_in) (<p>Welcome, User!</p>)}
+            <div>
+                {if (is_logged_in) "Welcome, User!"}
+            </div>
         </main>
     );
 }
