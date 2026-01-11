@@ -70,8 +70,10 @@ pub fn Segment(comptime T: type) type {
                 entry.release();
 
                 self.mutex.lock();
-                _ = self.lookup.remove(key);
-                self.size -= entry._size;
+                // Only subtract size if entry was actually in lookup (handles race conditions)
+                if (self.lookup.remove(key)) {
+                    self.size = self.size -| entry._size;
+                }
                 self.mutex.unlock();
                 self.list.remove(entry._node);
 
@@ -202,7 +204,7 @@ pub fn Segment(comptime T: type) type {
                 const existed_in_lookup = lookup.remove(removed_entry.key);
                 std.debug.assert(existed_in_lookup == true);
 
-                segment_size -= removed_entry._size;
+                segment_size = segment_size -| removed_entry._size;
                 removed_entry.release();
             }
             // we're still under lock
@@ -232,7 +234,7 @@ pub fn Segment(comptime T: type) type {
                 return false;
             };
             const entry = map_entry.value;
-            self.size -= entry._size;
+            self.size = self.size -| entry._size;
             self.mutex.unlock();
 
             self.list.remove(entry._node);

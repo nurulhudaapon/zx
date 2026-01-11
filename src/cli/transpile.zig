@@ -1250,7 +1250,11 @@ fn transpileDirectory(
     allocator: std.mem.Allocator,
     global_components: *std.array_list.Managed(ClientComponentSerializable),
     opts: TranspileOptions,
+    progress: std.Progress.Node,
 ) !void {
+    var task = progress.start("Transpiling .zx files", 0);
+    defer task.end();
+
     var dir = try std.fs.cwd().openDir(opts.path, .{ .iterate = true });
     defer dir.close();
 
@@ -1263,6 +1267,7 @@ fn transpileDirectory(
     defer walker.deinit();
 
     while (try walker.next()) |entry| {
+        task.completeOne();
         var actual_kind = entry.kind;
         if (entry.kind == .sym_link) {
             const entry_stat = dir.statFile(entry.path) catch continue;
@@ -1355,7 +1360,12 @@ const TranspileOptions = struct {
     verbose: bool,
     map: zx.Ast.ParseOptions.MapMode = .none,
 };
+
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {
+    // Start root progress for the entire transpile operation
+    var progress = std.Progress.start(.{ .root_name = "Transpile" });
+    defer progress.end();
+
     var all_client_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
     defer {
         for (all_client_cmps.items) |*component| {
@@ -1378,10 +1388,7 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
 
     switch (stat.kind) {
         .directory => {
-            try transpileDirectory(allocator, &all_client_cmps, opts);
-            genRoutes(allocator, opts.outdir, opts.verbose) catch |err| {
-                std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
-            };
+            try transpileDirectory(allocator, &all_client_cmps, opts, progress);
         },
         .file => {
             const is_zx = std.mem.endsWith(u8, opts.path, ".zx");
@@ -1391,6 +1398,9 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
                 return error.InvalidFileExtension;
             }
 
+            var task = progress.start("Transpiling file", 1);
+            defer task.end();
+
             const basename = getBasename(opts.path);
             const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - (".zx").len], ".zig" });
             defer allocator.free(output_rel_path);
@@ -1399,16 +1409,18 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
 
             const input_root = if (std.fs.path.dirname(opts.path)) |dir| dir else ".";
             try transpileFile(allocator, &all_client_cmps, opts, opts.path, outpath, input_root);
-
-            genRoutes(allocator, opts.outdir, opts.verbose) catch |err| {
-                std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
-            };
+            task.completeOne();
         },
         else => {
             std.debug.print("Error: Path must be a file or directory\n", .{});
             return error.InvalidPath;
         },
     }
+
+    // Generate routes
+    genRoutes(allocator, opts.outdir, opts.verbose) catch |err| {
+        std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
+    };
 
     // --- @rendering -> Client Side Rendering Related Files Generation --- //
     var react_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);

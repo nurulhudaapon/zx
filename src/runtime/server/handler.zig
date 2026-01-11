@@ -107,7 +107,7 @@ const PageCache = struct {
                 defer entry.release();
                 if (std.mem.eql(u8, client_etag, entry.value.etag)) {
                     res.setStatus(.not_modified);
-                    self.addCacheHeaders(res, entry.value.etag);
+                    self.addCacheHeaders(res, entry.value.etag, req.arena);
                     return .hit;
                 }
             }
@@ -118,7 +118,7 @@ const PageCache = struct {
             defer entry.release();
             res.content_type = entry.value.content_type;
             res.body = entry.value.body;
-            self.addCacheHeaders(res, entry.value.etag);
+            self.addCacheHeaders(res, entry.value.etag, req.arena);
             return .hit;
         }
 
@@ -160,13 +160,13 @@ const PageCache = struct {
         };
 
         // Add cache headers to response
-        self.addCacheHeaders(res, etag);
+        self.addCacheHeaders(res, etag, req.arena);
         res.headers.add("X-Cache", "MISS");
     }
 
-    fn addCacheHeaders(self: *PageCache, res: *httpz.Response, etag: []const u8) void {
+    fn addCacheHeaders(self: *PageCache, res: *httpz.Response, etag: []const u8, arena: Allocator) void {
         res.headers.add("ETag", etag);
-        res.headers.add("Cache-Control", std.fmt.allocPrint(self.allocator, "public, max-age={d}", .{self.config.default_ttl}) catch "public, max-age=300");
+        res.headers.add("Cache-Control", std.fmt.allocPrint(arena, "public, max-age={d}", .{self.config.default_ttl}) catch "public, max-age=300");
         res.headers.add("X-Cache", "HIT");
     }
 
