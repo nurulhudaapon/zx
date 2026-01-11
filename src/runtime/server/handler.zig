@@ -597,6 +597,7 @@ pub const Handler = struct {
             if (handlers.socket) |socket_handler| {
                 // Create upgrade context for socket operations
                 var upgrade_ctx = httpz_adapter.SocketUpgradeContext{
+                    .allocator = self.allocator,
                     .req = req,
                     .res = res,
                 };
@@ -1004,6 +1005,8 @@ pub const Handler = struct {
         socket_close_handler: ?App.Meta.SocketCloseHandler,
         allocator: std.mem.Allocator,
         upgrade_data: ?[]const u8,
+        /// Subscriber data for pub/sub (stored directly on connection)
+        subscriber: pubsub.SubscriberData,
 
         pub fn init(conn: *httpz.websocket.Conn, ctx: WebsocketContext) !WebsocketHandler {
             return .{
@@ -1013,6 +1016,7 @@ pub const Handler = struct {
                 .socket_close_handler = ctx.socket_close_handler,
                 .allocator = ctx.allocator,
                 .upgrade_data = ctx.upgrade_data,
+                .subscriber = pubsub.SubscriberData.init(conn, ctx.allocator),
             };
         }
 
@@ -1046,16 +1050,24 @@ pub const Handler = struct {
 
         /// Called when the connection is being closed (for any reason)
         pub fn close(self: *WebsocketHandler) void {
+            // Unsubscribe from all topics (pub/sub cleanup)
+            self.subscriber.unsubscribeAll();
+
             if (self.socket_close_handler) |handler| {
                 const socket = self.createSocket();
                 handler(socket, self.upgrade_data, self.allocator);
+            }
+
+            // Free the upgrade_data that was allocated with page_allocator during upgrade
+            if (self.upgrade_data) |data| {
+                std.heap.page_allocator.free(data);
             }
         }
 
         /// Create a Socket interface for the current connection
         fn createSocket(self: *WebsocketHandler) zx.Socket {
             return zx.Socket{
-                .backend_ctx = @ptrCast(self.conn),
+                .backend_ctx = @ptrCast(self),
                 .vtable = &socket_vtable,
             };
         }
@@ -1066,6 +1078,11 @@ pub const Handler = struct {
             .write = &socketWrite,
             .read = &socketRead,
             .close = &socketClose,
+            .subscribe = &socketSubscribe,
+            .unsubscribe = &socketUnsubscribe,
+            .publish = &socketPublish,
+            .isSubscribed = &socketIsSubscribed,
+            .setPublishToSelf = &socketSetPublishToSelf,
         };
 
         fn socketUpgrade(_: *anyopaque) anyerror!void {
@@ -1077,8 +1094,8 @@ pub const Handler = struct {
         }
 
         fn socketWrite(ctx: *anyopaque, data: []const u8) anyerror!void {
-            const conn: *httpz.websocket.Conn = @ptrCast(@alignCast(ctx));
-            try conn.write(data);
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            try handler.conn.write(data);
         }
 
         fn socketRead(_: *anyopaque) ?[]const u8 {
@@ -1086,8 +1103,34 @@ pub const Handler = struct {
         }
 
         fn socketClose(ctx: *anyopaque) void {
-            const conn: *httpz.websocket.Conn = @ptrCast(@alignCast(ctx));
-            conn.close(.{ .code = 1000, .reason = "closed" }) catch {};
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            handler.conn.close(.{ .code = 1000, .reason = "closed" }) catch {};
+        }
+
+        // Pub/Sub vtable implementations - use subscriber data stored on connection
+        fn socketSubscribe(ctx: *anyopaque, topic: []const u8) void {
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            handler.subscriber.subscribe(topic);
+        }
+
+        fn socketUnsubscribe(ctx: *anyopaque, topic: []const u8) void {
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            handler.subscriber.unsubscribe(topic);
+        }
+
+        fn socketPublish(ctx: *anyopaque, topic: []const u8, message: []const u8) usize {
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            return pubsub.getPubSub().publish(&handler.subscriber, topic, message);
+        }
+
+        fn socketIsSubscribed(ctx: *anyopaque, topic: []const u8) bool {
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            return handler.subscriber.isSubscribed(topic);
+        }
+
+        fn socketSetPublishToSelf(ctx: *anyopaque, value: bool) void {
+            const handler: *WebsocketHandler = @ptrCast(@alignCast(ctx));
+            handler.subscriber.publish_to_self = value;
         }
     };
 };
@@ -1097,6 +1140,7 @@ const builtin = @import("builtin");
 const cachez = @import("cachez");
 const zx = @import("../../root.zig");
 const httpz_adapter = @import("adapter.zig");
+const pubsub = @import("pubsub.zig");
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;

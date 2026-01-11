@@ -108,6 +108,13 @@ pub const ErrorContext = struct {
     }
 };
 
+/// Socket options for configuring WebSocket behavior
+pub const SocketOptions = struct {
+    /// When true, publish() will also send the message to the sender.
+    /// Default is false (sender is excluded from publish).
+    publish_to_self: bool = false,
+};
+
 pub const Socket = struct {
     pub const VTable = struct {
         upgrade: *const fn (ctx: *anyopaque) anyerror!void,
@@ -115,6 +122,13 @@ pub const Socket = struct {
         write: *const fn (ctx: *anyopaque, data: []const u8) anyerror!void,
         read: *const fn (ctx: *anyopaque) ?[]const u8,
         close: *const fn (ctx: *anyopaque) void,
+        // Pub/Sub methods
+        subscribe: *const fn (ctx: *anyopaque, topic: []const u8) void,
+        unsubscribe: *const fn (ctx: *anyopaque, topic: []const u8) void,
+        publish: *const fn (ctx: *anyopaque, topic: []const u8, message: []const u8) usize,
+        isSubscribed: *const fn (ctx: *anyopaque, topic: []const u8) bool,
+        // Options
+        setPublishToSelf: *const fn (ctx: *anyopaque, value: bool) void,
     };
 
     backend_ctx: ?*anyopaque = null,
@@ -165,6 +179,98 @@ pub const Socket = struct {
     /// Returns true if this socket has been upgraded to a WebSocket connection.
     pub fn isUpgraded(self: Socket) bool {
         return self.backend_ctx != null and self.vtable != null;
+    }
+
+    // =========================================================================
+    // Pub/Sub API - Topic-based broadcasting
+    // =========================================================================
+
+    /// Subscribe to a topic to receive published messages.
+    /// Multiple sockets can subscribe to the same topic.
+    ///
+    /// Example:
+    /// ```zig
+    /// ctx.socket.subscribe("chat-room");
+    /// ctx.socket.subscribe("notifications");
+    /// ```
+    pub fn subscribe(self: Socket, topic: []const u8) void {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                vt.subscribe(ctx, topic);
+            }
+        }
+    }
+
+    /// Unsubscribe from a topic to stop receiving messages.
+    ///
+    /// Example:
+    /// ```zig
+    /// ctx.socket.unsubscribe("chat-room");
+    /// ```
+    pub fn unsubscribe(self: Socket, topic: []const u8) void {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                vt.unsubscribe(ctx, topic);
+            }
+        }
+    }
+
+    /// Publish a message to all subscribers of a topic, excluding the sender.
+    /// Returns the number of sockets the message was sent to.
+    ///
+    /// Example:
+    /// ```zig
+    /// const sent = ctx.socket.publish("chat-room", "Hello everyone!");
+    /// ```
+    pub fn publish(self: Socket, topic: []const u8, message: []const u8) usize {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                return vt.publish(ctx, topic, message);
+            }
+        }
+        return 0;
+    }
+
+    /// Check if this socket is subscribed to a topic.
+    ///
+    /// Example:
+    /// ```zig
+    /// if (ctx.socket.isSubscribed("chat-room")) {
+    ///     // ...
+    /// }
+    /// ```
+    pub fn isSubscribed(self: Socket, topic: []const u8) bool {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                return vt.isSubscribed(ctx, topic);
+            }
+        }
+        return false;
+    }
+
+    /// Configure whether publish() sends to self.
+    ///
+    /// Example:
+    /// ```zig
+    /// ctx.socket.setPublishToSelf(true);
+    /// // Now publish() will include the sender
+    /// ```
+    pub fn setPublishToSelf(self: Socket, value: bool) void {
+        if (self.vtable) |vt| {
+            if (self.backend_ctx) |ctx| {
+                vt.setPublishToSelf(ctx, value);
+            }
+        }
+    }
+
+    /// Configure socket options.
+    ///
+    /// Example:
+    /// ```zig
+    /// ctx.socket.configure(.{ .publish_to_self = true });
+    /// ```
+    pub fn configure(self: Socket, options: SocketOptions) void {
+        self.setPublishToSelf(options.publish_to_self);
     }
 };
 
@@ -231,12 +337,7 @@ pub fn SocketCtx(comptime DataType: type) type {
         const Self = @This();
 
         pub fn fmt(self: Self, comptime format: []const u8, args: anytype) ![]u8 {
-            var aw: std.Io.Writer.Allocating = .init(self.arena);
-            defer aw.deinit();
-            aw.writer.print(format, args) catch |err| switch (err) {
-                error.WriteFailed => return error.OutOfMemory,
-            };
-            return aw.toOwnedSlice();
+            return fmtInner(self.arena, format, args);
         }
     };
 }
@@ -259,12 +360,7 @@ pub fn SocketOpenCtx(comptime DataType: type) type {
         const Self = @This();
 
         pub fn fmt(self: Self, comptime format: []const u8, args: anytype) ![]u8 {
-            var aw: std.Io.Writer.Allocating = .init(self.arena);
-            defer aw.deinit();
-            aw.writer.print(format, args) catch |err| switch (err) {
-                error.WriteFailed => return error.OutOfMemory,
-            };
-            return aw.toOwnedSlice();
+            return fmtInner(self.arena, format, args);
         }
     };
 }
@@ -283,5 +379,20 @@ pub fn SocketCloseCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+
+        const Self = @This();
+
+        pub fn fmt(self: Self, comptime format: []const u8, args: anytype) ![]u8 {
+            return fmtInner(self.arena, format, args);
+        }
     };
+}
+
+fn fmtInner(allocator: std.mem.Allocator, comptime format: []const u8, args: anytype) ![]u8 {
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    aw.writer.print(format, args) catch |err| switch (err) {
+        error.WriteFailed => return error.OutOfMemory,
+    };
+    return aw.toOwnedSlice();
 }

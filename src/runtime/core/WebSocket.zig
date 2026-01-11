@@ -314,12 +314,6 @@ _backend_ctx: ?*anyopaque = null,
 /// });
 /// ```
 pub fn init(allocator: std.mem.Allocator, url: []const u8, options: InitOptions) WebSocketError!WebSocket {
-    // Validate URL scheme
-    if (!std.mem.startsWith(u8, url, "ws://") and !std.mem.startsWith(u8, url, "wss://")) {
-        return error.InvalidUrl;
-    }
-
-    // Duplicate URL to own memory
     const owned_url = allocator.dupe(u8, url) catch return error.OutOfMemory;
 
     return WebSocket{

@@ -103,13 +103,7 @@ fn onMessageInput(e: zx.EventContext) void {
 
 fn joinChat(username: []const u8) void {
     std.log.info("joinChat: {s}", .{username});
-
-    // Build WebSocket URL with username
-    var url_buf: [256]u8 = undefined;
-    const ws_url = std.fmt.bufPrint(&url_buf, "ws://localhost:5588/examples/realtime/ws?name={s}", .{username}) catch return;
-
-    // Create and connect WebSocket
-    ws = zx.WebSocket.init(zx.client_allocator, ws_url, .{}) catch return;
+    ws = zx.WebSocket.init(zx.client_allocator, "/examples/realtime/ws", .{}) catch return;
 
     if (ws) |*w| {
         w.onopen = &onWsOpen;

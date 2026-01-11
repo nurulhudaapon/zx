@@ -1923,6 +1923,7 @@ pub const SocketCloseContext = routing.SocketCloseContext;
 pub const SocketCloseCtx = routing.SocketCloseCtx;
 pub const SocketMessageType = routing.SocketMessageType;
 pub const Socket = routing.Socket;
+pub const SocketOptions = routing.SocketOptions;
 
 /// Compute the merged type of two structs for props spreading
 /// All fields from both structs are included in the result

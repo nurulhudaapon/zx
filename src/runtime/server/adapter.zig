@@ -319,6 +319,7 @@ const Socket = routing.Socket;
 pub const SocketUpgradeContext = struct {
     req: *httpz.Request,
     res: *httpz.Response,
+    allocator: std.mem.Allocator,
     upgraded: bool = false,
     upgrade_data: ?[]const u8 = null,
 };
@@ -337,7 +338,35 @@ const socket_upgrade_vtable = Socket.VTable{
     .write = &socketUpgradeWrite,
     .read = &socketUpgradeRead,
     .close = &socketUpgradeClose,
+    // Pub/Sub no-ops for pre-upgrade socket (not yet a WebSocket)
+    .subscribe = &socketUpgradeSubscribe,
+    .unsubscribe = &socketUpgradeUnsubscribe,
+    .publish = &socketUpgradePublish,
+    .isSubscribed = &socketUpgradeIsSubscribed,
+    .setPublishToSelf = &socketUpgradeSetPublishToSelf,
 };
+
+fn socketUpgradeSubscribe(_: *anyopaque, _: []const u8) void {
+    // No-op: socket not yet upgraded to WebSocket
+}
+
+fn socketUpgradeUnsubscribe(_: *anyopaque, _: []const u8) void {
+    // No-op: socket not yet upgraded to WebSocket
+}
+
+fn socketUpgradePublish(_: *anyopaque, _: []const u8, _: []const u8) usize {
+    // No-op: socket not yet upgraded to WebSocket
+    return 0;
+}
+
+fn socketUpgradeIsSubscribed(_: *anyopaque, _: []const u8) bool {
+    // No-op: socket not yet upgraded to WebSocket
+    return false;
+}
+
+fn socketUpgradeSetPublishToSelf(_: *anyopaque, _: bool) void {
+    // No-op: socket not yet upgraded to WebSocket
+}
 
 fn socketUpgrade(ctx: *anyopaque) anyerror!void {
     const upgrade_ctx: *SocketUpgradeContext = @ptrCast(@alignCast(ctx));
@@ -347,10 +376,10 @@ fn socketUpgrade(ctx: *anyopaque) anyerror!void {
 
 fn socketUpgradeWithData(ctx: *anyopaque, data_bytes: []const u8) anyerror!void {
     const upgrade_ctx: *SocketUpgradeContext = @ptrCast(@alignCast(ctx));
-    // Mark as upgraded and copy the data to arena memory
+    // TODO: Use parent allocator which is persistent
+    // the HTTP request, but upgrade_data needs to persist for the WebSocket lifetime
     upgrade_ctx.upgraded = true;
-    // Copy data to arena so it persists after the route handler returns
-    const copied_data = upgrade_ctx.req.arena.alloc(u8, data_bytes.len) catch return error.OutOfMemory;
+    const copied_data = std.heap.page_allocator.alloc(u8, data_bytes.len) catch return error.OutOfMemory;
     @memcpy(copied_data, data_bytes);
     upgrade_ctx.upgrade_data = copied_data;
 }
