@@ -46,10 +46,11 @@ pub const CacheConfig = struct {
     default_ttl: u32 = 10,
 };
 
-/// ProxyStatus tracks proxy execution for dev logging (uses static state, dev-mode only)
+/// ProxyStatus tracks proxy execution for dev logging
+/// Uses thread-local storage to avoid race conditions in multi-threaded server
 const ProxyStatus = struct {
-    var executed: bool = false;
-    var aborted: bool = false;
+    threadlocal var executed: bool = false;
+    threadlocal var aborted: bool = false;
 
     pub fn reset() void {
         executed = false;

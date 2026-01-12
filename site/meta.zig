@@ -58,6 +58,7 @@ pub const routes = [_]zx.App.Meta.Route{
         .layout = @import(".zx/pages/examples/layout.zig").Layout,
         .page_opts = getOptions(@import(".zx/pages/examples/page.zig"), zx.PageOptions),
         .layout_opts = getOptions(@import(".zx/pages/examples/layout.zig"), zx.LayoutOptions),
+        .proxy = zx.App.Meta.proxy(@import(".zx/pages/examples/proxy.zig")),
     },
     .{
         .path = "/examples/form",
