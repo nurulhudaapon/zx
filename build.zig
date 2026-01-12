@@ -97,14 +97,14 @@ pub fn build(b: *std.Build) !void {
                         .input = b.path("site/scripts/docs.ts"),
                         .output = b.path("{outdir}/assets/docs.js"),
                     }),
-                    plugins.tailwind(b, .{
-                        .bin = b.path("site/node_modules/.bin/tailwindcss"),
-                        .input = b.path("site/assets/docs.css"),
-                        .output = b.path("{outdir}/assets/docs.css"),
-                        .minify = true,
-                        .optimize = true,
-                        .map = false,
-                    }),
+                    // plugins.tailwind(b, .{
+                    //     .bin = b.path("site/node_modules/.bin/tailwindcss"),
+                    //     .input = b.path("site/assets/docs.css"),
+                    //     .output = b.path("{outdir}/assets/docs.css"),
+                    //     .minify = true,
+                    //     .optimize = true,
+                    //     .map = false,
+                    // }),
                 },
             });
             zx_b = zx_b;

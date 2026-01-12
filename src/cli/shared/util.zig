@@ -68,7 +68,7 @@ pub fn inspectProgram(allocator: std.mem.Allocator, binpath: []const u8) !zx.App
     return app_meta;
 }
 
-const ignore_dirs = [_][]const u8{"assets" ++ std.fs.path.sep_str ++ "_zx"};
+const ignore_dirs = [_][]const u8{".well-known" ++ std.fs.path.sep_str ++ "_zx"};
 fn shouldIgnorePath(path: []const u8) bool {
     for (ignore_dirs) |ignore_dir| {
         if (std.mem.startsWith(u8, path, ignore_dir)) return true;

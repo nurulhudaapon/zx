@@ -46,6 +46,81 @@ pub const CacheConfig = struct {
     default_ttl: u32 = 10,
 };
 
+/// ProxyStatus tracks proxy execution for dev logging (uses static state, dev-mode only)
+const ProxyStatus = struct {
+    var executed: bool = false;
+    var aborted: bool = false;
+
+    pub fn reset() void {
+        executed = false;
+        aborted = false;
+    }
+
+    pub fn markExecuted() void {
+        executed = true;
+    }
+
+    pub fn markAborted() void {
+        executed = true;
+        aborted = true;
+    }
+};
+
+/// Unified status indicator combining proxy and cache status
+/// Format: [XY] where X=proxy status, Y=cache status
+/// Position 1 (proxy): ⇥=ran, !=aborted, -=none
+/// Position 2 (cache): >=hit, o=miss, -=skip
+/// Brackets are dim, content is colored (non-bold for crisp rendering)
+const StatusIndicator = struct {
+    // Color codes (non-bold for crisp symbols)
+    const dim = "\x1b[2m";
+    const red = "\x1b[91m"; // bright red
+    const green = "\x1b[92m"; // bright green
+    const yellow = "\x1b[93m"; // bright yellow
+    const magenta = "\x1b[95m"; // bright magenta
+    const reset = "\x1b[0m";
+
+    pub fn get(cache_status: PageCache.Status, http_status: u16) []const u8 {
+        const proxy_ran = ProxyStatus.executed;
+        const proxy_aborted = ProxyStatus.aborted;
+
+        if (cache_status == .disabled) {
+            return if (proxy_aborted)
+                dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " "
+            else if (proxy_ran)
+                dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " "
+            else
+                "";
+        }
+
+        const effective_cache = if (PageCache.isCacheableHttpStatus(http_status)) cache_status else PageCache.Status.skip;
+
+        // [XY] format: X=proxy, Y=cache (dim brackets, colored content)
+        if (proxy_aborted) {
+            return switch (effective_cache) {
+                .hit => dim ++ "[" ++ reset ++ red ++ "!" ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .miss => dim ++ "[" ++ reset ++ red ++ "!" ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .skip => dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+                .disabled => dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+            };
+        } else if (proxy_ran) {
+            return switch (effective_cache) {
+                .hit => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .miss => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .skip => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+                .disabled => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+            };
+        } else {
+            return switch (effective_cache) {
+                .hit => dim ++ "[-" ++ reset ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .miss => dim ++ "[-" ++ reset ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .skip => dim ++ "[--]" ++ reset ++ " ",
+                .disabled => "",
+            };
+        }
+    }
+};
+
 /// PageCache handles caching of rendered HTML pages with ETag support
 const PageCache = struct {
     pub const Status = enum {
@@ -53,18 +128,6 @@ const PageCache = struct {
         miss, // Not in cache, freshly rendered
         skip, // Not cacheable (POST, internal paths, etc.)
         disabled, // Cache is disabled
-
-        pub fn indicator(self: Status, http_status: u16) []const u8 {
-            if (self == .disabled) return "";
-            const status = if (isCacheableHttpStatus(http_status)) self else Status.skip;
-
-            return switch (status) {
-                .hit => "\x1b[1;32m[>]\x1b[0m ", // green [>]
-                .miss => "\x1b[1;33m[o]\x1b[0m ", // yellow [o]
-                .skip => "\x1b[2m[-]\x1b[0m ", // dim [-]
-                .disabled => "",
-            };
-        }
     };
 
     const CacheValue = struct {
@@ -173,8 +236,7 @@ const PageCache = struct {
     fn isCacheable(req: *httpz.Request) bool {
         if (getTtl(req) == null) return false;
         if (req.method != .GET) return false;
-        if (std.mem.startsWith(u8, req.url.path, "/_zx/")) return false;
-        if (std.mem.startsWith(u8, req.url.path, "/assets/_zx/")) return false;
+        if (std.mem.startsWith(u8, req.url.path, "/.well-known/_zx/")) return false;
         return true;
     }
 
@@ -234,35 +296,39 @@ pub const Handler = struct {
         const is_dev = self.meta.cli_command == .dev;
         var timer = if (is_dev) try std.time.Timer.start() else null;
 
+        // Reset proxy status for this request (dev mode tracking)
+        if (is_dev) ProxyStatus.reset();
+
         // Try cache first, execute action on miss
+        // Note: Middlewares are handled by httpz before this dispatch is called
         const cache_status = self.page_cache.tryServe(req, res);
         if (cache_status != .hit) {
             try action(self, req, res);
             if (cache_status == .miss) self.page_cache.store(req, res);
         }
 
-        // Dev mode logging
-        if (is_dev) {
+        // Dev mode logging (skip noisy paths)
+        if (is_dev and !isNoisyPath(req.url.path)) {
             const elapsed_ns = timer.?.lap();
             const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
             const c = struct {
                 const reset = "\x1b[0m";
                 const method = "\x1b[1;34m"; // bold blue
-                const path = "\x1b[1;36m"; // bold cyan
+                const path_color = "\x1b[36m"; // cyan
                 fn time(ms: f64) []const u8 {
-                    return if (ms < 10) "\x1b[1;32m" else if (ms < 100) "\x1b[1;33m" else "\x1b[1;31m";
+                    return if (ms < 10) "\x1b[92m" else if (ms < 100) "\x1b[93m" else "\x1b[91m";
                 }
                 fn status(code: u16) []const u8 {
-                    return if (code < 300) "\x1b[1;32m" else if (code < 400) "\x1b[1;33m" else "\x1b[1;31m";
+                    return if (code < 300) "\x1b[92m" else if (code < 400) "\x1b[93m" else "\x1b[91m";
                 }
             };
 
             std.log.info("{s}{s}{s}{s} {s}{s}{s} {s}{d}{s} {s}{d:.3}ms{s}\x1b[K", .{
-                cache_status.indicator(res.status),
+                StatusIndicator.get(cache_status, res.status),
                 c.method,
                 @tagName(req.method),
                 c.reset,
-                c.path,
+                c.path_color,
                 req.url.path,
                 c.reset,
                 c.status(res.status),
@@ -275,14 +341,30 @@ pub const Handler = struct {
         }
     }
 
+    /// Paths to ignore in dev logging (browser probes, internal routes)
+    fn isNoisyPath(path: []const u8) bool {
+        return std.mem.startsWith(u8, path, "/.well-known/") or
+            std.mem.eql(u8, path, "/favicon.ico");
+    }
+
     pub fn notFound(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
         const path = req.url.path;
+
+        const abstract_req = httpz_adapter.createRequest(req);
+        const abstract_res = httpz_adapter.createResponse(res, req.arena);
+
+        // Execute proxy handlers for the closest route before handling notfound
+        // This allows auth/logging proxies to run even for 404 pages
+        if (self.findRoute(path, .{ .match = .closest })) |route| {
+            if (try self.executeNotFoundProxy(route, path, abstract_req, abstract_res, req.arena)) {
+                // Proxy handled the request, don't continue
+                return;
+            }
+        }
 
         res.status = 404;
         res.content_type = .HTML;
 
-        const abstract_req = httpz_adapter.createRequest(req);
-        const abstract_res = httpz_adapter.createResponse(res, req.arena);
         const notfoundctx = zx.NotFoundContext.init(abstract_req, abstract_res, self.allocator);
 
         // First try to get notfound from route_data if available
@@ -430,7 +512,7 @@ pub const Handler = struct {
             // In dev mode, inject dev script into body element of root layout (last one applied, j == 0)
             if (injector) |*inj| {
                 if (j == 0) {
-                    _ = inj.injectScriptIntoBody(&component, "/assets/_zx/devscript.js");
+                    _ = inj.injectScriptIntoBody(&component, "/.well-known/_zx/devscript.js");
                     injector = null;
                 }
             }
@@ -439,7 +521,7 @@ pub const Handler = struct {
         // If no layouts were applied but we're in dev mode, still try to inject
         if (layouts_count == 0 and is_dev_mode) {
             const inj = ElementInjector{ .allocator = req.arena };
-            _ = inj.injectScriptIntoBody(&component, "/assets/_zx/devscript.js");
+            _ = inj.injectScriptIntoBody(&component, "/.well-known/_zx/devscript.js");
         }
 
         // Render the final component
@@ -559,10 +641,133 @@ pub const Handler = struct {
         return null;
     }
 
+    /// Collect all cascading Proxy() handlers from root to the given path
+    /// Returns the count of handlers collected
+    fn collectCascadingProxies(self: *Handler, path: []const u8, proxies: *[16]App.Meta.ProxyHandler, arena: std.mem.Allocator) usize {
+        var count: usize = 0;
+
+        // Build path segments to traverse
+        var path_segments = std.array_list.Managed([]const u8).init(arena);
+        defer path_segments.deinit();
+        var path_iter = std.mem.splitScalar(u8, path, '/');
+        while (path_iter.next()) |segment| {
+            if (segment.len > 0) {
+                path_segments.append(segment) catch break;
+            }
+        }
+
+        // First check root path "/" for proxy
+        for (self.meta.routes) |*route| {
+            if (std.mem.eql(u8, route.path, "/")) {
+                if (route.proxy) |proxy_fn| {
+                    if (count < proxies.len) {
+                        proxies[count] = proxy_fn;
+                        count += 1;
+                    }
+                }
+                break;
+            }
+        }
+
+        // Traverse from root to target path, collecting Proxy() handlers
+        for (1..path_segments.items.len + 1) |depth| {
+            var path_buf: [256]u8 = undefined;
+            var offset: usize = 0;
+            for (0..depth) |d| {
+                path_buf[offset] = '/';
+                offset += 1;
+                const seg = path_segments.items[d];
+                @memcpy(path_buf[offset .. offset + seg.len], seg);
+                offset += seg.len;
+            }
+            const check_path = path_buf[0..offset];
+
+            // Skip root (already handled)
+            if (std.mem.eql(u8, check_path, "/")) continue;
+
+            for (self.meta.routes) |*route| {
+                if (std.mem.eql(u8, route.path, check_path)) {
+                    if (route.proxy) |proxy_fn| {
+                        if (count < proxies.len) {
+                            proxies[count] = proxy_fn;
+                            count += 1;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// Execute proxy chain: cascading Proxy() handlers + optional local proxy
+    /// Returns true if any proxy aborted the request
+    fn executeProxyChain(
+        self: *Handler,
+        path: []const u8,
+        local_proxy: ?App.Meta.ProxyHandler,
+        local_proxy_name: []const u8,
+        req: zx.Request,
+        res: zx.Response,
+        arena: std.mem.Allocator,
+    ) !bool {
+        _ = local_proxy_name;
+        var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
+
+        // Execute cascading Proxy() handlers (root to current path)
+        var proxies: [16]App.Meta.ProxyHandler = undefined;
+        const count = self.collectCascadingProxies(path, &proxies, arena);
+        for (proxies[0..count]) |proxy_fn| {
+            ProxyStatus.markExecuted();
+            try proxy_fn(&proxy_ctx);
+            if (proxy_ctx.isAborted()) {
+                ProxyStatus.markAborted();
+                return true;
+            }
+        }
+
+        // Execute local proxy (does NOT cascade)
+        if (local_proxy) |proxy_fn| {
+            ProxyStatus.markExecuted();
+            try proxy_fn(&proxy_ctx);
+            if (proxy_ctx.isAborted()) {
+                ProxyStatus.markAborted();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// Execute proxy handlers for page routes
+    fn executePageProxy(self: *Handler, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !bool {
+        return self.executeProxyChain(route.path, route.page_proxy, "PageProxy", req, res, arena);
+    }
+
+    /// Execute proxy handlers for API routes
+    fn executeRouteProxy(self: *Handler, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !bool {
+        return self.executeProxyChain(route.path, route.route_proxy, "RouteProxy", req, res, arena);
+    }
+
+    /// Execute proxy handlers for notfound routes (only cascading Proxy(), no local proxies)
+    fn executeNotFoundProxy(self: *Handler, _: *const App.Meta.Route, path: []const u8, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !bool {
+        return self.executeProxyChain(path, null, "", req, res, arena);
+    }
+
     pub fn api(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
         const allocator = self.allocator;
         const abstract_req = httpz_adapter.createRequest(req);
         const abstract_res = httpz_adapter.createResponse(res, req.arena);
+
+        // Execute proxy handlers before API handling
+        if (req.route_data) |rd| {
+            const route_data: *const App.Meta.Route = @ptrCast(@alignCast(rd));
+            if (try self.executeRouteProxy(route_data, abstract_req, abstract_res, req.arena)) {
+                // Proxy handled the request, don't continue
+                return;
+            }
+        }
 
         if (req.route_data) |rd| {
             const route_data: *const App.Meta.Route = @ptrCast(@alignCast(rd));
@@ -645,6 +850,16 @@ pub const Handler = struct {
 
         const abstract_req = httpz_adapter.createRequest(req);
         const abstract_res = httpz_adapter.createResponse(res, req.arena);
+
+        // Execute proxy handlers before page handling
+        if (req.route_data) |rd| {
+            const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
+            if (try self.executePageProxy(route, abstract_req, abstract_res, req.arena)) {
+                // Proxy handled the request, don't continue
+                return;
+            }
+        }
+
         const pagectx = zx.PageContext.init(abstract_req, abstract_res, allocator);
         const layoutctx = zx.LayoutContext.init(abstract_req, abstract_res, allocator);
 
@@ -753,7 +968,7 @@ pub const Handler = struct {
                     // In dev mode, inject dev script into body element of root layout (last one applied, i == 0)
                     if (injector) |*inj| {
                         if (i == 0) {
-                            _ = inj.injectScriptIntoBody(&page_component, "/assets/_zx/devscript.js");
+                            _ = inj.injectScriptIntoBody(&page_component, "/.well-known/_zx/devscript.js");
                             injector = null; // Only inject once
                         }
                     }
@@ -762,7 +977,7 @@ pub const Handler = struct {
                 // Handle root route's own layout - inject dev script since it's the most parent
                 if (is_root_route) {
                     if (injector) |*inj| {
-                        _ = inj.injectScriptIntoBody(&page_component, "/assets/_zx/devscript.js");
+                        _ = inj.injectScriptIntoBody(&page_component, "/.well-known/_zx/devscript.js");
                     }
                 }
 
@@ -985,6 +1200,13 @@ pub const Handler = struct {
             //     res.writer().writeAll(":heartbeat\n\n") catch return;
             // }
         } else try res.startEventStream(DevSocketContext{}, DevSocketContext.handle);
+    }
+
+    /// Serve the dev script for hot reload
+    pub fn devscript(_: *Handler, _: *httpz.Request, res: *httpz.Response) !void {
+        res.content_type = .JS;
+        res.headers.add("Cache-Control", "no-cache");
+        res.body = @embedFile("../../cli/transpile/template/devscript.js");
     }
 
     /// Context passed when upgrading to WebSocket

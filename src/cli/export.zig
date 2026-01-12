@@ -89,8 +89,8 @@ fn @"export"(ctx: zli.CommandContext) !void {
         // return err;
     };
 
-    // Delete {outdir}/assets/_zx if it exists
-    const assets_zx_path = try std.fs.path.join(ctx.allocator, &.{ outdir, "assets", "_zx" });
+    // Delete {outdir}/.well-known/_zx if it exists
+    const assets_zx_path = try std.fs.path.join(ctx.allocator, &.{ outdir, ".well-known", "_zx" });
     defer ctx.allocator.free(assets_zx_path);
     std.fs.cwd().deleteTree(assets_zx_path) catch |err| switch (err) {
         else => {},

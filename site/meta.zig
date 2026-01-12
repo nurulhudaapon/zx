@@ -9,6 +9,9 @@ pub const routes = [_]zx.App.Meta.Route{
         .layout_opts = getOptions(@import(".zx/pages/layout.zig"), zx.LayoutOptions),
         .notfound_opts = getOptions(@import(".zx/pages/notfound.zig"), zx.NotFoundOptions),
         .error_opts = getOptions(@import(".zx/pages/error.zig"), zx.ErrorOptions),
+        .proxy = zx.App.Meta.proxy(@import(".zx/pages/proxy.zig")),
+        .page_proxy = zx.App.Meta.pageProxy(@import(".zx/pages/proxy.zig")),
+        .route_proxy = zx.App.Meta.routeProxy(@import(".zx/pages/proxy.zig")),
     },
     .{
         .path = "/learn",
@@ -18,6 +21,7 @@ pub const routes = [_]zx.App.Meta.Route{
         .page_opts = getOptions(@import(".zx/pages/learn/page.zig"), zx.PageOptions),
         .layout_opts = getOptions(@import(".zx/pages/learn/layout.zig"), zx.LayoutOptions),
         .error_opts = getOptions(@import(".zx/pages/learn/error.zig"), zx.ErrorOptions),
+        // No proxy.zig here - Proxy() from "/" cascades at runtime (like layouts)
     },
     .{
         .path = "/about",

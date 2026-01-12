@@ -29,7 +29,7 @@ fn Time(allocator: zx.Allocator) zx.Component {
 
 pub const options = zx.PageOptions{
     .rendering = .server,
-    .caching = .{ .seconds = 1 },
+    // .caching = .{ .seconds = 1 },
 };
 
 const zx = @import("zx");

@@ -1927,6 +1927,50 @@ pub const ErrorOptions = struct {};
 pub const RouteOptions = struct {
     caching: BuiltinAttribute.Caching = .none,
 };
+
+/// Options for proxy middleware
+pub const ProxyOptions = struct {
+    /// Whether to continue to the next handler if proxy doesn't handle the request
+    pass_through: bool = true,
+};
+
+/// Context passed to proxy middleware functions
+pub const ProxyContext = struct {
+    request: Request,
+    response: Response,
+    allocator: std.mem.Allocator,
+    arena: std.mem.Allocator,
+
+    /// Internal state tracking
+    _aborted: bool = false,
+
+    pub fn init(request: Request, response: Response, allocator: std.mem.Allocator, arena: std.mem.Allocator) ProxyContext {
+        return .{
+            .request = request,
+            .response = response,
+            .allocator = allocator,
+            .arena = arena,
+        };
+    }
+
+    /// Abort the request chain - no further handlers (proxies, page, route) will be called
+    /// Use this when the proxy has fully handled the request (e.g., returned an error response)
+    pub fn abort(self: *ProxyContext) void {
+        self._aborted = true;
+    }
+
+    /// Continue to the next handler in the chain
+    /// This is a no-op (chain continues by default), but makes intent explicit
+    pub fn next(self: *ProxyContext) void {
+        _ = self;
+        // No-op - chain continues by default unless abort() is called
+    }
+
+    /// Check if the request chain was aborted
+    pub fn isAborted(self: *const ProxyContext) bool {
+        return self._aborted;
+    }
+};
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
 pub const NotFoundContext = routing.NotFoundContext;

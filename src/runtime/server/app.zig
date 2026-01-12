@@ -246,6 +246,47 @@ pub const Meta = struct {
         }.wrapper;
     }
 
+    /// Proxy handler function type - called before page/route handlers
+    pub const ProxyHandler = *const fn (ctx: *zx.ProxyContext) anyerror!void;
+
+    /// Wrapper to allow proxy handlers to return void or !void
+    fn wrapProxy(comptime proxyFn: anytype) ProxyHandler {
+        const R = @typeInfo(@TypeOf(proxyFn)).@"fn".return_type.?;
+        return struct {
+            fn wrapper(ctx: *zx.ProxyContext) anyerror!void {
+                if (R == void) {
+                    proxyFn(ctx);
+                } else {
+                    try proxyFn(ctx);
+                }
+            }
+        }.wrapper;
+    }
+
+    /// Comptime function to extract global Proxy handler from a proxy module (cascades to child routes)
+    pub fn proxy(comptime T: type) ?ProxyHandler {
+        if (@hasDecl(T, "Proxy")) {
+            return wrapProxy(T.Proxy);
+        }
+        return null;
+    }
+
+    /// Comptime function to extract PageProxy handler from a proxy module (does NOT cascade)
+    pub fn pageProxy(comptime T: type) ?ProxyHandler {
+        if (@hasDecl(T, "PageProxy")) {
+            return wrapProxy(T.PageProxy);
+        }
+        return null;
+    }
+
+    /// Comptime function to extract RouteProxy handler from a proxy module (does NOT cascade)
+    pub fn routeProxy(comptime T: type) ?ProxyHandler {
+        if (@hasDecl(T, "RouteProxy")) {
+            return wrapProxy(T.RouteProxy);
+        }
+        return null;
+    }
+
     pub const Route = struct {
         path: []const u8,
         page: ?*const fn (ctx: zx.PageContext) anyerror!Component = null,
@@ -258,6 +299,9 @@ pub const Meta = struct {
         error_opts: ?zx.ErrorOptions = null,
         route: ?RouteHandlers = null,
         route_opts: ?zx.RouteOptions = null,
+        proxy: ?ProxyHandler = null,
+        page_proxy: ?ProxyHandler = null,
+        route_proxy: ?ProxyHandler = null,
     };
     pub const CliCommand = enum { dev, serve, @"export" };
 
@@ -503,9 +547,12 @@ fn introspect(self: *App) !void {
         std.process.exit(0);
     }
 
+    // Dev-only routes under /.well-known/_zx/
     if (self.meta.cli_command == .dev) {
         var router = try self.server.router(.{});
-        router.get("/_zx/devsocket", Handler.devsocket, .{});
+        var zx_routes = router.group("/.well-known/_zx", .{});
+        zx_routes.get("/devsocket", Handler.devsocket, .{});
+        zx_routes.get("/devscript.js", Handler.devscript, .{});
     }
 
     try stdout.flush();

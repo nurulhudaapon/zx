@@ -649,6 +649,7 @@ const Route = struct {
     notfound_import: ?[]const u8 = null,
     error_import: ?[]const u8 = null,
     route_import: ?[]const u8 = null, // API route import
+    proxy_import: ?[]const u8 = null, // Proxy middleware import (cascades at runtime like layouts)
 
     fn deinit(self: *Route, allocator: std.mem.Allocator) void {
         allocator.free(self.path);
@@ -665,6 +666,9 @@ const Route = struct {
             allocator.free(import);
         }
         if (self.route_import) |import| {
+            allocator.free(import);
+        }
+        if (self.proxy_import) |import| {
             allocator.free(import);
         }
     }
@@ -790,20 +794,6 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     });
 
     if (verbose) std.debug.print("Generated meta.zig at: {s}\n", .{meta_path});
-
-    // @devscript assets/_zx/devscript.js
-    const devscript_path = try std.fs.path.join(allocator, &.{ output_dir, "assets", "_zx", "devscript.js" });
-    defer allocator.free(devscript_path);
-    std.fs.cwd().makePath(std.fs.path.dirname(devscript_path) orelse ".") catch |err| switch (err) {
-        error.PathAlreadyExists => {},
-        else => return err,
-    };
-    try std.fs.cwd().writeFile(.{
-        .sub_path = devscript_path,
-        .data = @embedFile("./transpile/template/devscript.js"),
-    });
-
-    if (verbose) log.debug("Copied devscript.js to: {s}", .{devscript_path});
 }
 
 fn writeRoute(writer: anytype, route: Route) !void {
@@ -860,6 +850,13 @@ fn writeRoute(writer: anytype, route: Route) !void {
         try writer.print("{s}    .route_opts = getOptions(@import(\"{s}\"), zx.RouteOptions),\n", .{ indent, route_import });
     }
 
+    // Proxy middleware (Proxy() cascades at runtime like layouts, PageProxy/RouteProxy don't cascade)
+    if (route.proxy_import) |proxy_import| {
+        try writer.print("{s}    .proxy = zx.App.Meta.proxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+        try writer.print("{s}    .page_proxy = zx.App.Meta.pageProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+        try writer.print("{s}    .route_proxy = zx.App.Meta.routeProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+    }
+
     try writer.print("{s}}},\n", .{indent});
 }
 
@@ -886,6 +883,9 @@ fn scanPagesRecursive(
     const route_file_path = try std.fs.path.join(allocator, &.{ current_dir, "route.zig" });
     defer allocator.free(route_file_path);
 
+    const proxy_file_path = try std.fs.path.join(allocator, &.{ current_dir, "proxy.zig" });
+    defer allocator.free(proxy_file_path);
+
     const has_page = blk: {
         std.fs.cwd().access(page_path, .{}) catch break :blk false;
         break :blk true;
@@ -911,13 +911,18 @@ fn scanPagesRecursive(
         break :blk true;
     };
 
+    const has_proxy = blk: {
+        std.fs.cwd().access(proxy_file_path, .{}) catch break :blk false;
+        break :blk true;
+    };
+
     var current_layout_import: ?[]const u8 = null;
     if (has_layout) {
         current_layout_import = try std.mem.concat(allocator, u8, &.{ import_prefix, "/layout.zig" });
         try layout_stack.append(current_layout_import.?);
     }
 
-    if (has_page or has_route) {
+    if (has_page or has_route or has_proxy) {
         const page_import = if (has_page)
             try std.mem.concat(allocator, u8, &.{ import_prefix, "/page.zig" })
         else
@@ -926,6 +931,12 @@ fn scanPagesRecursive(
         // Co-located route.zig in pages directory
         const route_import = if (has_route)
             try std.mem.concat(allocator, u8, &.{ import_prefix, "/route.zig" })
+        else
+            null;
+
+        // Proxy middleware (cascading handled at runtime like layouts)
+        const proxy_import = if (has_proxy)
+            try std.mem.concat(allocator, u8, &.{ import_prefix, "/proxy.zig" })
         else
             null;
 
@@ -964,15 +975,27 @@ fn scanPagesRecursive(
             // skip ']' characters
         }
 
-        const route = Route{
-            .path = try normalized_route_path.toOwnedSlice(),
-            .page_import = page_import,
-            .route_import = route_import,
-            .layout_import = layout_import,
-            .notfound_import = notfound_import,
-            .error_import = error_import,
-        };
-        try routes.append(route);
+        // Only add route if it has a page or route handler (not just proxy)
+        if (has_page or has_route) {
+            const route = Route{
+                .path = try normalized_route_path.toOwnedSlice(),
+                .page_import = page_import,
+                .route_import = route_import,
+                .proxy_import = proxy_import,
+                .layout_import = layout_import,
+                .notfound_import = notfound_import,
+                .error_import = error_import,
+            };
+            try routes.append(route);
+        } else {
+            normalized_route_path.deinit();
+            if (page_import) |p| allocator.free(p);
+            if (route_import) |r| allocator.free(r);
+            if (proxy_import) |pr| allocator.free(pr);
+            if (layout_import) |l| allocator.free(l);
+            if (notfound_import) |n| allocator.free(n);
+            if (error_import) |e| allocator.free(e);
+        }
     }
 
     var dir = try std.fs.cwd().openDir(current_dir, .{ .iterate = true });
@@ -1004,7 +1027,7 @@ fn scanPagesRecursive(
     }
 }
 
-/// Scan routes directory for API route files (route.zig)
+/// Scan routes directory for API route files (route.zig) and proxy middleware (proxy.zig)
 fn scanRoutesRecursive(
     allocator: std.mem.Allocator,
     current_dir: []const u8,
@@ -1015,13 +1038,26 @@ fn scanRoutesRecursive(
     const route_file_path = try std.fs.path.join(allocator, &.{ current_dir, "route.zig" });
     defer allocator.free(route_file_path);
 
+    const proxy_file_path = try std.fs.path.join(allocator, &.{ current_dir, "proxy.zig" });
+    defer allocator.free(proxy_file_path);
+
     const has_route = blk: {
         std.fs.cwd().access(route_file_path, .{}) catch break :blk false;
         break :blk true;
     };
 
+    const has_proxy = blk: {
+        std.fs.cwd().access(proxy_file_path, .{}) catch break :blk false;
+        break :blk true;
+    };
+
     if (has_route) {
         const route_import = try std.mem.concat(allocator, u8, &.{ import_prefix, "/route.zig" });
+
+        const proxy_import = if (has_proxy)
+            try std.mem.concat(allocator, u8, &.{ import_prefix, "/proxy.zig" })
+        else
+            null;
 
         // Build the URL path from directory structure
         const route_path = if (current_path.len == 0)
@@ -1043,6 +1079,7 @@ fn scanRoutesRecursive(
         const route = Route{
             .path = try normalized_route_path.toOwnedSlice(),
             .route_import = route_import,
+            .proxy_import = proxy_import,
         };
         try routes.append(route);
     }

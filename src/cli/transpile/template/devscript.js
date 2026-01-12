@@ -3,7 +3,7 @@
 })();
 
 function setupHotReload() {
-  const eventSource = new EventSource("/_zx/devsocket");
+  const eventSource = new EventSource("/.well-known/_zx/devsocket");
   let hasEverConnected = false,
     isReconnecting = false;
 
