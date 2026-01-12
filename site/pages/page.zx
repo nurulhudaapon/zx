@@ -42,7 +42,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </style>
             <nav class="nav">
                 <div class="nav-content">
-                    <a href="/" class="nav-logo">ZX</a>
+                    <a href={root.configs.main_site_url} class="nav-logo">ZX</a>
                     <input type="checkbox" id="nav-toggle" class="nav-toggle" />
                     <label for="nav-toggle" class="nav-hamburger" aria-label="Toggle menu">
                         <span></span>
