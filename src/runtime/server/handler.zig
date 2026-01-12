@@ -251,6 +251,8 @@ const PageCache = struct {
         if (req.route_data) |rd| {
             const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
             if (route.page_opts) |options| {
+                // Return null if caching is disabled (seconds = 0)
+                if (options.caching.seconds == 0) return null;
                 return options.caching.seconds;
             }
         }

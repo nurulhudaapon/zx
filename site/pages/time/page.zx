@@ -2,12 +2,12 @@ var visit_count: usize = 0;
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
 
-    if (visit_count == 3) {
-        visit_count = 0;
-        _ = zx.cache.delPrefix("cmp:time");
-    } else {
-        visit_count += 1;
-    }
+    // if (visit_count == 3) {
+    //     visit_count = 0;
+    //     _ = zx.cache.delPrefix("cmp:time");
+    // } else {
+    //     visit_count += 1;
+    // }
 
     return (
         <div @allocator={allocator}>
@@ -29,7 +29,7 @@ fn Time(allocator: zx.Allocator) zx.Component {
 
 pub const options = zx.PageOptions{
     .rendering = .server,
-    // .caching = .{ .seconds = 1 },
+    .caching = .{ .seconds = 1 },
 };
 
 const zx = @import("zx");
