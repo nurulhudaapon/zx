@@ -8,45 +8,106 @@ const Response = @import("Response.zig");
 /// Base context structure that provides access to request/response objects and allocators.
 /// This is the foundation for both PageContext and LayoutContext, providing common functionality
 /// for handling HTTP requests and managing memory allocation.
-pub const BaseContext = struct {
-    /// The HTTP request object (backend-agnostic)
-    /// Provides access to headers, body, query params, form data, cookies, etc.
-    request: Request,
+///
+/// The type parameter `H` follows the httpz pattern and can be:
+/// - `void`: No app context
+/// - A struct type: App context stored by value (e.g., `BaseContext(AppCtx)`)
+/// - A pointer type: App context stored by pointer (e.g., `BaseContext(*AppCtx)`)
+pub fn BaseContext(comptime H: type) type {
+    // Extract the underlying app context type, following httpz pattern
+    // This is useful when H is a pointer - we get the child type
+    _ = switch (@typeInfo(H)) {
+        .@"struct" => H,
+        .pointer => |ptr| ptr.child,
+        .void => void,
+        else => @compileError("BaseContext app type must be a struct, pointer to struct, or void, got: " ++ @tagName(@typeInfo(H))),
+    };
 
-    /// The HTTP response object (backend-agnostic)
-    /// Used to set status, headers, body, and cookies.
-    response: Response,
+    const AppFieldType = if (H == void) ?*const anyopaque else H;
 
-    /// Global allocator passed from the app, only cleared when the app is deinitialized.
-    /// Should be used for allocating memory that needs to persist across requests.
-    /// Make sure to free the memory on your own that is allocated with this allocator.
-    allocator: std.mem.Allocator,
+    return struct {
+        const Self = @This();
+        /// Application context data:
+        /// - For void: type-erased pointer for internal routing
+        /// - For pointer types: stores the pointer directly
+        /// - For value types: stores the value directly
+        app: AppFieldType = if (H == void) null else undefined,
 
-    /// Allocator for allocating memory that needs to be freed after the request is processed.
-    /// This allocator is cleared automatically when the request is processed, so you don't need
-    /// to manually free memory allocated with this allocator. Use this for temporary allocations
-    /// that are only needed during request processing.
-    arena: std.mem.Allocator,
+        /// The HTTP request object (backend-agnostic)
+        /// Provides access to headers, body, query params, form data, cookies, etc.
+        request: Request,
 
-    /// Optional parent context, used for nested layouts or hierarchical context passing
-    parent_ctx: ?*BaseContext = null,
+        /// The HTTP response object (backend-agnostic)
+        /// Used to set status, headers, body, and cookies.
+        response: Response,
 
-    /// Initialize a new BaseContext with the given request, response, and allocator.
-    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator) BaseContext {
-        return .{
-            .request = request,
-            .response = response,
-            .allocator = alloc,
-            .arena = request.arena,
-        };
-    }
+        /// Global allocator passed from the app, only cleared when the app is deinitialized.
+        /// Should be used for allocating memory that needs to persist across requests.
+        /// Make sure to free the memory on your own that is allocated with this allocator.
+        allocator: std.mem.Allocator,
 
-    /// Deinitialize the context, freeing any resources allocated with the global allocator.
-    /// Note: The arena allocator is automatically cleaned up by the request handler.
-    pub fn deinit(self: *BaseContext) void {
-        self.allocator.destroy(self);
-    }
-};
+        /// Allocator for allocating memory that needs to be freed after the request is processed.
+        /// This allocator is cleared automatically when the request is processed, so you don't need
+        /// to manually free memory allocated with this allocator. Use this for temporary allocations
+        /// that are only needed during request processing.
+        arena: std.mem.Allocator,
+
+        /// Optional parent context, used for nested layouts or hierarchical context passing
+        parent_ctx: ?*Self = null,
+
+        /// Initialize a new BaseContext with the given request, response, and allocator.
+        /// For void types, app defaults to {}. For custom types, app is undefined until set.
+        pub fn init(request: Request, response: Response, alloc: std.mem.Allocator) Self {
+            return .{
+                .request = request,
+                .response = response,
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        /// Initialize a new BaseContext with a type-erased app context pointer.
+        /// Used by the handler to pass the app context to page functions.
+        pub fn initWithAppPtr(app_ptr: ?*const anyopaque, request: Request, response: Response, alloc: std.mem.Allocator) Self {
+            // Convert the type-erased pointer to the appropriate AppFieldType:
+            // - void: store the pointer directly for routing
+            // - pointer: cast to the pointer type
+            // - value: cast to pointer and dereference
+            const app: AppFieldType = if (H == void)
+                app_ptr
+            else if (@typeInfo(H) == .pointer)
+                @ptrCast(@alignCast(app_ptr))
+            else
+                (@as(*const H, @ptrCast(@alignCast(app_ptr)))).*;
+
+            return .{
+                .app = app,
+                .request = request,
+                .response = response,
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        /// Initialize a new BaseContext with app context data.
+        /// Use this when you need to pass custom application data to handlers.
+        pub fn initWithApp(app: H, request: Request, response: Response, alloc: std.mem.Allocator) Self {
+            return .{
+                .app = app,
+                .request = request,
+                .response = response,
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        /// Deinitialize the context, freeing any resources allocated with the global allocator.
+        /// Note: The arena allocator is automatically cleaned up by the request handler.
+        pub fn deinit(self: *Self) void {
+            self.allocator.destroy(self);
+        }
+    };
+}
 
 /// Context passed to page components. Provides access to the current HTTP request and response,
 /// as well as allocators for memory management.
@@ -62,7 +123,10 @@ pub const BaseContext = struct {
 ///     return <div>Hello</div>;
 /// }
 /// ```
-pub const PageContext = BaseContext;
+pub const PageContext = BaseContext(void);
+pub fn PageCtx(comptime DataType: type) type {
+    return BaseContext(DataType);
+}
 
 /// Context passed to layout components. Provides access to the current HTTP request and response,
 /// as well as allocators for memory management. Layouts wrap page components and can be nested.
@@ -78,8 +142,14 @@ pub const PageContext = BaseContext;
 ///     );
 /// }
 /// ```
-pub const LayoutContext = BaseContext;
-pub const NotFoundContext = BaseContext;
+pub const LayoutContext = BaseContext(void);
+pub fn LayoutCtx(comptime DataType: type) type {
+    return BaseContext(DataType);
+}
+pub const NotFoundContext = BaseContext(void);
+pub fn NotFoundCtx(comptime DataType: type) type {
+    return BaseContext(DataType);
+}
 
 pub const ErrorContext = struct {
     /// The HTTP request object (backend-agnostic)
@@ -386,6 +456,10 @@ pub fn SocketCloseCtx(comptime DataType: type) type {
             return fmtInner(self.arena, format, args);
         }
     };
+}
+
+pub fn AppCtx(comptime DataType: type) type {
+    return DataType;
 }
 
 fn fmtInner(allocator: std.mem.Allocator, comptime format: []const u8, args: anytype) ![]u8 {

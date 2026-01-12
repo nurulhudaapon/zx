@@ -153,13 +153,13 @@ id_to_velement: std.AutoHashMap(u64, *vtree_mod.VElement),
 handler_registry: std.AutoHashMap(HandlerKey, zx.EventHandler),
 
 const InitOptions = struct {
-    components: []const ComponentMeta,
+    // components: []const ComponentMeta,
 };
 
-pub fn init(allocator: std.mem.Allocator, options: InitOptions) Client {
+pub fn init(allocator: std.mem.Allocator, _: InitOptions) Client {
     return .{
         .allocator = allocator,
-        .components = options.components,
+        .components = &zx.components,
         .vtrees = std.StringHashMap(VDOMTree).init(allocator),
         .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
         .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),

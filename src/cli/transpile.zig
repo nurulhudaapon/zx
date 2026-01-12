@@ -33,6 +33,13 @@ const map_flag = zli.Flag{
     .default_value = .{ .String = "none" },
 };
 
+const copy_embedded_sources_flag = zli.Flag{
+    .name = "copy-embedded-sources",
+    .description = "Copy embedded .zx source files to output directory and rewrite paths",
+    .type = .Bool,
+    .default_value = .{ .Bool = false },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -43,6 +50,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addFlag(copy_only_flag);
     try cmd.addFlag(flags.verbose_flag);
     try cmd.addFlag(map_flag);
+    try cmd.addFlag(copy_embedded_sources_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -57,6 +65,7 @@ fn transpile(ctx: zli.CommandContext) !void {
     const copy_only = ctx.flag("copy-only", bool);
     const verbose = ctx.flag("verbose", bool);
     const sourcemap_str = ctx.flag("map", []const u8);
+    const copy_embedded_sources = ctx.flag("copy-embedded-sources", bool);
     const map: zx.Ast.ParseOptions.MapMode = if (std.mem.eql(u8, sourcemap_str, "inline"))
         .inlined
     else if (std.mem.eql(u8, sourcemap_str, "none"))
@@ -108,6 +117,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 .outdir = outdir,
                 .verbose = verbose,
                 .map = map,
+                .copy_embedded_sources = copy_embedded_sources,
             });
             return;
         },
@@ -191,6 +201,7 @@ fn transpile(ctx: zli.CommandContext) !void {
         .outdir = outdir,
         .verbose = verbose,
         .map = map,
+        .copy_embedded_sources = copy_embedded_sources,
     });
 }
 
@@ -759,18 +770,12 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     try writer.writeAll("    .routes = &routes,\n");
     try writer.print("    .rootdir = \"{s}\",\n", .{escaped_path});
     try writer.writeAll("};\n\n");
-    try writer.writeAll("const zx = @import(\"zx\");\n\n");
+    try writer.writeAll("const zx = @import(\"zx\");\n");
+    // Re-export components from components.zig (same directory, same module tree)
+    try writer.writeAll("pub const components = @import(\"components.zig\");\n\n");
     // Helper function for getting options from a module with inferred return type
     try writer.writeAll("fn getOptions(comptime T: type, comptime R: type) ?R {\n");
     try writer.writeAll("    return if (@hasDecl(T, \"options\")) T.options else null;\n");
-    try writer.writeAll("}\n\n");
-    // Wrapper to allow pages to return Component or !Component
-    try writer.writeAll("fn wrapPage(comptime pageFn: anytype) *const fn (zx.PageContext) anyerror!zx.Component {\n");
-    try writer.writeAll("    return struct {\n");
-    try writer.writeAll("        fn wrapper(ctx: zx.PageContext) anyerror!zx.Component {\n");
-    try writer.writeAll("            return pageFn(ctx);\n");
-    try writer.writeAll("        }\n");
-    try writer.writeAll("    }.wrapper;\n");
     try writer.writeAll("}\n");
 
     const meta_path = try std.fs.path.join(allocator, &.{ output_dir, "meta.zig" });
@@ -804,11 +809,11 @@ fn writeRoute(writer: anytype, route: Route) !void {
 
     // Page (optional for API-only routes)
     if (route.page_import) |page| {
-        try writer.print("{s}    .page = wrapPage(@import(\"{s}\").Page),\n", .{ indent, page });
+        try writer.print("{s}    .page = zx.App.Meta.page(@import(\"{s}\")),\n", .{ indent, page });
     }
 
     if (route.layout_import) |layout| {
-        try writer.print("{s}    .layout = @import(\"{s}\").Layout,\n", .{ indent, layout });
+        try writer.print("{s}    .layout = zx.App.Meta.layout(@import(\"{s}\")),\n", .{ indent, layout });
     }
 
     if (route.notfound_import) |notfound| {
@@ -1343,6 +1348,28 @@ fn transpileDirectory(
                 std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                 continue;
             };
+
+            // Also copy the original .zx file if copy_embedded_sources is enabled
+            if (opts.copy_embedded_sources) {
+                const zx_output_path = try std.fs.path.join(allocator, &.{ opts.outdir, entry.path });
+                defer allocator.free(zx_output_path);
+
+                if (std.fs.path.dirname(zx_output_path)) |parent| {
+                    std.fs.cwd().makePath(parent) catch |err| switch (err) {
+                        error.PathAlreadyExists => {},
+                        else => {
+                            std.debug.print("Error creating directory {s}: {}\n", .{ parent, err });
+                            continue;
+                        },
+                    };
+                }
+
+                std.fs.cwd().copyFile(input_path, std.fs.cwd(), zx_output_path, .{}) catch |err| {
+                    std.debug.print("Warning: Could not copy .zx source {s}: {}\n", .{ input_path, err });
+                    continue;
+                };
+                if (opts.verbose) std.debug.print("Copied source: {s} -> {s}\n", .{ input_path, zx_output_path });
+            }
         } else {
             // Copy all non-.zx files from the site directory, excluding reserved files
             const basename = getBasename(entry.path);
@@ -1396,6 +1423,7 @@ const TranspileOptions = struct {
     outdir: []const u8,
     verbose: bool,
     map: zx.Ast.ParseOptions.MapMode = .none,
+    copy_embedded_sources: bool = false,
 };
 
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {

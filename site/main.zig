@@ -2,7 +2,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 const zx = @import("zx");
 
-const config = zx.App.Config{ .meta = @import("meta.zig").meta, .server = .{ .port = 5588 } };
+const config = zx.Server(AppCtx).Config{ .server = .{ .port = 5588 } };
 
 pub fn main() !void {
     if (zx.platform == .browser) return;
@@ -11,17 +11,16 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const app = try zx.App.init(allocator, config);
-    defer app.deinit();
+    var app_ctx = AppCtx{ .port = 5588 };
 
-    app.info();
-    try app.start();
+    const server = try zx.Server(*AppCtx).init(allocator, config, &app_ctx);
+    defer server.deinit();
+
+    server.info();
+    try server.start();
 }
 
-var client = zx.Client.init(
-    zx.client_allocator,
-    .{ .components = &@import(".zx/components.zig").components },
-);
+var client = zx.Client.init(zx.client_allocator, .{});
 
 export fn mainClient() void {
     if (zx.platform != .browser) return;
@@ -30,6 +29,10 @@ export fn mainClient() void {
 }
 
 pub const std_options = zx.std_options;
+
+pub const AppCtx = struct {
+    port: u16,
+};
 
 pub const configs = .{
     // Example is on the SSR site beacuse the main site is statically generated and some of examples depends on the SSR.

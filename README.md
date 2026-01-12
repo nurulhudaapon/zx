@@ -128,9 +128,9 @@ const zx = @import("zx");
     - [x] Command based plugin system
     - [ ] Source based plugin system
 - [ ] Context (configurable)
-    - [ ] App
-    - [ ] Layout
-    - [ ] Page
+    - [x] App
+    - [x] Layout
+    - [x] Page
     - [x] Component
 - [x] `error.zx` for default and per-route error page
 - [x] `notfound.zx` for default and per-route error page

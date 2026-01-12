@@ -55,12 +55,24 @@ pub const CliOptions = struct {
 };
 
 /// Configuration for the ZX site directory.
-const SiteOptions = struct {
+pub const SiteOptions = struct {
     /// Path to the ZX site source directory.
     ///
     /// This directory should contain your `.zx` template files, layouts,
     /// and other site assets. Defaults to "site" if not specified in ZxInitOptions.
     path: LazyPath,
+
+    /// Copy embedded `.zx` source files to the transpile output directory.
+    ///
+    /// When enabled, any `.zx` files referenced via `@embedFile` in your templates
+    /// will be copied to the output directory alongside the generated `.zig` files,
+    /// and the `@embedFile` paths will be updated to reference the local copies.
+    ///
+    /// This is useful when you want to display source code examples in your site
+    /// and need the files accessible within the package boundary.
+    ///
+    /// Default: `false`
+    copy_embedded_sources: bool = false,
 };
 
 /// Experimental features that may change in future versions.

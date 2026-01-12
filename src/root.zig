@@ -1879,7 +1879,14 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
 pub const Allocator = std.mem.Allocator;
 pub const info = @import("zx_info");
 const routing = @import("runtime/core/routing.zig");
-pub const App = @import("runtime/server/app.zig");
+const app_module = @import("runtime/server/app.zig");
+pub const Server = app_module.Server;
+/// For new projects, prefer using `zx.Server(AppCtx)` for typed context injection.
+/// @deprecated: Use `zx.Server(AppCtx)` instead.
+pub const App = app_module.App;
+pub const routes = @import("zx_meta").routes;
+pub const components = @import("zx_meta").components.components;
+pub const meta = @import("zx_meta").meta;
 
 pub const Client = @import("runtime/client/Client.zig");
 pub const client = @import("runtime/client/window.zig");
@@ -1971,9 +1978,14 @@ pub const ProxyContext = struct {
         return self._aborted;
     }
 };
+
+pub const AppCtx = routing.AppCtx;
 pub const PageContext = routing.PageContext;
+pub const PageCtx = routing.PageCtx;
 pub const LayoutContext = routing.LayoutContext;
+pub const LayoutCtx = routing.LayoutCtx;
 pub const NotFoundContext = routing.NotFoundContext;
+pub const NotFoundCtx = routing.NotFoundCtx;
 pub const ErrorContext = routing.ErrorContext;
 pub const RouteContext = routing.RouteContext;
 pub const SocketContext = routing.SocketContext;

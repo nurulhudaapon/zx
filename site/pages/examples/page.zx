@@ -15,7 +15,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // For Loop example
     var aw_for: std.io.Writer.Allocating = .init(allocator);
-    const zx_for = @embedFile("../../../pages/examples/sandbox/for_loop.zx");
+    const zx_for = @embedFile("./sandbox/for_loop.zx");
     const zig_for = @embedFile("./sandbox/for_loop.zig");
     const html_page_for = @import("./sandbox/for_loop.zig").Page(allocator);
     html_page_for.render(&aw_for.writer) catch unreachable;
@@ -23,7 +23,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // If/Else example
     var aw_if: std.io.Writer.Allocating = .init(allocator);
-    const zx_if = @embedFile("../../../pages/examples/sandbox/if_else.zx");
+    const zx_if = @embedFile("./sandbox/if_else.zx");
     const zig_if = @embedFile("./sandbox/if_else.zig");
     const html_page_if = @import("./sandbox/if_else.zig").Page(allocator);
     html_page_if.render(&aw_if.writer) catch unreachable;
@@ -31,7 +31,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // Switch example
     var aw_switch: std.io.Writer.Allocating = .init(allocator);
-    const zx_switch = @embedFile("../../../pages/examples/sandbox/switch_expr.zx");
+    const zx_switch = @embedFile("./sandbox/switch_expr.zx");
     const zig_switch = @embedFile("./sandbox/switch_expr.zig");
     const html_page_switch = @import("./sandbox/switch_expr.zig").Page(allocator);
     html_page_switch.render(&aw_switch.writer) catch unreachable;
@@ -39,7 +39,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // Form example
     var aw_form: std.io.Writer.Allocating = .init(allocator);
-    const zx_form = @embedFile("../../../pages/examples/sandbox/form_handling.zx");
+    const zx_form = @embedFile("./sandbox/form_handling.zx");
     const zig_form = @embedFile("./sandbox/form_handling.zig");
     const html_page_form = @import("./sandbox/form_handling.zig").Page(allocator);
     html_page_form.render(&aw_form.writer) catch unreachable;
@@ -47,7 +47,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // Components example
     var aw_components: std.io.Writer.Allocating = .init(allocator);
-    const zx_components = @embedFile("../../../pages/examples/sandbox/components.zx");
+    const zx_components = @embedFile("./sandbox/components.zx");
     const zig_components = @embedFile("./sandbox/components.zig");
     const html_page_components = @import("./sandbox/components.zig").Page(allocator);
     html_page_components.render(&aw_components.writer) catch unreachable;
@@ -55,7 +55,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     // Dynamic attributes example
     var aw_dynattr: std.io.Writer.Allocating = .init(allocator);
-    const zx_dynattr = @embedFile("../../../pages/examples/sandbox/dynamic_attr.zx");
+    const zx_dynattr = @embedFile("./sandbox/dynamic_attr.zx");
     const zig_dynattr = @embedFile("./sandbox/dynamic_attr.zig");
     const html_page_dynattr = @import("./sandbox/dynamic_attr.zig").Page(allocator);
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;

@@ -6,7 +6,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // If example
     var aw_if: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_if = @embedFile("../../../pages/examples/if.zx");
+    const zx_example_if = @embedFile("../examples/if.zx");
     const zig_example_if = @embedFile("../examples/if.zig");
     const html_page_if = @import("../examples/if.zig").Conditional(allocator);
     html_page_if.render(&aw_if.writer) catch unreachable;
@@ -14,7 +14,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Switch example
     var aw_switch: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_switch = @embedFile("../../../pages/examples/switch.zx");
+    const zx_example_switch = @embedFile("../examples/switch.zx");
     const zig_example_switch = @embedFile("../examples/switch.zig");
     const html_page_switch = @import("../examples/switch.zig").RoleSwitch(allocator);
     html_page_switch.render(&aw_switch.writer) catch unreachable;
@@ -22,7 +22,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // For example
     var aw_for: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_for = @embedFile("../../../pages/examples/for.zx");
+    const zx_example_for = @embedFile("../examples/for.zx");
     const zig_example_for = @embedFile("../examples/for.zig");
     const html_page_for = @import("../examples/for.zig").UserList(allocator);
     html_page_for.render(&aw_for.writer) catch unreachable;
@@ -30,7 +30,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // While example
     var aw_while: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_while = @embedFile("../../../pages/examples/while.zx");
+    const zx_example_while = @embedFile("../examples/while.zx");
     const zig_example_while = @embedFile("../examples/while.zig");
     const html_page_while = @import("../examples/while.zig").Counter(allocator);
     html_page_while.render(&aw_while.writer) catch unreachable;
@@ -38,7 +38,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Expression example
     var aw_expr: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_expr = @embedFile("../../../pages/examples/text.zx");
+    const zx_example_expr = @embedFile("../examples/text.zx");
     const zig_example_expr = @embedFile("../examples/text.zig");
     const html_page_expr = try @import("../examples/text.zig").Expressions(allocator);
     html_page_expr.render(&aw_expr.writer) catch unreachable;
@@ -46,7 +46,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Components example
     var aw_components: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_components = @embedFile("../../../pages/examples/components.zx");
+    const zx_example_components = @embedFile("../examples/components.zx");
     const zig_example_components = @embedFile("../examples/components.zig");
     const html_page_components = @import("../examples/components.zig").ButtonDemo(ctx);
     html_page_components.render(&aw_components.writer) catch unreachable;
@@ -54,7 +54,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Routing example
     var aw_routing: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_routing = @embedFile("../../../pages/examples/routing.zx");
+    const zx_example_routing = @embedFile("../examples/routing.zx");
     const zig_example_routing = @embedFile("../examples/routing.zig");
     const html_page_routing = @import("../examples/routing.zig").Page(ctx);
     html_page_routing.render(&aw_routing.writer) catch unreachable;
@@ -62,8 +62,8 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Layout example - use simple example like learn page
     var aw_layout: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_layout = @embedFile("../../../pages/learn/examples/layout_example.zx");
-    const zig_example_layout = @embedFile("../../../pages/learn/examples/.zx/layout_example.zig");
+    const zx_example_layout = @embedFile("../learn/examples/layout_example.zx");
+    const zig_example_layout = @embedFile("../learn/examples/.zx/layout_example.zig");
     const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
     const html_page_layout = @import("../learn/examples/.zx/layout_example.zig").Layout(layoutctx, zx.Component{ .text = "Hello, World!" });
     html_page_layout.render(&aw_layout.writer) catch unreachable;
@@ -71,7 +71,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Allocator example
     var aw_allocator: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_allocator = @embedFile("../../../pages/examples/allocator.zx");
+    const zx_example_allocator = @embedFile("../examples/allocator.zx");
     const zig_example_allocator = @embedFile("../examples/allocator.zig");
     const html_page_allocator = @import("../examples/allocator.zig").AllocatorDemo(ctx);
     html_page_allocator.render(&aw_allocator.writer) catch unreachable;
@@ -231,7 +231,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Escaping example
     var aw_escaping: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_escaping = @embedFile("../../../pages/examples/escaping.zx");
+    const zx_example_escaping = @embedFile("../examples/escaping.zx");
     const zig_example_escaping = @embedFile("../examples/escaping.zig");
     const html_page_escaping = @import("../examples/escaping.zig").RawHtml(allocator);
     html_page_escaping.render(&aw_escaping.writer) catch unreachable;
@@ -239,7 +239,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // CSR example
     var aw_csr: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_csr = @embedFile("../../../pages/examples/react.zx");
+    const zx_example_csr = @embedFile("../examples/react.zx");
     const zig_example_csr = @embedFile("../examples/react.zig");
     const html_page_csr = @import("../examples/react.zig").ReactDemo(allocator);
     html_page_csr.render(&aw_csr.writer) catch unreachable;
@@ -247,7 +247,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Importing example
     var aw_importing: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_importing = @embedFile("../../../pages/examples/importing.zx");
+    const zx_example_importing = @embedFile("../examples/importing.zx");
     const zig_example_importing = @embedFile("../examples/importing.zig");
     const html_page_importing = @import("../examples/importing.zig").ImportDemo(allocator);
     html_page_importing.render(&aw_importing.writer) catch unreachable;
@@ -255,7 +255,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Dynamic route example
     var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_dynamic = @embedFile("../../../pages/examples/dynamic_route.zx");
+    const zx_example_dynamic = @embedFile("../examples/dynamic_route.zx");
     const zig_example_dynamic = @embedFile("../examples/dynamic_route.zig");
     const html_page_dynamic = @import("../examples/dynamic_route.zig").UserProfile(ctx);
     html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
@@ -263,7 +263,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Fragment example
     var aw_fragment: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_fragment = @embedFile("../../../pages/examples/fragment.zx");
+    const zx_example_fragment = @embedFile("../examples/fragment.zx");
     const zig_example_fragment = @embedFile("../examples/fragment.zig");
     const html_page_fragment = @import("../examples/fragment.zig").FragmentDemo(allocator);
     html_page_fragment.render(&aw_fragment.writer) catch unreachable;
@@ -271,7 +271,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Children example
     var aw_children: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_children = @embedFile("../../../pages/examples/children.zx");
+    const zx_example_children = @embedFile("../examples/children.zx");
     const zig_example_children = @embedFile("../examples/children.zig");
     const html_page_children = @import("../examples/children.zig").CardDemo(allocator);
     html_page_children.render(&aw_children.writer) catch unreachable;
@@ -532,8 +532,8 @@ const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {
     // Embedded snippet files for plugin examples
-    const plugin_examples = @embedFile("../../../assets/snippets/plugin_examples.zig");
-    const zx_init_options = @embedFile("../../../assets/snippets/ZxInitOptions.zig");
+    const plugin_examples = @embedFile("../../assets/snippets/plugin_examples.zig");
+    const zx_init_options = @embedFile("../../assets/snippets/ZxInitOptions.zig");
 
     // Extract specific line ranges from the embedded snippets
     const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 2, 29 }});

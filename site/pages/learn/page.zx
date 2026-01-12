@@ -11,7 +11,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Greeting example
     var aw_greeting: std.io.Writer.Allocating = .init(allocator);
-    const zx_greeting = @embedFile("../../../pages/learn/examples/greeting.zx");
+    const zx_greeting = @embedFile("./examples/greeting.zx");
     const zig_greeting = @embedFile("./examples/greeting.zig");
     const html_page_greeting = @import("./examples/greeting.zig").HelloWorld(allocator);
     html_page_greeting.render(&aw_greeting.writer) catch unreachable;
@@ -19,7 +19,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Markup example
     var aw_markup: std.io.Writer.Allocating = .init(allocator);
-    const zx_markup = @embedFile("../../../pages/learn/examples/markup.zx");
+    const zx_markup = @embedFile("./examples/markup.zx");
     const zig_markup = @embedFile("./examples/markup.zig");
     const html_page_markup = @import("./examples/markup.zig").AboutSection(allocator);
     html_page_markup.render(&aw_markup.writer) catch unreachable;
@@ -27,7 +27,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Text expression example
     var aw_text: std.io.Writer.Allocating = .init(allocator);
-    const zx_text = @embedFile("../../../pages/learn/examples/text_expr.zx");
+    const zx_text = @embedFile("./examples/text_expr.zx");
     const zig_text = @embedFile("./examples/text_expr.zig");
     const html_page_text = @import("./examples/text_expr.zig").UserGreeting(allocator);
     html_page_text.render(&aw_text.writer) catch unreachable;
@@ -35,7 +35,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Format expression example (now just showing types)
     var aw_format: std.io.Writer.Allocating = .init(allocator);
-    const zx_format = @embedFile("../../../pages/learn/examples/format_expr.zx");
+    const zx_format = @embedFile("./examples/format_expr.zx");
     const zig_format = @embedFile("./examples/format_expr.zig");
     const html_page_format = @import("./examples/format_expr.zig").ProductInfo(allocator);
     html_page_format.render(&aw_format.writer) catch unreachable;
@@ -43,7 +43,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Conditional example
     var aw_conditional: std.io.Writer.Allocating = .init(allocator);
-    const zx_conditional = @embedFile("../../../pages/learn/examples/conditional.zx");
+    const zx_conditional = @embedFile("./examples/conditional.zx");
     const zig_conditional = @embedFile("./examples/conditional.zig");
     const html_page_conditional = @import("./examples/conditional.zig").UserStatus(allocator);
     html_page_conditional.render(&aw_conditional.writer) catch unreachable;
@@ -51,7 +51,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Switch example
     var aw_switch: std.io.Writer.Allocating = .init(allocator);
-    const zx_switch = @embedFile("../../../pages/learn/examples/switch_expr.zx");
+    const zx_switch = @embedFile("./examples/switch_expr.zx");
     const zig_switch = @embedFile("./examples/switch_expr.zig");
     const html_page_switch = @import("./examples/switch_expr.zig").RoleBadge(allocator);
     html_page_switch.render(&aw_switch.writer) catch unreachable;
@@ -59,7 +59,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // List example
     var aw_list: std.io.Writer.Allocating = .init(allocator);
-    const zx_list = @embedFile("../../../pages/learn/examples/list.zx");
+    const zx_list = @embedFile("./examples/list.zx");
     const zig_list = @embedFile("./examples/list.zig");
     const html_page_list = @import("./examples/list.zig").ProductList(allocator);
     html_page_list.render(&aw_list.writer) catch unreachable;
@@ -67,7 +67,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Props example
     var aw_props: std.io.Writer.Allocating = .init(allocator);
-    const zx_props = @embedFile("../../../pages/learn/examples/props.zx");
+    const zx_props = @embedFile("./examples/props.zx");
     const zig_props = @embedFile("./examples/props.zig");
     const html_page_props = @import("./examples/props.zig").ButtonDemo(allocator);
     html_page_props.render(&aw_props.writer) catch unreachable;
@@ -75,21 +75,21 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Page example
     var aw_page: std.io.Writer.Allocating = .init(allocator);
-    const zx_page = @embedFile("../../../pages/learn/examples/page_example.zx");
+    const zx_page = @embedFile("./examples/page_example.zx");
     const zig_page = @embedFile("./examples/page_example.zig");
     const html_page_page = @import("./examples/page_example.zig").Page(ctx);
     html_page_page.render(&aw_page.writer) catch unreachable;
     const html_page = allocator.dupe(u8, aw_page.written()) catch unreachable;
 
     // Layout example (just show code, no preview)
-    const zx_layout = @embedFile("../../../pages/learn/examples/layout_example.zx");
+    const zx_layout = @embedFile("./examples/layout_example.zx");
 
     // Build manual example
-    const build_manual_code = @embedFile("../../../pages/learn/examples/build_manual.zig");
+    const build_manual_code = @embedFile("./examples/build_manual.zig");
 
     // Dynamic route example
     var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
-    const zx_dynamic = @embedFile("../../../pages/learn/examples/dynamic_route.zx");
+    const zx_dynamic = @embedFile("./examples/dynamic_route.zx");
     const zig_dynamic = @embedFile("./examples/dynamic_route.zig");
     const html_page_dynamic = @import("./examples/dynamic_route.zig").UserProfile(ctx);
     html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
@@ -97,7 +97,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Fragment example
     var aw_fragment: std.io.Writer.Allocating = .init(allocator);
-    const zx_fragment = @embedFile("../../../pages/learn/examples/fragment.zx");
+    const zx_fragment = @embedFile("./examples/fragment.zx");
     const zig_fragment = @embedFile("./examples/fragment.zig");
     const html_page_fragment = @import("./examples/fragment.zig").FragmentDemo(allocator);
     html_page_fragment.render(&aw_fragment.writer) catch unreachable;
@@ -105,7 +105,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Children example
     var aw_children: std.io.Writer.Allocating = .init(allocator);
-    const zx_children = @embedFile("../../../pages/learn/examples/children.zx");
+    const zx_children = @embedFile("./examples/children.zx");
     const zig_children = @embedFile("./examples/children.zig");
     const html_page_children = @import("./examples/children.zig").CardDemo(allocator);
     html_page_children.render(&aw_children.writer) catch unreachable;
@@ -113,7 +113,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 
     // Dynamic attributes example
     var aw_dynattr: std.io.Writer.Allocating = .init(allocator);
-    const zx_dynattr = @embedFile("../../../pages/learn/examples/dynamic_attr.zx");
+    const zx_dynattr = @embedFile("./examples/dynamic_attr.zx");
     const zig_dynattr = @embedFile("./examples/dynamic_attr.zig");
     const html_page_dynattr = @import("./examples/dynamic_attr.zig").DynamicAttrs(allocator);
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
@@ -549,7 +549,7 @@ const PagesAndLayoutsProps = struct {
 };
 
 fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Component {
-    const layout_code = @embedFile("../../../pages/learn/examples/layout_example.zx");
+    const layout_code = @embedFile("./examples/layout_example.zx");
     const layout_html =
         \\<html><head><title>My App</title></head><body><nav><a href="/">Home</a> <a href="/about">About</a></nav><main><h1>About Us</h1><p>Welcome!</p></main><footer>© 2025 My App</footer></body></html>
     ;
@@ -594,8 +594,8 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
 }
 
 fn Plugins(allocator: zx.Allocator) zx.Component {
-    const tailwind_example = @embedFile("../../../pages/learn/examples/tailwind_plugin.zig");
-    const esbuild_example = @embedFile("../../../pages/learn/examples/esbuild_plugin.zig");
+    const tailwind_example = @embedFile("./examples/tailwind_plugin.zig");
+    const esbuild_example = @embedFile("./examples/esbuild_plugin.zig");
     const link_css_example = "<link rel=\"stylesheet\" href=\"/assets/styles.css\" />";
     const link_js_example = "<script src=\"/assets/main.js\"></script>";
 

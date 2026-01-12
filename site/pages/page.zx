@@ -31,7 +31,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         break :blk 1970 + years_since_epoch;
     };
 
-    const overview_code = @embedFile("../../pages//examples//overview.zx");
+    const overview_code = @embedFile("./examples/overview.zx");
     const util = @import("./docs/util.zig");
     const overview_code_highlighted = util.highlightZx(allocator, overview_code) catch overview_code;
 

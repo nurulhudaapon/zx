@@ -19,10 +19,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         .steps = .default,
         .plugins = &.{},
         .experimental_enabled_csr = false,
+        .copy_embedded_sources = false,
     };
 
     if (options.site) |site_opts| {
         opts.site_path = site_opts.path;
+        opts.copy_embedded_sources = site_opts.copy_embedded_sources;
     }
 
     if (options.cli) |cli_opts| {
@@ -51,6 +53,7 @@ const InitInnerOptions = struct {
     steps: ZxInitOptions.CliOptions.Steps,
     plugins: []const ZxInitOptions.PluginOptions,
     experimental_enabled_csr: bool,
+    copy_embedded_sources: bool,
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -92,6 +95,9 @@ pub fn initInner(
     transpile_cmd.addDirectoryArg(opts.site_path);
     transpile_cmd.addArg("--outdir");
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
+    if (opts.copy_embedded_sources) {
+        transpile_cmd.addArg("--copy-embedded-sources");
+    }
     transpile_cmd.expectExitCode(0);
 
     // --- ZX File Cache Invalidator ---
@@ -111,18 +117,42 @@ pub fn initInner(
     }
 
     // --- ZX Site Main Executable --- //
-    exe.root_module.addImport("zx", zx_module);
-
     var imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
     var import_it = exe.root_module.import_table.iterator();
     while (import_it.next()) |entry| {
         try imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
     }
 
-    exe.root_module.addAnonymousImport("zx_meta", .{
-        .root_source_file = transpile_outdir.path(b, "meta.zig"),
+    // Copy all imports from the original zx_module
+    var zx_import_it = zx_module.import_table.iterator();
+    while (zx_import_it.next()) |entry| {
+        if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
+            try imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+        }
+    }
+
+    // Create a site-specific zx module with the generated meta
+    const site_zx_module = b.createModule(.{
+        .root_source_file = zx_module.root_source_file,
+        .target = zx_module.resolved_target,
+        .optimize = zx_module.optimize,
         .imports = imports.items,
     });
+
+    // Build imports for zx_meta (needs access to zx module and all other imports)
+    var meta_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    for (imports.items) |import| {
+        try meta_imports.append(import);
+    }
+    try meta_imports.append(.{ .name = "zx", .module = site_zx_module });
+
+    // Add project-specific zx_meta to the site module
+    site_zx_module.addAnonymousImport("zx_meta", .{
+        .root_source_file = transpile_outdir.path(b, "meta.zig"),
+        .imports = meta_imports.items,
+    });
+
+    exe.root_module.addImport("zx", site_zx_module);
 
     exe.step.dependOn(&transpile_cmd.step);
     b.installArtifact(exe);
@@ -143,11 +173,36 @@ pub fn initInner(
         wasm_exe.entry = .disabled;
         wasm_exe.export_memory = true;
         wasm_exe.rdynamic = true;
-        wasm_exe.root_module.addImport("zx", zx_wasm_module);
-        wasm_exe.root_module.addAnonymousImport("zx_components", .{
-            .root_source_file = transpile_outdir.path(b, "components.zig"),
-            .imports = &.{.{ .name = "zx", .module = zx_wasm_module }},
+
+        // Create a site-specific wasm module (same approach as server module)
+        var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+        var wasm_import_it = zx_wasm_module.import_table.iterator();
+        while (wasm_import_it.next()) |entry| {
+            if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
+                try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+            }
+        }
+
+        const site_wasm_module = b.createModule(.{
+            .root_source_file = zx_wasm_module.root_source_file,
+            .target = zx_wasm_module.resolved_target,
+            .optimize = zx_wasm_module.optimize,
+            .imports = wasm_imports.items,
         });
+
+        // Build imports for wasm zx_meta
+        var wasm_meta_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+        for (wasm_imports.items) |import| {
+            try wasm_meta_imports.append(import);
+        }
+        try wasm_meta_imports.append(.{ .name = "zx", .module = site_wasm_module });
+
+        site_wasm_module.addAnonymousImport("zx_meta", .{
+            .root_source_file = transpile_outdir.path(b, "meta.zig"),
+            .imports = wasm_meta_imports.items,
+        });
+
+        wasm_exe.root_module.addImport("zx", site_wasm_module);
         wasm_exe.step.dependOn(&transpile_cmd.step);
 
         // --- CMD: ZX Post Transpile --- //
