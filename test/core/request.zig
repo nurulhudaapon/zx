@@ -2,17 +2,12 @@ const std = @import("std");
 const Request = @import("zx").Request;
 
 // --- Type Re-exports --- //
-
 test "Request.Method: is std.http.Method" {
     try std.testing.expect(Request.Method == std.http.Method);
 }
 
 test "Request.Version: is std.http.Version" {
     try std.testing.expect(Request.Version == std.http.Version);
-}
-
-test "Request.Protocol: is deprecated alias for Version" {
-    try std.testing.expect(Request.Protocol == Request.Version);
 }
 
 test "Request.Header: is std.http.Header" {
