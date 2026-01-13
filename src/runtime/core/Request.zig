@@ -10,17 +10,17 @@
 
 const std = @import("std");
 const common = @import("common.zig");
+const FormDataModule = @import("FormData.zig");
+const MultiFormDataModule = @import("MultiFormData.zig");
 
 pub const Request = @This();
 
-// Re-export common types for convenience
+pub const FormData = FormDataModule;
+pub const MultiFormData = MultiFormDataModule;
 pub const Method = common.Method;
 pub const Version = common.Version;
-pub const Protocol = common.Protocol; // Deprecated alias for Version
 pub const Cookies = common.Cookies;
 pub const Header = common.Header;
-/// @deprecated Use `Header` instead.
-pub const Entry = Header;
 pub const MultiFormEntry = common.MultiFormEntry;
 
 // --- Instance Properties --- //
@@ -87,6 +87,10 @@ cookies: Cookies = .{ .header_value = "" },
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
 searchParams: URLSearchParams = .{},
+formdata_backend_ctx: ?*anyopaque = null,
+formdata_vtable: ?*const FormDataVTable = null,
+multiformdata_backend_ctx: ?*anyopaque = null,
+multiformdata_vtable: ?*const MultiFormDataVTable = null,
 
 /// HTTP protocol version (HTTP/1.0 or HTTP/1.1).
 ///
@@ -162,6 +166,35 @@ pub fn getParam(self: *const Request, name: []const u8) ?[]const u8 {
     }
     return null;
 }
+
+/// Returns a FormData object representing the URL-encoded form data of the request body.
+///
+/// https://developer.mozilla.org/en-US/docs/Web/API/Request/formData
+///
+/// **Zig Note:** In the web standard, this returns a Promise<FormData>. In this
+/// implementation, it returns a FormData object synchronously which provides
+/// methods to access form fields. For multipart/form-data with file uploads,
+/// use `multiFormData()` instead.
+pub fn formData(self: *const Request) FormDataModule {
+    return (FormDataModule.Builder{
+        .backend_ctx = self.formdata_backend_ctx,
+        .vtable = self.formdata_vtable,
+    }).build();
+}
+
+/// Returns a MultiFormData object representing the multipart form data of the request body.
+///
+/// **Zig Note:** This is an extension method for handling multipart/form-data with file uploads.
+/// For simple key-value form data (application/x-www-form-urlencoded), use `formData()` instead.
+pub fn multiFormData(self: *const Request) MultiFormDataModule {
+    return (MultiFormDataModule.Builder{
+        .backend_ctx = self.multiformdata_backend_ctx,
+        .vtable = self.multiformdata_vtable,
+    }).build();
+}
+
+pub const FormDataVTable = FormDataModule.VTable;
+pub const MultiFormDataVTable = MultiFormDataModule.VTable;
 
 // --- URLSearchParams --- //
 // https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
@@ -281,6 +314,10 @@ pub const Builder = struct {
     cookie_header: []const u8 = "",
     search_params_ctx: ?*anyopaque = null,
     search_params_vtable: ?*const URLSearchParams.URLSearchParamsVTable = null,
+    formdata_ctx: ?*anyopaque = null,
+    formdata_vtable: ?*const FormDataVTable = null,
+    multiformdata_ctx: ?*anyopaque = null,
+    multiformdata_vtable: ?*const MultiFormDataVTable = null,
 
     /// Builds the Request object with all configured values.
     pub fn build(self: Builder) Request {
@@ -304,6 +341,10 @@ pub const Builder = struct {
                 .backend_ctx = self.search_params_ctx,
                 .vtable = self.search_params_vtable,
             },
+            .formdata_backend_ctx = self.formdata_ctx,
+            .formdata_vtable = self.formdata_vtable,
+            .multiformdata_backend_ctx = self.multiformdata_ctx,
+            .multiformdata_vtable = self.multiformdata_vtable,
         };
     }
 };

@@ -68,7 +68,7 @@ pub fn Server(comptime H: type) type {
             router.get("/*", HandlerType.public, .{});
 
             // Routes
-            for (&zx.routes) |*route| {
+            inline for (&zx.routes) |*route| {
                 // Check if this is an API-only route (no page)
                 const is_api_only = route.page == null;
 
@@ -77,7 +77,7 @@ pub fn Server(comptime H: type) type {
                     var method_found = false;
                     var get_method_found = false;
                     if (route.page_opts) |pg_opts| {
-                        for (pg_opts.methods) |method| {
+                        inline for (pg_opts.methods) |method| {
                             method_found = true;
                             switch (method) {
                                 .GET => {
@@ -123,7 +123,7 @@ pub fn Server(comptime H: type) type {
                     }
 
                     if (handlers.custom_methods) |custom_methods| {
-                        for (custom_methods) |custom| {
+                        inline for (custom_methods) |custom| {
                             router.method(custom.method, route.path, HandlerType.api, .{ .data = route });
                         }
                     }
@@ -258,6 +258,7 @@ pub fn Server(comptime H: type) type {
             self.server.config.port = port;
             self.server.config.address = address;
             self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
+            self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse Constant.default_max_multiform_count;
 
             if (is_introspect) {
                 var aw = std.Io.Writer.Allocating.init(self.allocator);

@@ -9,6 +9,8 @@ const httpz = @import("httpz");
 const Request = @import("../core/Request.zig");
 const Response = @import("../core/Response.zig");
 const Headers = @import("../core/Headers.zig");
+const FormData = @import("../core/FormData.zig");
+const MultiFormData = @import("../core/MultiFormData.zig");
 const common = @import("../core/common.zig");
 
 // --- Type Conversion Helpers --- //
@@ -59,6 +61,10 @@ pub fn createRequest(inner: *httpz.Request) Request {
         .cookie_header = inner.headers.get("cookie") orelse "",
         .search_params_ctx = @ptrCast(inner),
         .search_params_vtable = &search_params_vtable,
+        .formdata_ctx = @ptrCast(inner),
+        .formdata_vtable = &formdata_vtable,
+        .multiformdata_ctx = @ptrCast(inner),
+        .multiformdata_vtable = &multiformdata_vtable,
     }).build();
 }
 
@@ -107,6 +113,85 @@ fn searchParamsHas(ctx: *anyopaque, name: []const u8) bool {
     const req: *httpz.Request = @ptrCast(@alignCast(ctx));
     const query = req.query() catch return false;
     return query.has(name);
+}
+
+// --- FormData Adapter (for application/x-www-form-urlencoded) --- //
+
+const formdata_vtable = Request.FormDataVTable{
+    .get = &formDataGet,
+    .has = &formDataHas,
+    .entries = &formDataEntries,
+};
+
+fn formDataGet(ctx: *anyopaque, name: []const u8) ?[]const u8 {
+    const req: *httpz.Request = @ptrCast(@alignCast(ctx));
+
+    // Only handle URL-encoded form data (application/x-www-form-urlencoded)
+    if (req.formData()) |fd| {
+        return fd.get(name);
+    } else |_| {}
+
+    return null;
+}
+
+fn formDataHas(ctx: *anyopaque, name: []const u8) bool {
+    const req: *httpz.Request = @ptrCast(@alignCast(ctx));
+
+    if (req.formData()) |fd| {
+        return fd.has(name);
+    } else |_| {}
+
+    return false;
+}
+
+fn formDataEntries(ctx: *anyopaque) ?FormData.Iterator {
+    const req: *httpz.Request = @ptrCast(@alignCast(ctx));
+    _ = req;
+    // Note: Iteration requires storing state which is complex via vtable
+    // For now, return null - iteration not fully supported via adapter
+    return null;
+}
+
+// --- MultiFormData Adapter (for multipart/form-data with file uploads) --- //
+
+const multiformdata_vtable = Request.MultiFormDataVTable{
+    .get = &multiFormDataGet,
+    .has = &multiFormDataHas,
+    .entries = &multiFormDataEntries,
+};
+
+fn multiFormDataGet(ctx: *anyopaque, name: []const u8) ?MultiFormData.Value {
+    const req: *httpz.Request = @ptrCast(@alignCast(ctx));
+
+    // Handle multipart form data (multipart/form-data)
+    if (req.multiFormData()) |mfd| {
+        if (mfd.get(name)) |entry| {
+            return MultiFormData.Value{
+                .data = entry.value,
+                .filename = entry.filename,
+            };
+        }
+    } else |_| {}
+
+    return null;
+}
+
+fn multiFormDataHas(ctx: *anyopaque, name: []const u8) bool {
+    const req: *httpz.Request = @ptrCast(@alignCast(ctx));
+
+    if (req.multiFormData()) |mfd| {
+        return mfd.has(name);
+    } else |_| {}
+
+    return false;
+}
+
+fn multiFormDataEntries(ctx: *anyopaque) ?MultiFormData.Iterator {
+    const req: *httpz.Request = @ptrCast(@alignCast(ctx));
+    _ = req;
+    // Note: Iteration requires storing state which is complex via vtable
+    // For now, return null - iteration not fully supported via adapter
+    return null;
 }
 
 // --- Response Adapter --- //
