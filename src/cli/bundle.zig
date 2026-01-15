@@ -92,13 +92,13 @@ fn bundle(ctx: zli.CommandContext) !void {
     if (!(docker or docker_compose)) {
         try std.fs.cwd().copyFile(final_binpath, std.fs.cwd(), dest_binpath, .{});
         printer.filepath(bin_name);
-    }
 
-    log.debug("Copying public directory! {s}", .{appoutdir});
-    util.copydirs(ctx.allocator, appoutdir, &.{ "public", "assets" }, outdir, false, &printer) catch |err| {
-        std.log.err("Failed to copy public directory: {any}", .{err});
-        // return err;
-    };
+        log.debug("Copying public directory! {s}", .{appoutdir});
+        util.copydirs(ctx.allocator, appoutdir, &.{ "public", "assets" }, outdir, false, &printer) catch |err| {
+            std.log.err("Failed to copy public directory: {any}", .{err});
+            // return err;
+        };
+    }
 
     // Delete {outdir}/.well-known/_zx if it exists
     const assets_zx_path = try std.fs.path.join(ctx.allocator, &.{ outdir, ".well-known", "_zx" });
@@ -130,8 +130,10 @@ fn bundle(ctx: zli.CommandContext) !void {
 
         const dockerfile_path = try std.fs.path.join(ctx.allocator, &.{ outdir, "Dockerfile" });
         const compose_path = try std.fs.path.join(ctx.allocator, &.{ outdir, "compose.yml" });
+        const dockerignore_path = try std.fs.path.join(ctx.allocator, &.{ outdir, ".dockerignore" });
         defer ctx.allocator.free(dockerfile_path);
         defer ctx.allocator.free(compose_path);
+        defer ctx.allocator.free(dockerignore_path);
 
         try std.fs.cwd().writeFile(.{ .sub_path = dockerfile_path, .data = dockerfile_content_with_build_args });
         printer.filepath(std.fs.path.basename(dockerfile_path));
@@ -139,6 +141,8 @@ fn bundle(ctx: zli.CommandContext) !void {
             try std.fs.cwd().writeFile(.{ .sub_path = compose_path, .data = compose_content_with_port });
             printer.filepath(std.fs.path.basename(compose_path));
         }
+        try std.fs.cwd().writeFile(.{ .sub_path = dockerignore_path, .data = @embedFile("bundle/template/.dockerignore") });
+        printer.filepath(std.fs.path.basename(dockerignore_path));
     }
 
     if (docker or docker_compose) {

@@ -1,6 +1,4 @@
 #!/bin/bash
-zig build run -- transpile site --outdir site/.zx
-
 cd site
 docker compose up -d --build
 docker network connect npm ziex.dev
