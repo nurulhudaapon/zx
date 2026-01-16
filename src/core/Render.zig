@@ -495,34 +495,27 @@ fn renderFragment(
     var rendered_any = false;
     var last_content_end: usize = node.startByte() + 2; // After "<>"
     for (content_nodes.items) |child| {
-        if (!hasMeaningfulContent(self, child)) continue;
+        // Calculate newline count between last content and this child
+        const newline_count = countNewlines(self.source, last_content_end, child.startByte());
 
-        if (is_vertical) {
-            // Check for blank lines between last content and this child
-            const child_start = child.startByte();
-            const has_blank_line = blk: {
-                if (last_content_end < child_start and child_start <= self.source.len) {
-                    const between = self.source[last_content_end..child_start];
-                    // Count newlines - if more than 1, there's a blank line
-                    var newline_count: usize = 0;
-                    for (between) |c| {
-                        if (c == '\n') {
-                            newline_count += 1;
-                            if (newline_count > 1) break :blk true;
-                        }
-                    }
-                }
-                break :blk false;
-            };
+        // Check if child has meaningful content
+        // In inline mode (or if on same line in vertical mode), also consider spaces-only as meaningful
+        const is_meaningful = hasMeaningfulContent(self, child) or
+            ((!is_vertical or newline_count == 0) and hasInlineSpacesOnly(self, child));
+        if (!is_meaningful) continue;
 
+        if (is_vertical and (!rendered_any or newline_count > 0)) {
             try w.writeAll("\n");
             // Add one extra newline if there was a blank line in source
-            if (has_blank_line and rendered_any) {
+            if (newline_count > 1 and rendered_any) {
                 try w.writeAll("\n");
             }
             try ctx.writeIndent(w);
+            ctx.suppress_leading_space = true;
         }
-        try renderChild(self, child, w, ctx);
+
+        try renderChildInner(self, child, w, ctx, !is_vertical or newline_count == 0);
+        ctx.suppress_leading_space = false;
         last_content_end = child.endByte();
         rendered_any = true;
     }
