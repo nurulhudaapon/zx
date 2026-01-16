@@ -229,7 +229,7 @@ test "export" {
             "dist",
             "index.html",
             "about.html",
-            "assets"++std.fs.path.sep_str++"style.css",
+            "assets" ++ std.fs.path.sep_str ++ "style.css",
             "favicon.ico",
         },
         .expected_files = &.{
@@ -270,13 +270,11 @@ test "bundle --docker" {
             "Bundling ZX site!",
             "bundle",
             "Dockerfile",
-            "style.css",
-            "favicon.ico",
+            ".dockerignore",
         },
         .expected_files = &.{
             "bundle/Dockerfile",
-            "bundle/assets/style.css",
-            "bundle/public/favicon.ico",
+            "bundle/.dockerignore",
         },
     });
 }
@@ -291,14 +289,12 @@ test "bundle --docker-compose" {
             "bundle",
             "Dockerfile",
             "compose.yml",
-            "style.css",
-            "favicon.ico",
+            ".dockerignore",
         },
         .expected_files = &.{
             "bundle/Dockerfile",
             "bundle/compose.yml",
-            "bundle/assets/style.css",
-            "bundle/public/favicon.ico",
+            "bundle/.dockerignore",
         },
     });
 }
