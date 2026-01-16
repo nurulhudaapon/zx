@@ -495,34 +495,27 @@ fn renderFragment(
     var rendered_any = false;
     var last_content_end: usize = node.startByte() + 2; // After "<>"
     for (content_nodes.items) |child| {
-        if (!hasMeaningfulContent(self, child)) continue;
+        // Calculate newline count between last content and this child
+        const newline_count = countNewlines(self.source, last_content_end, child.startByte());
 
-        if (is_vertical) {
-            // Check for blank lines between last content and this child
-            const child_start = child.startByte();
-            const has_blank_line = blk: {
-                if (last_content_end < child_start and child_start <= self.source.len) {
-                    const between = self.source[last_content_end..child_start];
-                    // Count newlines - if more than 1, there's a blank line
-                    var newline_count: usize = 0;
-                    for (between) |c| {
-                        if (c == '\n') {
-                            newline_count += 1;
-                            if (newline_count > 1) break :blk true;
-                        }
-                    }
-                }
-                break :blk false;
-            };
+        // Check if child has meaningful content
+        // In inline mode (or if on same line in vertical mode), also consider spaces-only as meaningful
+        const is_meaningful = hasMeaningfulContent(self, child) or
+            ((!is_vertical or newline_count == 0) and hasInlineSpacesOnly(self, child));
+        if (!is_meaningful) continue;
 
+        if (is_vertical and (!rendered_any or newline_count > 0)) {
             try w.writeAll("\n");
             // Add one extra newline if there was a blank line in source
-            if (has_blank_line and rendered_any) {
+            if (newline_count > 1 and rendered_any) {
                 try w.writeAll("\n");
             }
             try ctx.writeIndent(w);
+            ctx.suppress_leading_space = true;
         }
-        try renderChild(self, child, w, ctx);
+
+        try renderChildInner(self, child, w, ctx, !is_vertical or newline_count == 0);
+        ctx.suppress_leading_space = false;
         last_content_end = child.endByte();
         rendered_any = true;
     }
@@ -604,18 +597,14 @@ fn renderElement(
     const is_vertical = blk: {
         if (!has_meaningful_content) break :blk false;
 
-        // Check whitespace between start tag end and first content
+        // Check for newlines in the element's content area
+        // This is similar to how fragments check for multiline content
         const start_tag_end = if (start_tag_node) |st| st.endByte() else node.startByte();
-        for (content_nodes.items) |child| {
-            const child_start = child.startByte();
-            if (start_tag_end < child_start and child_start <= self.source.len) {
-                const between = self.source[start_tag_end..child_start];
-                // If there's a newline, it's vertical
-                if (std.mem.indexOf(u8, between, "\n") != null) {
-                    break :blk true;
-                }
+        const end_tag_start = if (end_tag_node) |et| et.startByte() else node.endByte();
+        if (start_tag_end < end_tag_start and end_tag_start <= self.source.len) {
+            if (std.mem.indexOf(u8, self.source[start_tag_end..end_tag_start], "\n") != null) {
+                break :blk true;
             }
-            break;
         }
         break :blk false;
     };
@@ -830,9 +819,21 @@ fn renderText(
     // Write the trimmed content (no internal whitespace normalization for now)
     try w.writeAll(trimmed);
 
-    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
-    // Write trailing space if there was trailing whitespace
-    if (has_trailing_ws) {
+    // Write trailing space only if there was trailing whitespace that is not a newline
+    // (newlines are layout whitespace handled by the caller, spaces are inline content)
+    const trailing_start = @intFromPtr(trimmed.ptr) + trimmed.len - @intFromPtr(text.ptr);
+    const trailing_ws = text[trailing_start..];
+    // Only preserve trailing space if it's spaces/tabs without newlines before the first newline
+    const has_trailing_space = blk: {
+        for (trailing_ws) |c| {
+            if (c == ' ' or c == '\t') continue;
+            // Hit a newline or other non-space - no trailing space to preserve
+            break :blk false;
+        }
+        // If we get here, all trailing whitespace is spaces/tabs (no newlines)
+        break :blk trailing_ws.len > 0;
+    };
+    if (has_trailing_space) {
         try w.writeAll(" ");
     }
 }

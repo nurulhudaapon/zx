@@ -1,0 +1,25 @@
+pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
+    const cards = props.cards;
+    return (
+        <div @allocator={allocator}>
+            {if (cards.len == 0) (
+                <>
+                    No cards found with '{props.name}' in their name
+                    <br />
+                    HINT: Try <a href="/fetch/{props.name}">fetching them</a>
+                </>
+            ) else (
+                <>
+                    {props.name}
+                    {' '}
+                    in their name
+                    <br />
+                    HINT: Try
+                    <a href="/fetch/{props.name}">fetching them</a>
+                </>
+            )}
+        </div>
+    );
+}
+
+const zx = @import("zx");
