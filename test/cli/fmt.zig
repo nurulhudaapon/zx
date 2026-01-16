@@ -291,6 +291,10 @@ test "whitespace" {
     try expect_fmt("fmt/whitespace");
 }
 
+test "inline_spaces" {
+    try expect_fmt("fmt/inline_spaces");
+}
+
 test "zx_comments" {
     try test_fmt("escaping/comments");
 }

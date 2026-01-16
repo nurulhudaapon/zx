@@ -597,18 +597,14 @@ fn renderElement(
     const is_vertical = blk: {
         if (!has_meaningful_content) break :blk false;
 
-        // Check whitespace between start tag end and first content
+        // Check for newlines in the element's content area
+        // This is similar to how fragments check for multiline content
         const start_tag_end = if (start_tag_node) |st| st.endByte() else node.startByte();
-        for (content_nodes.items) |child| {
-            const child_start = child.startByte();
-            if (start_tag_end < child_start and child_start <= self.source.len) {
-                const between = self.source[start_tag_end..child_start];
-                // If there's a newline, it's vertical
-                if (std.mem.indexOf(u8, between, "\n") != null) {
-                    break :blk true;
-                }
+        const end_tag_start = if (end_tag_node) |et| et.startByte() else node.endByte();
+        if (start_tag_end < end_tag_start and end_tag_start <= self.source.len) {
+            if (std.mem.indexOf(u8, self.source[start_tag_end..end_tag_start], "\n") != null) {
+                break :blk true;
             }
-            break;
         }
         break :blk false;
     };
@@ -823,9 +819,21 @@ fn renderText(
     // Write the trimmed content (no internal whitespace normalization for now)
     try w.writeAll(trimmed);
 
-    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
-    // Write trailing space if there was trailing whitespace
-    if (has_trailing_ws) {
+    // Write trailing space only if there was trailing whitespace that is not a newline
+    // (newlines are layout whitespace handled by the caller, spaces are inline content)
+    const trailing_start = @intFromPtr(trimmed.ptr) + trimmed.len - @intFromPtr(text.ptr);
+    const trailing_ws = text[trailing_start..];
+    // Only preserve trailing space if it's spaces/tabs without newlines before the first newline
+    const has_trailing_space = blk: {
+        for (trailing_ws) |c| {
+            if (c == ' ' or c == '\t') continue;
+            // Hit a newline or other non-space - no trailing space to preserve
+            break :blk false;
+        }
+        // If we get here, all trailing whitespace is spaces/tabs (no newlines)
+        break :blk trailing_ws.len > 0;
+    };
+    if (has_trailing_space) {
         try w.writeAll(" ");
     }
 }
