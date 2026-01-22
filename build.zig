@@ -105,6 +105,12 @@ pub fn build(b: *std.Build) !void {
                         .output = b.path("{outdir}/assets/docs.js"),
                         .optimize = optimize,
                     }),
+                    plugins.esbuild(b, .{
+                        .bin = b.path("site/node_modules/.bin/esbuild"),
+                        .input = b.path("site/scripts/react.ts"),
+                        .output = b.path("{outdir}/assets/react.js"),
+                        .optimize = optimize,
+                    }),
                     // plugins.tailwind(b, .{
                     //     .bin = b.path("site/node_modules/.bin/tailwindcss"),
                     //     .input = b.path("site/assets/docs.css"),

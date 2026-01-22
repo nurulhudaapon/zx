@@ -4,6 +4,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <section @allocator={ctx.arena}>
             <CounterComponent @rendering={.react} visit_count={visit_count} />
+
+            <script src="/assets/react.js"></script>
         </section>
     );
 }
