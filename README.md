@@ -81,11 +81,10 @@ const zx = @import("zx");
 ## Feature Checklist
 
 - [x] Server Side Rendering (SSR)
-    - [ ] `on`event handler
     - [x] Streaming
 - [x] Static Site Generation (SSG)
-    - [x] `options.static.params`, `options.getParams`
-- [ ] Client Side Rendering (CSR) via WebAssembly (_WIP_)
+    - [x] `options.static.params`, `options.static.getParams`
+- [ ] Client Side Rendering (CSR) via WebAssembly (_Alpha_)
     - [x] Virtual DOM and diffing
     - [x] Rendering only changed nodes
     - [x] `on`event handler
