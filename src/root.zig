@@ -1900,7 +1900,6 @@ pub const effect = Client.reactivity.effect;
 pub const effectDeferred = Client.reactivity.effectDeferred;
 pub const requestRender = Client.reactivity.requestRender;
 
-const PageOptionsStatic = struct {};
 pub const PageMethod = enum {
     GET,
     POST,
@@ -1914,10 +1913,21 @@ pub const PageMethod = enum {
     ALL,
 };
 pub const PageOptions = struct {
+    pub const StaticParam = struct {
+        key: []const u8,
+        value: []const u8,
+    };
+
+    /// Options for static page generation during `zx export`
+    pub const Static = struct {
+        params: ?[]const []const StaticParam = null,
+        getParams: ?*const fn (std.mem.Allocator) anyerror![]const []const StaticParam = null,
+    };
+
     rendering: ?BuiltinAttribute.Rendering = null,
     caching: BuiltinAttribute.Caching = .none,
     methods: []const PageMethod = &.{.GET},
-    static: ?PageOptionsStatic = null,
+    static: ?Static = null,
     /// Enable streaming SSR with async components
     streaming: bool = false,
 };

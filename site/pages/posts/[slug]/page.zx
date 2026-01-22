@@ -1,0 +1,40 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+    const slug = ctx.request.getParam("slug") orelse "unknown";
+
+    return (
+        <div @allocator={allocator}>
+            <h1>Post: {slug}</h1>
+            <p>This is a statically generated page for slug: {slug}</p>
+        </div>
+    );
+}
+
+pub const options = zx.PageOptions{
+    .static = .{
+        .params = &.{
+            &.{.{ .key = "slug", .value = "hello-world" }},
+            &.{.{ .key = "slug", .value = "intro" }},
+            &.{.{ .key = "slug", .value = "start-1" }},
+            &.{.{ .key = "slug", .value = "start-2" }},
+            &.{.{ .key = "slug", .value = "start-3" }},
+            &.{.{ .key = "slug", .value = "start-4" }},
+        },
+        .getParams = getStaticParams,
+    },
+};
+
+fn getStaticParams(allocator: zx.Allocator) ![]const []const zx.PageOptions.StaticParam {
+    var params = std.ArrayList([] const zx.PageOptions.StaticParam).empty;
+
+    try params.appendSlice(allocator, &.{
+        &.{.{ .key = "slug", .value = "dynamic-1" }},
+        &.{.{ .key = "slug", .value = "dynamic-2" }},
+        &.{.{ .key = "slug", .value = "dynamic-3" }},
+    });
+
+    return params.items;
+}
+
+const std = @import("std");
+const zx = @import("zx");

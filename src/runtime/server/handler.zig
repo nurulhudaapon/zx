@@ -856,6 +856,39 @@ pub fn Handler(comptime AppCtxType: type) type {
                 if (req.header("x-zx-export-notfound")) |_| {
                     return self.notFound(req, res);
                 }
+
+                // Handle static params request for dynamic routes
+                if (req.header("x-zx-static-data")) |_| {
+                    if (req.route_data) |rd| {
+                        const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
+                        if (route.page_opts) |page_opts| {
+                            if (page_opts.static) |static_opts| {
+                                const params = self.resolveStaticParams(req.arena, static_opts) catch {
+                                    res.content_type = .TEXT;
+                                    res.body = ".{}";
+                                    return;
+                                };
+
+                                if (params.len > 0) {
+                                    res.content_type = .TEXT;
+                                    var aw = std.Io.Writer.Allocating.init(req.arena);
+                                    std.zon.stringify.serialize(params, .{
+                                        .whitespace = true,
+                                    }, &aw.writer) catch {
+                                        res.body = ".{}";
+                                        return;
+                                    };
+                                    res.body = aw.written();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    // No static params defined
+                    res.content_type = .TEXT;
+                    res.body = ".{}";
+                    return;
+                }
             }
 
             const abstract_req = httpz_adapter.createRequest(req);
@@ -1015,6 +1048,21 @@ pub fn Handler(comptime AppCtxType: type) type {
                 res.content_type = .HTML;
                 return;
             }
+        }
+
+        fn resolveStaticParams(self: *Self, allocator: Allocator, static_opts: zx.PageOptions.Static) ![]const []const zx.PageOptions.StaticParam {
+            _ = self; // currently unused but keeps signature flexible
+            var params = std.ArrayList([]const zx.PageOptions.StaticParam).empty;
+            if (static_opts.params) |p| {
+                try params.appendSlice(allocator, p);
+            }
+
+            if (static_opts.getParams) |getter| {
+                const p = try getter(allocator);
+                try params.appendSlice(allocator, p);
+            }
+
+            return try params.toOwnedSlice(allocator);
         }
 
         /// Render a page with streaming SSR support

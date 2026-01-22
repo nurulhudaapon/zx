@@ -287,6 +287,7 @@ pub fn Server(comptime H: type) type {
             pub const Route = struct {
                 path: []const u8,
                 has_notfound: bool = false,
+                is_dynamic: bool = false,
             };
             pub const Config = struct {
                 server: httpz.Config,
@@ -303,9 +304,11 @@ pub fn Server(comptime H: type) type {
                 var routes = try allocator.alloc(Route, srv.meta.routes.len);
 
                 for (srv.meta.routes, 0..) |route, i| {
+                    const is_dynamic = std.mem.indexOf(u8, route.path, ":") != null;
                     routes[i] = Route{
                         .path = try allocator.dupe(u8, route.path),
                         .has_notfound = route.notfound != null,
+                        .is_dynamic = is_dynamic,
                     };
                 }
 

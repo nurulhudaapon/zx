@@ -65,11 +65,41 @@ fn @"export"(ctx: zli.CommandContext) !void {
     process_block: while (true) {
         for (app_meta.routes) |route| {
             log.debug("Processing route! {s}", .{route.path});
-            processRoute(ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
-                if (err == error.ConnectionRefused) {
-                    continue :process_block;
+
+            if (route.is_dynamic) {
+                const static_params = fetchStaticParams(ctx.allocator, host, port, route.path) catch |err| {
+                    if (err == error.ConnectionRefused) {
+                        continue :process_block;
+                    }
+                    log.warn("Failed to fetch static params for {s}: {any}", .{ route.path, err });
+                    continue;
+                };
+                defer static_params.deinit();
+
+                if (static_params.items.len > 0) {
+                    for (static_params.items) |expanded_path| {
+                        const expanded_route = zx.App.SerilizableAppMeta.Route{
+                            .path = expanded_path,
+                            .has_notfound = route.has_notfound,
+                            .is_dynamic = false,
+                        };
+                        processRoute(ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
+                            if (err == error.ConnectionRefused) {
+                                continue :process_block;
+                            }
+                        };
+                    }
+                } else {
+                    log.debug("No static params for dynamic route: {s}", .{route.path});
                 }
-            };
+            } else {
+                processRoute(ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
+                    if (err == error.ConnectionRefused) {
+                        continue :process_block;
+                    }
+                };
+            }
+
             // Also export 404.html for routes that have notfound handler
             if (route.has_notfound) {
                 processRoute(ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
@@ -100,6 +130,20 @@ fn @"export"(ctx: zli.CommandContext) !void {
 }
 
 const ExportType = enum { page, notfound };
+
+const StaticParamsResult = struct {
+    items: []const []const u8,
+    allocator: ?std.mem.Allocator = null,
+
+    fn deinit(self: StaticParamsResult) void {
+        if (self.allocator) |alloc| {
+            for (self.items) |path| {
+                alloc.free(path);
+            }
+            alloc.free(self.items);
+        }
+    }
+};
 
 fn processRoute(
     allocator: std.mem.Allocator,
@@ -213,6 +257,88 @@ fn processRoute(
     });
 
     printer.filepath(file_path);
+}
+
+/// Fetch static params from server via x-zx-static-data header
+/// Returns expanded paths (e.g., "/blog/hello", "/blog/world")
+fn fetchStaticParams(allocator: std.mem.Allocator, host: []const u8, port: u16, route_path: []const u8) !StaticParamsResult {
+    var client = std.http.Client{ .allocator = allocator };
+    defer client.deinit();
+
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    defer aw.deinit();
+
+    const effective_host = if (std.mem.eql(u8, host, "0.0.0.0")) "127.0.0.1" else host;
+    const url = try std.fmt.allocPrint(allocator, "http://{s}:{d}{s}", .{ effective_host, port, route_path });
+    defer allocator.free(url);
+
+    var extra_headers: [1]std.http.Header = .{.{ .name = "x-zx-static-data", .value = "true" }};
+
+    const result = try client.fetch(.{
+        .method = .GET,
+        .location = .{ .url = url },
+        .extra_headers = &extra_headers,
+        .response_writer = &aw.writer,
+    });
+
+    if (result.status != .ok) return .{ .items = &.{}, .allocator = null };
+
+    const response = aw.written();
+    if (response.len == 0 or std.mem.eql(u8, response, ".{}")) return .{ .items = &.{}, .allocator = null };
+
+    const response_z = try allocator.dupeZ(u8, response);
+    defer allocator.free(response_z);
+
+    const parsed = std.zon.parse.fromSlice([]const []const zx.PageOptions.StaticParam, allocator, response_z, null, .{}) catch |err| {
+        log.warn("Failed to parse static params ZON: {any}", .{err});
+        return .{ .items = &.{}, .allocator = null };
+    };
+    defer std.zon.parse.free(allocator, parsed);
+
+    // Expand dynamic paths
+    var expanded = std.array_list.Managed([]const u8).init(allocator);
+    errdefer {
+        for (expanded.items) |path| allocator.free(path);
+        expanded.deinit();
+    }
+
+    for (parsed) |param_set| {
+        const expanded_path = expandDynamicPath(allocator, route_path, param_set) catch continue;
+        expanded.append(expanded_path) catch {
+            allocator.free(expanded_path);
+            continue;
+        };
+    }
+
+    if (expanded.items.len == 0) {
+        expanded.deinit();
+        return .{ .items = &.{}, .allocator = null };
+    }
+
+    const items = try expanded.toOwnedSlice();
+    return .{ .items = items, .allocator = allocator };
+}
+
+/// Replace :param placeholders in a route path with actual values
+fn expandDynamicPath(allocator: std.mem.Allocator, route_path: []const u8, params: []const zx.PageOptions.StaticParam) ![]const u8 {
+    var result = try allocator.dupe(u8, route_path);
+
+    for (params) |param| {
+        const placeholder = try std.fmt.allocPrint(allocator, ":{s}", .{param.key});
+        defer allocator.free(placeholder);
+
+        if (std.mem.indexOf(u8, result, placeholder)) |start| {
+            const new_len = result.len - placeholder.len + param.value.len;
+            const new_result = try allocator.alloc(u8, new_len);
+            @memcpy(new_result[0..start], result[0..start]);
+            @memcpy(new_result[start .. start + param.value.len], param.value);
+            @memcpy(new_result[start + param.value.len ..], result[start + placeholder.len ..]);
+            allocator.free(result);
+            result = new_result;
+        }
+    }
+
+    return result;
 }
 
 const std = @import("std");
