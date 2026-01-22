@@ -38,19 +38,22 @@ pub fn esbuild(b: *std.Build, options: EsbuildPluginOptions) ZxInitOptions.Plugi
     }
 
     // Handle minify/sourcemap based on build mode or explicit options
-    const is_release = builtin.mode != .Debug;
+    const is_debug = options.optimize == .Debug;
+    const is_release = !is_debug;
 
     if (options.minify orelse is_release) {
         cmd.addArg("--minify");
     }
 
-    switch (options.sourcemap orelse if (is_release) .none else .@"inline") {
-        .none => {},
-        .@"inline" => cmd.addArg("--sourcemap=inline"),
-        .external => cmd.addArg("--sourcemap=external"),
-        .linked => cmd.addArg("--sourcemap=linked"),
-        .both => cmd.addArg("--sourcemap=both"),
-    }
+    if (options.sourcemap) |sm|
+        switch (sm) {
+            .@"inline" => cmd.addArg("--sourcemap=inline"),
+            .external => cmd.addArg("--sourcemap=external"),
+            .linked => cmd.addArg("--sourcemap=linked"),
+            .both => cmd.addArg("--sourcemap=both"),
+        }
+    else if (is_debug)
+        cmd.addArg("--sourcemap=inline");
 
     // Add define based on build mode
     if (is_release) {
@@ -104,7 +107,7 @@ const EsbuildPluginOptions = struct {
     /// Minify the output (sets all --minify-* flags) [default: `true` in release, `false` in debug]
     minify: ?bool = null,
     /// Emit a source map [default: `inline` in debug, `none` in release]
-    sourcemap: ?enum { none, @"inline", external, linked, both } = null,
+    sourcemap: ?enum { @"inline", external, linked, both } = null,
     /// Disable logging [default: `silent`]
     log_level: ?enum { verbose, debug, info, warning, @"error", silent } = .@"error",
     /// Output format [default: inferred by esbuild]
@@ -121,6 +124,8 @@ const EsbuildPluginOptions = struct {
     define: []const struct { key: []const u8, value: []const u8 } = &.{},
 
     // watch: bool = false, // Available with esbuild, but zig watch already handles rebuilding
+
+    optimize: ?std.builtin.OptimizeMode = null,
 };
 
 const ZxInitOptions = @import("../init/ZxInitOptions.zig");
