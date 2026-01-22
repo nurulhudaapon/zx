@@ -245,7 +245,6 @@ test "export" {
             "dist/assets/style.css",
             "dist/favicon.ico",
         },
-        .debug = true,
     });
 }
 
