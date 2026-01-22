@@ -6,6 +6,7 @@ test "init" {
         .expected_stderr_strings = &.{
             "Initializing ZX project!",
             "main.zig",
+            ".gitattributes",
             "page.zx",
         },
         .expected_files = &.{
@@ -17,6 +18,7 @@ test "init" {
             "site/public/favicon.ico",
             "src/root.zig",
             ".gitignore",
+            ".gitattributes",
             "README.md",
         },
     });
@@ -49,6 +51,7 @@ test "init --force" {
             "site/main.zig",
             "site/pages/page.zx",
             ".gitignore",
+            ".gitattributes",
             "README.md",
         },
     });
@@ -68,6 +71,7 @@ test "init -t react" {
             "page.zx",
             "client.tsx",
             "package.json",
+            ".gitattributes",
             "tsconfig.json",
         },
         .expected_files = &.{
@@ -78,6 +82,7 @@ test "init -t react" {
             "react/site/pages/page.zx",
             "react/site/pages/client.tsx",
             "react/package.json",
+            "react/.gitattributes",
             "react/tsconfig.json",
         },
     });
@@ -94,6 +99,7 @@ test "init -t wasm" {
             "build.zig",
             "main.zig",
             "page.zx",
+            ".gitattributes",
             "client.zx",
         },
         .expected_files = &.{
@@ -221,6 +227,7 @@ test "init → build -t wasm" {
 
 test "export" {
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
+    killPort("3000") catch {};
     try test_cmd(.{
         .args = &.{"export"},
         .expected_exit_code = 0,
@@ -238,6 +245,7 @@ test "export" {
             "dist/assets/style.css",
             "dist/favicon.ico",
         },
+        .debug = true,
     });
 }
 
@@ -316,6 +324,7 @@ const TestCmdOptions = struct {
     expected_stdout_strings: []const []const u8 = &.{},
     expected_exit_code: i32 = 0,
     expected_files: []const []const u8 = &.{},
+    debug: bool = false,
 };
 fn test_cmd(options: TestCmdOptions) !void {
     const zx_bin_abs = try getZxPath();
@@ -345,6 +354,11 @@ fn test_cmd(options: TestCmdOptions) !void {
     defer stdout.deinit(allocator);
     defer stderr.deinit(allocator);
     try child.collectOutput(allocator, &stdout, &stderr, 8192);
+
+    if (options.debug) {
+        std.debug.print("\nstdout: {s}", .{stdout.items});
+        std.debug.print("\nstderr: {s}", .{stderr.items});
+    }
 
     for (options.expected_stderr_strings) |expected_string| {
         try std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_string) != null);

@@ -191,6 +191,7 @@ const templates = [_]TemplateFile{
     .{ .path = "site/pages/layout.zx", .content = @embedFile(template_dir ++ "/site/pages/layout.zx") },
     .{ .path = "src/root.zig", .content = @embedFile(template_dir ++ "/src/root.zig") },
     .{ .path = ".gitignore", .content = @embedFile(template_dir ++ "/.gitignore") },
+    .{ .path = ".gitattributes", .content = @embedFile(template_dir ++ "/.gitattributes") },
 
     // Default (SSR)
     .{ .name = .default, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{ .{ 1, 29 }, .{ 31, 33 } } },
