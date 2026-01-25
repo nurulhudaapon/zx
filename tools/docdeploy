@@ -1,5 +1,5 @@
 #!/bin/bash
 cd site
 docker compose up -d --build
-docker network connect npm ziex.dev
+docker network connect npm ziex.dev || true
 
