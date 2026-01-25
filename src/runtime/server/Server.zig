@@ -223,12 +223,16 @@ pub fn Server(comptime H: type) type {
             // --- Flags --- //
             // --introspect: Print the metadata to stdout and exit
             var is_introspect = false;
+            var is_stdio = false;
             var port = self.server.config.port orelse Constant.default_port;
             var address = self.server.config.address orelse Constant.default_address;
 
             while (args.next()) |arg| {
                 // --introspect: Print the metadata to stdout and exit
                 if (std.mem.eql(u8, arg, "--introspect")) is_introspect = true;
+
+                // --stdio: Start the server in stdio mode, where request responses will be read from stdin and written to stdout
+                if (std.mem.eql(u8, arg, "--stdio")) is_stdio = true;
 
                 // --port: Override the configured/default port
                 if (std.mem.eql(u8, arg, "--port")) {
@@ -253,6 +257,10 @@ pub fn Server(comptime H: type) type {
 
             var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
             var stdout = &stdout_writer.interface;
+
+            var stdin_reader = std.fs.File.stdin().readerStreaming(&.{});
+            var stdin = &stdin_reader.interface;
+            stdin = stdin;
 
             // Overriding or setting default configs
             self.server.config.port = port;
@@ -345,6 +353,17 @@ pub fn Server(comptime H: type) type {
 }
 
 pub const ServerMeta = struct {
+    pub const StdInput = struct {
+        const Header = struct {
+            name: []const u8,
+            value: []const u8,
+        };
+        url: []const u8,
+        method: zx.Request.Method,
+        headers: []const Header,
+        body: []const u8,
+    };
+
     /// Route handler function type for API routes
     pub const RouteHandler = *const fn (ctx: zx.RouteContext) anyerror!void;
 

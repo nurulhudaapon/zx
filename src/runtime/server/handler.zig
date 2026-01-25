@@ -863,30 +863,11 @@ pub fn Handler(comptime AppCtxType: type) type {
                         const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
                         if (route.page_opts) |page_opts| {
                             if (page_opts.static) |static_opts| {
-                                const params = self.resolveStaticParams(req.arena, static_opts) catch {
-                                    res.content_type = .TEXT;
-                                    res.body = ".{}";
-                                    return;
-                                };
-
-                                if (params.len > 0) {
-                                    res.content_type = .TEXT;
-                                    var aw = std.Io.Writer.Allocating.init(req.arena);
-                                    std.zon.stringify.serialize(params, .{
-                                        .whitespace = true,
-                                    }, &aw.writer) catch {
-                                        res.body = ".{}";
-                                        return;
-                                    };
-                                    res.body = aw.written();
-                                    return;
-                                }
+                                const params = try self.resolveStaticParams(req.arena, static_opts);
+                                try std.zon.stringify.serialize(params, .{ .whitespace = true }, res.writer());
                             }
                         }
                     }
-                    // No static params defined
-                    res.content_type = .TEXT;
-                    res.body = ".{}";
                     return;
                 }
             }
