@@ -13,23 +13,24 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 pub const options = zx.PageOptions{
     .static = .{
         .params = &.{
-            &.{.init("slug", "hello-world")},
-            &.{.init("slug", "start-1")},
-            &.{.init("slug", "start-2")},
-            &.{.init("slug", "start-3")},
-            &.{.init("slug", "start-4")},
+            &.{.{ .key = "slug", .value = "hello-world" }},
+            &.{.{ .key = "slug", .value = "intro" }},
+            &.{.{ .key = "slug", .value = "start-1" }},
+            &.{.{ .key = "slug", .value = "start-2" }},
+            &.{.{ .key = "slug", .value = "start-3" }},
+            &.{.{ .key = "slug", .value = "start-4" }},
         },
         .getParams = getStaticParams,
     },
 };
 
 fn getStaticParams(allocator: zx.Allocator) ![]const []const zx.PageOptions.StaticParam {
-    var params = std.ArrayList([]const zx.PageOptions.StaticParam).empty;
+    var params = std.ArrayList([] const zx.PageOptions.StaticParam).empty;
 
     try params.appendSlice(allocator, &.{
-        &.{.init("slug", "dynamic-1")},
-        &.{.init("slug", "dynamic-2")},
-        &.{.init("slug", "dynamic-3")},
+        &.{.{ .key = "slug", .value = "dynamic-1" }},
+        &.{.{ .key = "slug", .value = "dynamic-2" }},
+        &.{.{ .key = "slug", .value = "dynamic-3" }},
     });
 
     return params.items;

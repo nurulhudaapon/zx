@@ -1840,16 +1840,10 @@ pub const PageMethod = enum {
     TRACE,
     ALL,
 };
-
-// pub const StaticParams = []const []const PageOptions.StaticParam;
 pub const PageOptions = struct {
     pub const StaticParam = struct {
         key: []const u8,
         value: []const u8,
-
-        pub fn init(key: []const u8, value: []const u8) StaticParam {
-            return .{ .key = key, .value = value };
-        }
     };
 
     /// Options for static page generation during `zx export`
