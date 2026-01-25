@@ -1,16 +1,15 @@
 {
   "main": "site/main.ts",
   "devDependencies": {
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "esbuild": "^0.27.2"
+    "@tailwindcss/cli": "4.1.18",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "esbuild": "0.27.2"
   },
   "dependencies": {
-    "@tailwindcss/cli": "^4.1.18",
-    "prettier": "^3.7.4",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "tailwindcss": "^4.1.18",
-    "ziex": "^0.1.0-dev.526"
+    "prettier": "3.7.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwindcss": "4.1.18"
   }
 }
