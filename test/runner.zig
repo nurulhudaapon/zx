@@ -77,13 +77,17 @@ pub fn main() !void {
             const name = t.name;
 
             var it = std.mem.splitScalar(u8, name, '.');
-            var i: usize = 0;
-            while (it.next()) |value| : (i += 1) {
-                if (i == 1) scope_name = value;
-                if (std.mem.eql(u8, value, "test")) {
+            var prev_value: []const u8 = "";
+            while (it.next()) |value| {
+                if (std.mem.eql(u8, value, "test") or std.mem.eql(u8, value, "decltest")) {
+                    // Use the part before "test"/"decltest" as scope name
+                    if (prev_value.len > 0) {
+                        scope_name = prev_value;
+                    }
                     const rest = it.rest();
                     break :blk if (rest.len > 0) rest else name;
                 }
+                prev_value = value;
             }
             break :blk name;
         };
@@ -101,7 +105,7 @@ pub fn main() !void {
             final_result = t.func();
             current_test = null;
 
-            final_ns_taken = slowest.endTiming(friendly_name);
+            final_ns_taken = slowest.endTiming(scope_name, friendly_name);
 
             if (std.testing.allocator_instance.deinit() == .leak) {
                 leak += 1;
@@ -265,6 +269,7 @@ const SlowTracker = struct {
 
     const TestInfo = struct {
         ns: u64,
+        scope: []const u8,
         name: []const u8,
     };
 
@@ -276,7 +281,7 @@ const SlowTracker = struct {
         self.timer.reset();
     }
 
-    fn endTiming(self: *SlowTracker, test_name: []const u8) u64 {
+    fn endTiming(self: *SlowTracker, scope_name: []const u8, test_name: []const u8) u64 {
         var timer = self.timer;
         const ns = timer.lap();
 
@@ -285,7 +290,7 @@ const SlowTracker = struct {
         if (slowest.count() < self.max) {
             // Capacity is fixed to the # of slow tests we want to track
             // If we've tracked fewer tests than this capacity, than always add
-            slowest.add(TestInfo{ .ns = ns, .name = test_name }) catch @panic("failed to track test timing");
+            slowest.add(TestInfo{ .ns = ns, .scope = scope_name, .name = test_name }) catch @panic("failed to track test timing");
             return ns;
         }
 
@@ -301,7 +306,7 @@ const SlowTracker = struct {
 
         // the previous fastest of our slow tests, has been pushed off.
         _ = slowest.removeMin();
-        slowest.add(TestInfo{ .ns = ns, .name = test_name }) catch @panic("failed to track test timing");
+        slowest.add(TestInfo{ .ns = ns, .scope = scope_name, .name = test_name }) catch @panic("failed to track test timing");
         return ns;
     }
 
@@ -311,7 +316,11 @@ const SlowTracker = struct {
         Printer.fmt("\x1b[1mSlowest\x1b[0m \x1b[90m({d})\x1b[0m:\n", .{count});
         while (slowest.removeMaxOrNull()) |info| {
             const ms = @as(f64, @floatFromInt(info.ns)) / 1_000_000.0;
-            Printer.fmt("  {d:.2}ms\t\x1b[90m{s}\x1b[0m\n", .{ ms, info.name });
+            if (info.scope.len > 0) {
+                Printer.fmt("  {d:.2}ms\t\x1b[90m{s} > {s}\x1b[0m\n", .{ ms, info.scope, info.name });
+            } else {
+                Printer.fmt("  {d:.2}ms\t\x1b[90m{s}\x1b[0m\n", .{ ms, info.name });
+            }
         }
     }
 
