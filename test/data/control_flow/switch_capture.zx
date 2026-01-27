@@ -1,0 +1,24 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const admin_user: User = .{ .admin = .{ .level = 5 } };
+    const member_user: User = .{ .member = .{ .points = 150 } };
+
+    return (
+        <main @allocator={allocator}>
+            {switch (member_user) {
+                .admin => |_| ("Admin"),
+                .member => |_| ("Member"),
+            }}
+            {switch (admin_user) {
+                .admin => |admin| (<p>Powerful - Level {admin.level}</p>),
+                .member => |member| (<p>Powerless - Points {member.points}</p>),
+            }}
+        </main>
+    );
+}
+
+const User = union(enum) {
+    admin: struct { level: u8 },
+    member: struct { points: u16 },
+};
+
+const zx = @import("zx");

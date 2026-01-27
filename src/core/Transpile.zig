@@ -1781,10 +1781,11 @@ pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{
 }
 
 pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
-    // switch_case structure: pattern '=>' value
+    // switch_case structure: pattern [payload] '=>' value
     try ctx.writeIndent();
 
     var pattern_node: ?ts.Node = null;
+    var payload_node: ?ts.Node = null;
     var value_node: ?ts.Node = null;
     var seen_arrow = false;
 
@@ -1792,9 +1793,12 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_kind = child.kind();
 
-        if (std.mem.eql(u8, child.kind(), "=>")) {
+        if (std.mem.eql(u8, child_kind, "=>")) {
             seen_arrow = true;
+        } else if (std.mem.eql(u8, child_kind, "payload")) {
+            payload_node = child;
         } else if (!seen_arrow and pattern_node == null) {
             pattern_node = child;
         } else if (seen_arrow and value_node == null) {
@@ -1804,7 +1808,13 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
 
     if (pattern_node) |p| {
         try ctx.writeM(try self.getNodeText(p), p.startByte(), self);
-        try ctx.write(" => ");
+    }
+
+    try ctx.write(" => ");
+
+    if (payload_node) |pl| {
+        try ctx.write(" ");
+        try ctx.writeM(try self.getNodeText(pl), pl.startByte(), self);
     }
 
     if (value_node) |v| {

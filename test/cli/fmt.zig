@@ -89,6 +89,9 @@ test "for_while" {
 test "switch" {
     try test_fmt("control_flow/switch");
 }
+test "switch_capture" {
+    try test_fmt("control_flow/switch_capture");
+}
 test "switch_block" {
     // if (true) return error.Todo;
     try test_fmt("control_flow/switch_block");

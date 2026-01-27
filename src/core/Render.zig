@@ -1549,7 +1549,7 @@ fn renderSwitchExpression(
     ctx: *FormatContext,
 ) !void {
     var switch_expr_node: ?ts.Node = null;
-    var cases = std.ArrayList(struct { pattern: []const u8, value: ts.Node }){};
+    var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }){};
     defer cases.deinit(self.allocator);
 
     const child_count = node.childCount();
@@ -1580,8 +1580,9 @@ fn renderSwitchExpression(
         }
 
         if (child_kind == .switch_case) {
-            // Parse switch case: pattern '=>' value
+            // Parse switch case: pattern [payload] '=>' value
             var pattern_node: ?ts.Node = null;
+            var payload_node: ?ts.Node = null;
             var value_node: ?ts.Node = null;
             var seen_arrow = false;
 
@@ -1589,9 +1590,12 @@ fn renderSwitchExpression(
             var j: u32 = 0;
             while (j < case_child_count) : (j += 1) {
                 const case_child = child.child(j) orelse continue;
+                const case_child_kind = case_child.kind();
 
-                if (std.mem.eql(u8, case_child.kind(), "=>")) {
+                if (std.mem.eql(u8, case_child_kind, "=>")) {
                     seen_arrow = true;
+                } else if (std.mem.eql(u8, case_child_kind, "payload")) {
+                    payload_node = case_child;
                 } else if (!seen_arrow and pattern_node == null) {
                     pattern_node = case_child;
                 } else if (seen_arrow and value_node == null) {
@@ -1601,9 +1605,11 @@ fn renderSwitchExpression(
 
             if (pattern_node) |p| {
                 const pattern_text = try self.getNodeText(p);
+                const payload_text = if (payload_node) |pl| try self.getNodeText(pl) else null;
                 if (value_node) |v| {
                     try cases.append(self.allocator, .{
                         .pattern = pattern_text,
+                        .payload = payload_text,
                         .value = v,
                     });
                 }
@@ -1627,6 +1633,10 @@ fn renderSwitchExpression(
         ctx.indent_level -= 1;
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
+        if (case.payload) |payload| {
+            try w.writeAll(payload);
+            try w.writeAll(" ");
+        }
         const is_nested_switch = NodeKind.fromNode(case.value) == .switch_expression;
 
         // For nested switches, keep indent level elevated
@@ -1906,7 +1916,7 @@ fn renderSwitchExpressionInner(
     ctx: *FormatContext,
 ) anyerror!void {
     var switch_expr_node: ?ts.Node = null;
-    var cases = std.ArrayList(struct { pattern: []const u8, value: ts.Node }){};
+    var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }){};
     defer cases.deinit(self.allocator);
 
     const child_count = node.childCount();
@@ -1936,7 +1946,9 @@ fn renderSwitchExpressionInner(
         }
 
         if (child_kind == .switch_case) {
+            // Parse switch case: pattern [payload] '=>' value
             var pattern_node: ?ts.Node = null;
+            var payload_node: ?ts.Node = null;
             var value_node: ?ts.Node = null;
             var seen_arrow = false;
 
@@ -1944,9 +1956,12 @@ fn renderSwitchExpressionInner(
             var j: u32 = 0;
             while (j < case_child_count) : (j += 1) {
                 const case_child = child.child(j) orelse continue;
+                const case_child_kind = case_child.kind();
 
-                if (std.mem.eql(u8, case_child.kind(), "=>")) {
+                if (std.mem.eql(u8, case_child_kind, "=>")) {
                     seen_arrow = true;
+                } else if (std.mem.eql(u8, case_child_kind, "payload")) {
+                    payload_node = case_child;
                 } else if (!seen_arrow and pattern_node == null) {
                     pattern_node = case_child;
                 } else if (seen_arrow and value_node == null) {
@@ -1956,9 +1971,11 @@ fn renderSwitchExpressionInner(
 
             if (pattern_node) |p| {
                 const pattern_text = try self.getNodeText(p);
+                const payload_text = if (payload_node) |pl| try self.getNodeText(pl) else null;
                 if (value_node) |v| {
                     try cases.append(self.allocator, .{
                         .pattern = pattern_text,
+                        .payload = payload_text,
                         .value = v,
                     });
                 }
@@ -1982,6 +1999,10 @@ fn renderSwitchExpressionInner(
         ctx.indent_level -= 1;
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
+        if (case.payload) |payload| {
+            try w.writeAll(payload);
+            try w.writeAll(" ");
+        }
         const is_nested_switch = NodeKind.fromNode(case.value) == .switch_expression;
 
         // For nested switches, keep indent level elevated

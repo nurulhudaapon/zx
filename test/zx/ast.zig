@@ -107,6 +107,12 @@ test "switch" {
     try test_transpile("control_flow/switch");
     try test_render("control_flow/switch", @import("./../data/control_flow/switch.zig").Page);
 }
+
+test "switch_capture" {
+    try test_transpile("control_flow/switch_capture");
+    try test_render("control_flow/switch_capture", @import("./../data/control_flow/switch_capture.zig").Page);
+}
+
 test "switch_block" {
     try test_transpile("control_flow/switch_block");
     try test_render("control_flow/switch_block", @import("./../data/control_flow/switch_block.zig").Page);
@@ -472,6 +478,7 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "control_flow/for", @import("./../data/control_flow/for.zig") },
         .{ "control_flow/for_block", @import("./../data/control_flow/for_block.zig") },
         .{ "control_flow/switch", @import("./../data/control_flow/switch.zig") },
+        .{ "control_flow/switch_capture", @import("./../data/control_flow/switch_capture.zig") },
         .{ "control_flow/switch_block", @import("./../data/control_flow/switch_block.zig") },
         .{ "control_flow/while", @import("./../data/control_flow/while.zig") },
         .{ "control_flow/while_block", @import("./../data/control_flow/while_block.zig") },
