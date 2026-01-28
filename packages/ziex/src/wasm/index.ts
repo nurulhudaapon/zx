@@ -414,13 +414,20 @@ export class ZxBridge {
                     bridgeRef.current?.wsClose(wsId, code, reasonPtr, reasonLen);
                 },
                 _ce: (id: number) => {
-                    const el = document.createElement(TAG_NAMES[id] as string);
+                    const tagName = TAG_NAMES[id] as string;
+                    // SVG elements start at index SVG_TAG_START_INDEX and need createElementNS
+                    const el = id >= SVG_TAG_START_INDEX
+                        ? document.createElementNS('http://www.w3.org/2000/svg', tagName)
+                        : document.createElement(tagName);
                     return storeValueGetRef(el);
                 },
             },
         };
     }
 }
+
+// Index where SVG tags start in TAG_NAMES array
+const SVG_TAG_START_INDEX = 140;
 
 // Event delegation constants
 const TAG_NAMES = [
@@ -464,6 +471,7 @@ const TAG_NAMES = [
     'menu',
     'main',
     'p',
+    'picture',
     'pre',
     'a',
     'abbr',

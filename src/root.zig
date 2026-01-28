@@ -49,6 +49,7 @@ const ElementTag = enum {
     menu,
     main,
     p,
+    picture,
     pre,
     a,
     abbr,
