@@ -51,6 +51,7 @@ pub const VElement = struct {
         parent_dom: ?Document.HTMLElement,
         component: zx.Component,
         defer_append: bool,
+        escaping: ?zx.BuiltinAttribute.Escaping,
     ) !VElement {
         switch (component) {
             .none => {
@@ -92,9 +93,10 @@ pub const VElement = struct {
 
                     // Render children directly to parent_dom
                     if (element.children) |children| {
+                        const child_escaping = element.escaping orelse escaping;
                         try velement.children.ensureTotalCapacity(allocator, children.len);
                         for (children) |child| {
-                            const child_velement = try createFromComponent(allocator, document, parent_dom, child, defer_append);
+                            const child_velement = try createFromComponent(allocator, document, parent_dom, child, defer_append, child_escaping);
                             velement.children.appendAssumeCapacity(child_velement);
                         }
                     }
@@ -130,9 +132,10 @@ pub const VElement = struct {
                 };
 
                 if (element.children) |children| {
+                    const child_escaping = element.escaping orelse escaping;
                     try velement.children.ensureTotalCapacity(allocator, children.len);
                     for (children) |child| {
-                        const child_velement = try createFromComponent(allocator, document, dom_element, child, false);
+                        const child_velement = try createFromComponent(allocator, document, dom_element, child, false, child_escaping);
                         velement.children.appendAssumeCapacity(child_velement);
                     }
                 }
@@ -146,6 +149,31 @@ pub const VElement = struct {
                 return velement;
             },
             .text => |text| {
+                // Handle raw HTML with escaping=none using template approach
+                if (escaping == .none) {
+                    if (document.createElementFromTemplate(text)) |html_element| {
+                        const velement_id = nextId();
+                        html_element.setProperty("__zx_ref", velement_id);
+
+                        const velement = VElement{
+                            .id = velement_id,
+                            .dom = .{ .element = html_element },
+                            .component = component,
+                            .children = std.ArrayList(VElement).empty,
+                            .key = null,
+                        };
+
+                        if (!defer_append) {
+                            if (parent_dom) |parent| {
+                                try parent.appendChild(velement.dom);
+                            }
+                        }
+
+                        return velement;
+                    }
+                }
+
+                // Default: create text node
                 const text_node = document.createTextNode(if (text.len > 0) text else "");
                 const velement_id = nextId();
 
@@ -167,7 +195,7 @@ pub const VElement = struct {
             },
             .component_fn => |comp_fn| {
                 const resolved = try comp_fn.callFn(comp_fn.propsPtr, allocator);
-                var velement = try createFromComponent(allocator, document, parent_dom, resolved, defer_append);
+                var velement = try createFromComponent(allocator, document, parent_dom, resolved, defer_append, escaping);
                 if (velement.key == null) {
                     velement.key = extractKey(resolved);
                 }
@@ -306,7 +334,7 @@ vtree: VElement,
 
 pub fn init(allocator: zx.Allocator, component: zx.Component) VDOMTree {
     const document = Document.init(allocator);
-    const root_velement = VElement.createFromComponent(allocator, document, null, component, true) catch @panic("Error creating root VElement");
+    const root_velement = VElement.createFromComponent(allocator, document, null, component, true, null) catch @panic("Error creating root VElement");
     return VDOMTree{ .vtree = root_velement };
 }
 
@@ -769,14 +797,14 @@ pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
 
 fn cloneVElement(allocator: zx.Allocator, velement: *const VElement) !VElement {
     const document = Document.init(allocator);
-    var cloned = try VElement.createFromComponent(allocator, document, null, velement.component, true);
+    var cloned = try VElement.createFromComponent(allocator, document, null, velement.component, true, null);
     cloned.key = velement.key;
     return cloned;
 }
 
 fn createVElementFromComponent(allocator: zx.Allocator, component: zx.Component) !VElement {
     const document = Document.init(allocator);
-    return try VElement.createFromComponent(allocator, document, null, component, true);
+    return try VElement.createFromComponent(allocator, document, null, component, true, null);
 }
 
 /// Pre-collected patch data to avoid pointer invalidation during batch operations
