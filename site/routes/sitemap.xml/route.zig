@@ -1,7 +1,7 @@
 pub fn GET(ctx: zx.RouteContext) !void {
     var aw: std.Io.Writer.Allocating = .init(ctx.arena);
     var w = &aw.writer;
-    const host = ctx.request.headers.get("host") orelse "ziex.dev";
+    const host = "ziex.dev";
 
     // Write XML header
     _ = try w.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
