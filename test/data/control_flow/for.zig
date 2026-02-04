@@ -83,7 +83,8 @@ pub fn StructExtraCapture(allocator: zx.Allocator) zx.Component {
     );
 }
 
-pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
+pub fn StructComplexParam(allocator: zx.Allocator) zx.Component {
+    const data = .{ .users = users };
     var _zx = zx.allocInit(allocator);
     return _zx.ele(
         .main,
@@ -91,15 +92,69 @@ pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
             .allocator = allocator,
             .children = &.{
                 _zx_for_blk_3: {
-                    const __zx_children_3 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
-                    for (users, 0..) |user, _zx_i_3| {
-                        __zx_children_3[_zx_i_3] = _zx.cmp(
+                    const __zx_children_3 = _zx.getAlloc().alloc(zx.Component, data.users.len) catch unreachable;
+                    for (data.users, 0.., 0..) |u, i, _zx_i_3| {
+                        __zx_children_3[_zx_i_3] = _zx.ele(
+                            .p,
+                            .{
+                                .children = &.{
+                                    _zx.expr(u),
+                                    _zx.txt(" - "),
+                                    _zx.expr(i),
+                                    _zx.txt(" - "),
+                                    _zx.expr(users[i].name),
+                                    _zx.txt(" - "),
+                                    _zx.expr(users[i].age),
+                                },
+                            },
+                        );
+                    }
+                    break :_zx_for_blk_3 _zx.ele(.fragment, .{ .children = __zx_children_3 });
+                },
+                _zx_for_blk_4: {
+                    const __zx_children_4 = _zx.getAlloc().alloc(zx.Component, getUsers().len) catch unreachable;
+                    for (getUsers(), 0.., 0..) |user, i, _zx_i_4| {
+                        __zx_children_4[_zx_i_4] = _zx.ele(
+                            .p,
+                            .{
+                                .children = &.{
+                                    _zx.expr(i),
+                                    _zx.txt(" - "),
+                                    _zx.expr(user.name),
+                                    _zx.txt(" - "),
+                                    _zx.expr(user.age),
+                                },
+                            },
+                        );
+                    }
+                    break :_zx_for_blk_4 _zx.ele(.fragment, .{ .children = __zx_children_4 });
+                },
+            },
+        },
+    );
+}
+
+fn getUsers() [users.len]User {
+    return users;
+}
+
+pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
+        .main,
+        .{
+            .allocator = allocator,
+            .children = &.{
+                _zx_for_blk_5: {
+                    const __zx_children_5 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
+                    for (users, 0..) |user, _zx_i_5| {
+                        __zx_children_5[_zx_i_5] = _zx.cmp(
                             UserComponent,
                             .{},
                             .{ .name = user.name, .age = user.age },
                         );
                     }
-                    break :_zx_for_blk_3 _zx.ele(.fragment, .{ .children = __zx_children_3 });
+                    break :_zx_for_blk_5 _zx.ele(.fragment, .{ .children = __zx_children_5 });
                 },
             },
         },

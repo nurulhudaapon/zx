@@ -1480,8 +1480,9 @@ fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutO
 
 pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     // for_expression: 'for' '(' iterable ')' payload body
+    var iterables = std.ArrayList(ts.Node){};
+    defer iterables.deinit(ctx.allocator);
     var first_iterable_node: ?ts.Node = null;
-    var last_iterable_node: ?ts.Node = null;
     var payload_text: ?[]const u8 = null;
     var body_node: ?ts.Node = null;
 
@@ -1511,7 +1512,9 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             }
 
             if (first_iterable_node == null) first_iterable_node = child;
-            last_iterable_node = child;
+            if (!std.mem.eql(u8, child_type, ",")) {
+                try iterables.append(ctx.allocator, child);
+            }
             continue;
         }
 
@@ -1541,10 +1544,9 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write(".len) catch unreachable;\n");
         try ctx.writeIndent();
         try ctx.write("for (");
-        if (first_iterable_node) |first| {
-            const last = last_iterable_node.?;
-            const text = self.source[first.startByte()..last.endByte()];
-            try ctx.write(text);
+        for (iterables.items, 0..) |it, it_idx| {
+            if (it_idx > 0) try ctx.write(", ");
+            try ctx.write(try self.getNodeText(it));
         }
         try ctx.write(", 0..) |");
 

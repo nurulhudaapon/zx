@@ -1273,8 +1273,8 @@ fn renderForExpression(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) !void {
-    var first_iterable: ?ts.Node = null;
-    var last_iterable: ?ts.Node = null;
+    var iterables = std.ArrayList(ts.Node){};
+    defer iterables.deinit(self.allocator);
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
 
@@ -1318,17 +1318,16 @@ fn renderForExpression(
                 continue;
             }
             if (in_parens) {
-                if (first_iterable == null) first_iterable = child;
-                last_iterable = child;
+                if (std.mem.eql(u8, child_type, ",")) continue;
+                try iterables.append(self.allocator, child);
             }
         }
     }
 
     try w.writeAll("{for (");
-    if (first_iterable) |first| {
-        const last = last_iterable.?;
-        const text = self.source[first.startByte()..last.endByte()];
-        try w.writeAll(text);
+    for (iterables.items, 0..) |it, it_idx| {
+        if (it_idx > 0) try w.writeAll(", ");
+        try w.writeAll(try self.getNodeText(it));
     }
     try w.writeAll(") ");
 
@@ -1791,8 +1790,8 @@ fn renderForExpressionInner(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
-    var first_iterable: ?ts.Node = null;
-    var last_iterable: ?ts.Node = null;
+    var iterables = std.ArrayList(ts.Node){};
+    defer iterables.deinit(self.allocator);
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
 
@@ -1836,17 +1835,16 @@ fn renderForExpressionInner(
                 continue;
             }
             if (in_parens) {
-                if (first_iterable == null) first_iterable = child;
-                last_iterable = child;
+                if (std.mem.eql(u8, child_type, ",")) continue;
+                try iterables.append(self.allocator, child);
             }
         }
     }
 
     try w.writeAll("for (");
-    if (first_iterable) |first| {
-        const last = last_iterable.?;
-        const text = self.source[first.startByte()..last.endByte()];
-        try w.writeAll(text);
+    for (iterables.items, 0..) |it, it_idx| {
+        if (it_idx > 0) try w.writeAll(", ");
+        try w.writeAll(try self.getNodeText(it));
     }
     try w.writeAll(") ");
 

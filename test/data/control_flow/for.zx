@@ -23,6 +23,20 @@ pub fn StructExtraCapture(allocator: zx.Allocator) zx.Component {
     );
 }
 
+pub fn StructComplexParam(allocator: zx.Allocator) zx.Component {
+    const data = .{ .users = users };
+    return (
+        <main @allocator={allocator}>
+            {for (data.users, 0..) |u, i| (<p>{u} - {i} - {users[i].name} - {users[i].age}</p>)}
+            {for (getUsers(), 0..) |user, i| (<p>{i} - {user.name} - {user.age}</p>)}
+        </main>
+    );
+}
+
+fn getUsers() [users.len]User {
+    return users;
+}
+
 pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
