@@ -56,6 +56,7 @@ const categories = [_]SidebarProps.Category{
                 .title = "Routing",
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/learn#pages-layouts", .text = "Pages and Layouts" },
+                    .{ .href = "/learn#api-routes", .text = "API Routes" },
                 },
             },
             .{
@@ -84,6 +85,7 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "/learn#passing-props", .text = "Passing Props" },
     .{ .href = "/learn#children", .text = "Children Props" },
     .{ .href = "/learn#pages-layouts", .text = "Pages and Layouts" },
+    .{ .href = "/learn#api-routes", .text = "API Routes" },
     .{ .href = "/learn#plugins", .text = "Using Plugins" },
     .{ .href = "/learn#next-steps", .text = "Next Steps" },
 };

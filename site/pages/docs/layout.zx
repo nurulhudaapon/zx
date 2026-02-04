@@ -61,6 +61,15 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#dynamic-routes", .text = "Dynamic Routes" },
                 },
             },
+            .{
+                .title = "API & WebSockets",
+                .href = "/docs#api-and-websockets",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#api-routes", .text = "API Routes" },
+                    .{ .href = "/docs#websockets", .text = "WebSockets" },
+                    .{ .href = "/docs#pub-sub", .text = "Pub/Sub" },
+                },
+            },
         },
     },
     .{
@@ -151,6 +160,7 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "/docs#control-flow", .text = "Control Flow" },
     .{ .href = "/docs#components", .text = "Components" },
     .{ .href = "/docs#routing", .text = "Routing" },
+    .{ .href = "/docs#api-and-websockets", .text = "API & WebSockets" },
     .{ .href = "/docs#builtin-attributes", .text = "Builtin Attributes" },
     .{ .href = "/docs#attribute-syntax", .text = "Attribute Syntax" },
     .{ .href = "/docs#importing", .text = "Importing" },

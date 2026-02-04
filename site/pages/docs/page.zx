@@ -63,9 +63,9 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     // Layout example - use simple example like learn page
     var aw_layout: std.io.Writer.Allocating = .init(allocator);
     const zx_example_layout = @embedFile("../learn/examples/layout_example.zx");
-    const zig_example_layout = @embedFile("../learn/examples/.zx/layout_example.zig");
+    const zig_example_layout = @embedFile("../learn/examples/layout_example.zig");
     const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
-    const html_page_layout = @import("../learn/examples/.zx/layout_example.zig").Layout(layoutctx, zx.Component{ .text = "Hello, World!" });
+    const html_page_layout = @import("../learn/examples/layout_example.zig").Layout(layoutctx, zx.Component{ .text = "Hello, World!" });
     html_page_layout.render(&aw_layout.writer) catch unreachable;
     const html_example_layout = allocator.dupe(u8, aw_layout.written()) catch unreachable;
 
@@ -260,6 +260,10 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const html_page_dynamic = @import("../examples/dynamic_route.zig").UserProfile(ctx);
     html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
     const html_example_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
+    
+    // API and WebSocket examples
+    const zig_api_route = @embedFile("../examples/api-route/route.zig");
+    const zig_websocket_route = @embedFile("../examples/api-route/ws/route.zig");
 
     // Fragment example
     var aw_fragment: std.io.Writer.Allocating = .init(allocator);
@@ -486,6 +490,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} filename="user_profile.zx" />
                 <p>Both methods return <code>?[]const u8</code>, so use <code>orelse</code> to provide a default value.</p>
             </section>
+            <APIAndWebSockets api_code={zig_api_route} ws_code={zig_websocket_route} />
             <section id="fragments" class="section">
                 <h2>Fragments</h2>
                 <p>Fragments allow you to return multiple elements from a component without adding an extra wrapper element to the DOM. Use the empty tag syntax <code>{"<>...</>"}</code> to create a fragment:</p>
@@ -529,6 +534,76 @@ const ExampleBlock = example_block.ExampleBlock;
 const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zig").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
+
+const APIAndWebSocketsProps = struct {
+    api_code: []const u8,
+    ws_code: []const u8,
+};
+
+fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Component {
+    const route_ctx_example =
+        \\pub fn GET(ctx: zx.RouteContext) !void {
+        \\    // ctx.request  - Request details
+        \\    // ctx.response - Set headers, body, json, etc.
+        \\    // ctx.socket   - WebSocket upgrade and pub/sub
+        \\    // ctx.arena    - Request-scoped allocator
+        \\}
+    ;
+
+    const socket_ctx_example =
+        \\pub fn Socket(ctx: zx.SocketContext) !void {
+        \\    // ctx.socket   - WebSocket interface
+        \\    // ctx.message  - Received message data
+        \\    // ctx.data     - Custom data from upgrade
+        \\    // ctx.arena    - Message-scoped allocator
+        \\}
+    ;
+
+    return (
+        <section id="api-and-websockets" class="section" @allocator={allocator}>
+            <h2>API and WebSockets</h2>
+            <p>ZX allows you to create server-side APIs and WebSocket handlers by adding a <code>route.zig</code> file to any route directory. This is similar to <code>page.zx</code> but for handling raw HTTP requests and real-time communication.</p>
+
+            <h3 id="api-routes">API Routes</h3>
+            <p>To create an API route, define a <code>route.zig</code> file and export functions for the HTTP methods you want to handle (<code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>, etc.).</p>
+            <CodeBlock code={props.api_code} filename="route.zig" />
+
+            <h3 id="route-context">RouteContext</h3>
+            <p>All API handlers receive a <code>zx.RouteContext</code>, which provides everything needed to handle the request:</p>
+            <CodeBlock code={route_ctx_example} />
+            <ul>
+                <li><code>request</code>: Access headers, query params, cookies, and body.</li>
+                <li><code>response</code>: Set status codes and write response data (JSON, HTML, etc.).</li>
+                <li><code>socket</code>: Interface for WebSocket upgrades and broadcasting.</li>
+                <li><code>arena</code>: An allocator that is automatically freed when the request finishes.</li>
+            </ul>
+
+            <h3 id="websockets">WebSockets</h3>
+            <p>ZX has first-class support for WebSockets. You can upgrade an API request to a WebSocket connection and handle real-time messages with simple lifecycle hooks.</p>
+            <CodeBlock code={props.ws_code} filename="route.zig" />
+
+            <h4 id="websocket-lifecycle">Lifecycle Handlers</h4>
+            <ul>
+                <li><code>Socket</code>: Called when a message is received. This is the main handler for WebSocket logic.</li>
+                <li><code>SocketOpen</code>: Called when the connection is established.</li>
+                <li><code>SocketClose</code>: Called when the connection is closed.</li>
+                <li><code>SocketError</code>: Called when an error occurs on the connection.</li>
+            </ul>
+
+            <h4 id="socket-context">SocketContext</h4>
+            <p>Message handlers receive a <code>zx.SocketContext</code> (or others like <code>SocketOpenContext</code>):</p>
+            <CodeBlock code={socket_ctx_example} />
+            
+            <h4 id="pub-sub">Pub/Sub and Broadcasting</h4>
+            <p>The <code>ctx.socket</code> interface provides a powerful pub/sub system for broadcasting messages to multiple clients:</p>
+            <ul>
+                <li><code>subscribe(topic)</code>: Join a topic.</li>
+                <li><code>unsubscribe(topic)</code>: Leave a topic.</li>
+                <li><code>publish(topic, message)</code>: Send a message to all subscribers of a topic.</li>
+            </ul>
+        </section>
+    );
+}
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {
     // Embedded snippet files for plugin examples

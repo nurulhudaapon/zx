@@ -154,6 +154,12 @@ pub fn text(self: *const Request) ?[]const u8 {
     return null;
 }
 
+pub fn json(self: *const Request, comptime T: type, opts: std.json.ParseOptions) !?T {
+    const raw = self.text() orelse return null;
+    const parsed = std.json.parseFromSlice(T, self.arena, raw, opts) catch return null;
+    return parsed.value;
+}
+
 /// Returns a URL parameter by name (from route matching).
 ///
 /// **Zig Note:** This is an extension method not present in the web standard Request.

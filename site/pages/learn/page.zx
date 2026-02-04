@@ -118,6 +118,9 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const html_page_dynattr = @import("./examples/dynamic_attr.zig").DynamicAttrs(allocator);
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
+    
+    // API route example
+    const zig_api = @embedFile("./examples/route.zig");
 
     return (
         <fragment @{allocator}>
@@ -136,6 +139,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <PassingProps zx_code={zx_props} zig_code={zig_props} html_code={html_props} />
             <ChildrenProps zx_code={zx_children} zig_code={zig_children} html_code={html_children} />
             <PagesAndLayouts zx_page={zx_page} zig_page={zig_page} html_page={html_page} zx_layout={zx_layout} zx_dynamic={zx_dynamic} zig_dynamic={zig_dynamic} html_dynamic={html_dynamic} />
+            <APIRoutes zig_code={zig_api} />
             <Plugins />
             <NextSteps />
         </fragment>
@@ -165,6 +169,7 @@ fn YouWillLearn(allocator: zx.Allocator) zx.Component {
                 <li>How to render conditionally and render lists</li>
                 <li>How to pass props and children to components</li>
                 <li>How to create pages, layouts, and dynamic routes</li>
+                <li>How to create API routes</li>
             </ul>
         </div>
     );
@@ -589,6 +594,22 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
                  for allocations - it's automatically freed after the request.
             </div>
             <p>See the <a href="/docs#routing">Routing documentation</a> for detailed information on pages, layouts, and dynamic routes.</p>
+        </section>
+    );
+}
+
+const APIRoutesProps = struct {
+    zig_code: []const u8,
+};
+
+fn APIRoutes(allocator: zx.Allocator, props: APIRoutesProps) zx.Component {
+    return (
+        <section id="api-routes" class="section" @allocator={allocator}>
+            <h2>API Routes</h2>
+            <p>ZX makes it easy to create APIs by adding <code>route.zig</code> files to your <code>site/pages/</code> directory. These files handle HTTP methods like GET, POST, and more.</p>
+            <p>Create a <code>route.zig</code> file to handle API requests:</p>
+            <CodeBlock code={props.zig_code} filename="route.zig" />
+            <p>API routes have access to <code>zx.RouteContext</code>, which provides the request, response, and even WebSocket support. Learn more in the <a href="/docs#api-routes">API documentation</a>.</p>
         </section>
     );
 }

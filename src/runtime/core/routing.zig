@@ -375,6 +375,10 @@ pub const RouteContext = struct {
             .arena = request.arena,
         };
     }
+
+    pub fn fmt(self: RouteContext, comptime format: []const u8, args: anytype) ![]u8 {
+        return fmtInner(self.arena, format, args);
+    }
 };
 
 /// Message type for WebSocket messages (text vs binary)
