@@ -314,7 +314,7 @@ test "complex large data" {
     const content_parsed: std.json.Parsed([]SearchContent) = std.json.parseFromSlice([]SearchContent, testing.allocator, search_txt, .{}) catch unreachable;
     defer content_parsed.deinit();
     const content_p = content_parsed.value;
-    std.log.info("\n{d}\n", .{content_p.len});
+    // std.log.info("\n{d}\n", .{content_p.len});
 
     var aw = std.Io.Writer.Allocating.init(testing.allocator);
     defer aw.deinit();
@@ -326,7 +326,7 @@ test "complex large data" {
     // Positional format outputs structs as arrays, so we expect [["title","url","content"],...]
     // The first SearchContent's title is "std.Io", so positional format starts with [["std.Io",...
     try testing.expect(std.mem.startsWith(u8, data, "[[\"std.Io\""));
-    std.log.err("\nData: {s}\n", .{data});
+    // std.log.err("\nData: {s}\n", .{data});
 }
 
 // ============================================================================

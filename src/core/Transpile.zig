@@ -1480,7 +1480,8 @@ fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutO
 
 pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     // for_expression: 'for' '(' iterable ')' payload body
-    var iterable_text: ?[]const u8 = null;
+    var first_iterable_node: ?ts.Node = null;
+    var last_iterable_node: ?ts.Node = null;
     var payload_text: ?[]const u8 = null;
     var body_node: ?ts.Node = null;
 
@@ -1492,6 +1493,7 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_type = child.kind();
+        const child_kind = NodeKind.fromNode(child);
 
         if (std.mem.eql(u8, child_type, "for")) {
             seen_for = true;
@@ -1501,48 +1503,49 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         // Skip parentheses
         if (SkipTokens.from(child_type) != .other) continue;
 
-        if (seen_for and iterable_text == null) {
-            iterable_text = try self.getNodeText(child);
+        if (seen_for and !seen_payload) {
+            if (child_kind == .payload) {
+                payload_text = try self.getNodeText(child);
+                seen_payload = true;
+                continue;
+            }
+
+            if (first_iterable_node == null) first_iterable_node = child;
+            last_iterable_node = child;
             continue;
         }
 
-        switch (NodeKind.fromNode(child)) {
-            .payload => {
-                payload_text = try self.getNodeText(child);
-                seen_payload = true;
-            },
+        switch (child_kind) {
             .zx_block, .parenthesized_expression => {
-                if (seen_payload and body_node == null) {
-                    body_node = child;
-                }
+                body_node = child;
             },
             else => {},
         }
     }
 
-    if (iterable_text != null and payload_text != null and body_node != null) {
+    if (first_iterable_node != null and payload_text != null and body_node != null) {
         // Get unique index for this block to avoid conflicts with nested loops
         const block_idx = ctx.nextBlockIndex();
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: _zx_for_blk_N: { const __zx_children_N = _zx.getAlloc().alloc(...); for (...) |item, i| { ... }; break :_zx_for_blk_N ...; }
-        try ctx.writeM("_zx_for_blk_", node.startByte(), self);
+        try ctx.write("_zx_for_blk_");
         try ctx.write(idx_str);
         try ctx.write(": {\n");
-
         ctx.indent_level += 1;
         try ctx.writeIndent();
         try ctx.write("const __zx_children_");
         try ctx.write(idx_str);
         try ctx.write(" = _zx.getAlloc().alloc(zx.Component, ");
-        try ctx.write(iterable_text.?);
+        try ctx.writeM(try self.getNodeText(first_iterable_node.?), first_iterable_node.?.startByte(), self);
         try ctx.write(".len) catch unreachable;\n");
-
         try ctx.writeIndent();
-        try ctx.writeM("for", node.startByte(), self);
-        try ctx.write(" (");
-        try ctx.write(iterable_text.?);
+        try ctx.write("for (");
+        if (first_iterable_node) |first| {
+            const last = last_iterable_node.?;
+            const text = self.source[first.startByte()..last.endByte()];
+            try ctx.write(text);
+        }
         try ctx.write(", 0..) |");
 
         // Extract just the variable name from payload (remove pipes)

@@ -53,7 +53,7 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
     );
 }
 
-pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
+pub fn StructExtraCapture(allocator: zx.Allocator) zx.Component {
     var _zx = zx.allocInit(allocator);
     return _zx.ele(
         .main,
@@ -62,14 +62,44 @@ pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx_for_blk_2: {
                     const __zx_children_2 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
-                    for (users, 0..) |user, _zx_i_2| {
-                        __zx_children_2[_zx_i_2] = _zx.cmp(
+                    for (users, 0.., 0..) |user, i, _zx_i_2| {
+                        __zx_children_2[_zx_i_2] = _zx.ele(
+                            .p,
+                            .{
+                                .children = &.{
+                                    _zx.expr(i),
+                                    _zx.txt(" - "),
+                                    _zx.expr(user.name),
+                                    _zx.txt(" - "),
+                                    _zx.expr(user.age),
+                                },
+                            },
+                        );
+                    }
+                    break :_zx_for_blk_2 _zx.ele(.fragment, .{ .children = __zx_children_2 });
+                },
+            },
+        },
+    );
+}
+
+pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
+    var _zx = zx.allocInit(allocator);
+    return _zx.ele(
+        .main,
+        .{
+            .allocator = allocator,
+            .children = &.{
+                _zx_for_blk_3: {
+                    const __zx_children_3 = _zx.getAlloc().alloc(zx.Component, users.len) catch unreachable;
+                    for (users, 0..) |user, _zx_i_3| {
+                        __zx_children_3[_zx_i_3] = _zx.cmp(
                             UserComponent,
                             .{},
                             .{ .name = user.name, .age = user.age },
                         );
                     }
-                    break :_zx_for_blk_2 _zx.ele(.fragment, .{ .children = __zx_children_2 });
+                    break :_zx_for_blk_3 _zx.ele(.fragment, .{ .children = __zx_children_3 });
                 },
             },
         },

@@ -52,6 +52,7 @@ pub const NodeKind = enum {
     string,
     variable_declaration,
     return_expression,
+    range_expression,
 
     // Control Flow Expressions
     if_expression,

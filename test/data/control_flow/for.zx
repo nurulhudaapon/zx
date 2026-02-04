@@ -15,6 +15,14 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
     );
 }
 
+pub fn StructExtraCapture(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            {for (users, 0..) |user, i| (<p>{i} - {user.name} - {user.age}</p>)}
+        </main>
+    );
+}
+
 pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>

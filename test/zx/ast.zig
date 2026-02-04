@@ -78,6 +78,9 @@ test "for" {
 test "for_capture" {
     try test_render("control_flow/for_capture", @import("./../data/control_flow/for.zig").StructCapture);
 }
+test "for_extra_capture" {
+    try test_render("control_flow/for_extra_capture", @import("./../data/control_flow/for.zig").StructExtraCapture);
+}
 test "for_capture_to_component" {
     try test_render("control_flow/for_capture_to_component", @import("./../data/control_flow/for.zig").StructCaptureToComponent);
 }

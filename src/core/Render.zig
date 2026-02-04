@@ -1273,44 +1273,67 @@ fn renderForExpression(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) !void {
-    var iterable_node: ?ts.Node = null;
+    var first_iterable: ?ts.Node = null;
+    var last_iterable: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
+    var seen_for = false;
+    var seen_payload = false;
+    var in_parens = false;
+
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_type = child.kind();
         const child_kind = NodeKind.fromNode(child);
 
-        switch (child_kind) {
-            .identifier, .field_expression => {
-                if (iterable_node == null) {
-                    iterable_node = child;
-                }
-            },
-            .payload => {
-                payload_node = child;
-            },
-            .zx_block, .parenthesized_expression, .if_expression, .for_expression, .while_expression, .switch_expression => {
+        if (std.mem.eql(u8, child_type, "for")) {
+            seen_for = true;
+            continue;
+        }
+
+        if (child_kind == .payload) {
+            payload_node = child;
+            seen_payload = true;
+            continue;
+        }
+
+        if (seen_payload) {
+            if (child_kind == .zx_block or child_kind == .parenthesized_expression) {
                 body_node = child;
-            },
-            else => {},
+                break;
+            }
+            continue;
+        }
+
+        if (seen_for) {
+            if (std.mem.eql(u8, child_type, "(")) {
+                in_parens = true;
+                continue;
+            }
+            if (std.mem.eql(u8, child_type, ")")) {
+                in_parens = false;
+                continue;
+            }
+            if (in_parens) {
+                if (first_iterable == null) first_iterable = child;
+                last_iterable = child;
+            }
         }
     }
 
     try w.writeAll("{for (");
-
-    if (iterable_node) |it| {
-        const it_text = try self.getNodeText(it);
-        try w.writeAll(it_text);
+    if (first_iterable) |first| {
+        const last = last_iterable.?;
+        const text = self.source[first.startByte()..last.endByte()];
+        try w.writeAll(text);
     }
-
     try w.writeAll(") ");
 
     if (payload_node) |pay| {
-        const pay_text = try self.getNodeText(pay);
-        try w.writeAll(pay_text);
+        try w.writeAll(try self.getNodeText(pay));
     }
 
     try w.writeAll(" ");
@@ -1768,44 +1791,67 @@ fn renderForExpressionInner(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
-    var iterable_node: ?ts.Node = null;
+    var first_iterable: ?ts.Node = null;
+    var last_iterable: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
+    var seen_for = false;
+    var seen_payload = false;
+    var in_parens = false;
+
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_type = child.kind();
         const child_kind = NodeKind.fromNode(child);
 
-        switch (child_kind) {
-            .identifier, .field_expression => {
-                if (iterable_node == null) {
-                    iterable_node = child;
-                }
-            },
-            .payload => {
-                payload_node = child;
-            },
-            .zx_block, .parenthesized_expression => {
+        if (std.mem.eql(u8, child_type, "for")) {
+            seen_for = true;
+            continue;
+        }
+
+        if (child_kind == .payload) {
+            payload_node = child;
+            seen_payload = true;
+            continue;
+        }
+
+        if (seen_payload) {
+            if (child_kind == .zx_block or child_kind == .parenthesized_expression) {
                 body_node = child;
-            },
-            else => {},
+                break;
+            }
+            continue;
+        }
+
+        if (seen_for) {
+            if (std.mem.eql(u8, child_type, "(")) {
+                in_parens = true;
+                continue;
+            }
+            if (std.mem.eql(u8, child_type, ")")) {
+                in_parens = false;
+                continue;
+            }
+            if (in_parens) {
+                if (first_iterable == null) first_iterable = child;
+                last_iterable = child;
+            }
         }
     }
 
     try w.writeAll("for (");
-
-    if (iterable_node) |it| {
-        const it_text = try self.getNodeText(it);
-        try w.writeAll(it_text);
+    if (first_iterable) |first| {
+        const last = last_iterable.?;
+        const text = self.source[first.startByte()..last.endByte()];
+        try w.writeAll(text);
     }
-
     try w.writeAll(") ");
 
     if (payload_node) |pay| {
-        const pay_text = try self.getNodeText(pay);
-        try w.writeAll(pay_text);
+        try w.writeAll(try self.getNodeText(pay));
     }
 
     try w.writeAll(" ");
