@@ -318,7 +318,7 @@ test "fmt" {
 }
 
 test "upgrade" {
-    // if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
     try test_cmd(.{
         .args = &.{"upgrade"},
         .expected_exit_code = 0,
