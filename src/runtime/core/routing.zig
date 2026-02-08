@@ -11,9 +11,13 @@ const Response = @import("Response.zig");
 ///
 /// The type parameter `H` follows the httpz pattern and can be:
 /// - `void`: No app context
-/// - A struct type: App context stored by value (e.g., `BaseContext(AppCtx)`)
-/// - A pointer type: App context stored by pointer (e.g., `BaseContext(*AppCtx)`)
-pub fn BaseContext(comptime H: type) type {
+/// - A struct type: App context stored by value (e.g., `BaseContext(AppCtx, void)`)
+/// - A pointer type: App context stored by pointer (e.g., `BaseContext(*AppCtx, void)`)
+///
+/// The type parameter `S` is for per-request state set by proxy middleware:
+/// - `void`: No state (default)
+/// - A struct type: Typed state accessible via `ctx.state` (e.g., `BaseContext(AppCtx, MyState)`)
+pub fn BaseContext(comptime H: type, comptime S: type) type {
     // Extract the underlying app context type, following httpz pattern
     // This is useful when H is a pointer - we get the child type
     _ = switch (@typeInfo(H)) {
@@ -22,6 +26,14 @@ pub fn BaseContext(comptime H: type) type {
         .void => void,
         else => @compileError("BaseContext app type must be a struct, pointer to struct, or void, got: " ++ @tagName(@typeInfo(H))),
     };
+
+    // Validate that State type is void or a struct
+    if (S != void) {
+        _ = switch (@typeInfo(S)) {
+            .@"struct" => S,
+            else => @compileError("BaseContext state type must be a struct or void, got: " ++ @tagName(@typeInfo(S))),
+        };
+    }
 
     const AppFieldType = if (H == void) ?*const anyopaque else H;
 
@@ -32,6 +44,11 @@ pub fn BaseContext(comptime H: type) type {
         /// - For pointer types: stores the pointer directly
         /// - For value types: stores the value directly
         app: AppFieldType = if (H == void) null else undefined,
+
+        /// Per-request state set by proxy middleware.
+        /// - For void: field is omitted
+        /// - For struct types: typed state accessible via `ctx.state`
+        state: if (S == void) void else S = if (S == void) {} else undefined,
 
         /// The HTTP request object (backend-agnostic)
         /// Provides access to headers, body, query params, form data, cookies, etc.
@@ -54,6 +71,9 @@ pub fn BaseContext(comptime H: type) type {
 
         /// Optional parent context, used for nested layouts or hierarchical context passing
         parent_ctx: ?*Self = null,
+
+        //TODO: move these to single _inner ptr
+        _state_ptr: ?*const anyopaque = null,
 
         /// Initialize a new BaseContext with the given request, response, and allocator.
         /// For void types, app defaults to {}. For custom types, app is undefined until set.
@@ -123,9 +143,9 @@ pub fn BaseContext(comptime H: type) type {
 ///     return <div>Hello</div>;
 /// }
 /// ```
-pub const PageContext = BaseContext(void);
-pub fn PageCtx(comptime DataType: type) type {
-    return BaseContext(DataType);
+pub const PageContext = BaseContext(void, void);
+pub fn PageCtx(comptime AppType: type, comptime StateType: type) type {
+    return BaseContext(AppType, StateType);
 }
 
 /// Context passed to layout components. Provides access to the current HTTP request and response,
@@ -142,13 +162,13 @@ pub fn PageCtx(comptime DataType: type) type {
 ///     );
 /// }
 /// ```
-pub const LayoutContext = BaseContext(void);
-pub fn LayoutCtx(comptime DataType: type) type {
-    return BaseContext(DataType);
+pub const LayoutContext = BaseContext(void, void);
+pub fn LayoutCtx(comptime AppType: type, comptime StateType: type) type {
+    return BaseContext(AppType, StateType);
 }
-pub const NotFoundContext = BaseContext(void);
-pub fn NotFoundCtx(comptime DataType: type) type {
-    return BaseContext(DataType);
+pub const NotFoundContext = BaseContext(void, void);
+pub fn NotFoundCtx(comptime AppType: type, comptime StateType: type) type {
+    return BaseContext(AppType, StateType);
 }
 
 pub const ErrorContext = struct {
@@ -344,42 +364,110 @@ pub const Socket = struct {
     }
 };
 
-pub const RouteContext = struct {
-    /// The HTTP request object (backend-agnostic)
-    request: Request,
-    /// The HTTP response object (backend-agnostic)
-    response: Response,
-    /// WebSocket interface for upgrading connections and sending/receiving messages
-    socket: Socket,
-    /// Global allocator
-    allocator: std.mem.Allocator,
-    /// Arena allocator for request-scoped allocations
-    arena: std.mem.Allocator,
+pub const RouteContext = RouteCtx(void, void);
 
-    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator) RouteContext {
-        return .{
-            .request = request,
-            .response = response,
-            .socket = .{},
-            .allocator = alloc,
-            .arena = request.arena,
+/// Route context with typed app context and per-request state.
+/// Use `RouteCtx(AppType, StateType)` to access typed app and state data.
+/// - `AppType`: Application context type (or `void` for none)
+/// - `StateType`: Per-request state type set by proxy middleware (or `void` for none)
+pub fn RouteCtx(comptime H: type, comptime S: type) type {
+    // Validate State type
+    if (S != void) {
+        _ = switch (@typeInfo(S)) {
+            .@"struct" => S,
+            else => @compileError("RouteCtx state type must be a struct or void, got: " ++ @tagName(@typeInfo(S))),
         };
     }
 
-    pub fn initWithSocket(request: Request, response: Response, socket: Socket, alloc: std.mem.Allocator) RouteContext {
-        return .{
-            .request = request,
-            .response = response,
-            .socket = socket,
-            .allocator = alloc,
-            .arena = request.arena,
-        };
-    }
+    const AppFieldType = if (H == void) ?*const anyopaque else H;
 
-    pub fn fmt(self: RouteContext, comptime format: []const u8, args: anytype) ![]u8 {
-        return fmtInner(self.arena, format, args);
-    }
-};
+    return struct {
+        const Self = @This();
+
+        /// Application context data
+        /// - For void: type-erased pointer for internal routing
+        /// - For pointer types: stores the pointer directly
+        /// - For value types: stores the value directly
+        app: AppFieldType = if (H == void) null else undefined,
+        /// Per-request state set by proxy middleware
+        state: if (S == void) void else S = if (S == void) {} else undefined,
+        /// The HTTP request object (backend-agnostic)
+        request: Request,
+        /// The HTTP response object (backend-agnostic)
+        response: Response,
+        /// WebSocket interface for upgrading connections and sending/receiving messages
+        socket: Socket,
+        /// Global allocator
+        allocator: std.mem.Allocator,
+        /// Arena allocator for request-scoped allocations
+        arena: std.mem.Allocator,
+
+        //TODO: move these to single _inner ptr
+        _state_ptr: ?*const anyopaque = null,
+
+        pub fn init(request: Request, response: Response, alloc: std.mem.Allocator) Self {
+            return .{
+                .request = request,
+                .response = response,
+                .socket = .{},
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        pub fn initWithSocket(request: Request, response: Response, socket: Socket, alloc: std.mem.Allocator) Self {
+            return .{
+                .request = request,
+                .response = response,
+                .socket = socket,
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        /// Initialize with a type-erased app context pointer.
+        pub fn initWithAppPtr(app_ptr: ?*const anyopaque, request: Request, response: Response, alloc: std.mem.Allocator) Self {
+            const app: AppFieldType = if (H == void)
+                app_ptr
+            else if (@typeInfo(H) == .pointer)
+                @ptrCast(@alignCast(app_ptr))
+            else
+                (@as(*const H, @ptrCast(@alignCast(app_ptr)))).*;
+
+            return .{
+                .app = app,
+                .request = request,
+                .response = response,
+                .socket = .{},
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        /// Initialize with a type-erased app context pointer and a socket.
+        pub fn initWithAppPtrAndSocket(app_ptr: ?*const anyopaque, request: Request, response: Response, socket: Socket, alloc: std.mem.Allocator) Self {
+            const app: AppFieldType = if (H == void)
+                app_ptr
+            else if (@typeInfo(H) == .pointer)
+                @ptrCast(@alignCast(app_ptr))
+            else
+                (@as(*const H, @ptrCast(@alignCast(app_ptr)))).*;
+
+            return .{
+                .app = app,
+                .request = request,
+                .response = response,
+                .socket = socket,
+                .allocator = alloc,
+                .arena = request.arena,
+            };
+        }
+
+        pub fn fmt(self: Self, comptime format: []const u8, args: anytype) ![]u8 {
+            return fmtInner(self.arena, format, args);
+        }
+    };
+}
 
 /// Message type for WebSocket messages (text vs binary)
 pub const SocketMessageType = enum {

@@ -1911,15 +1911,17 @@ pub const ProxyOptions = struct {
     pass_through: bool = true,
 };
 
-/// Context passed to proxy middleware functions
+/// Context passed to proxy middleware functions.
+/// Use `state.set()` to pass typed data to downstream route/page handlers.
 pub const ProxyContext = struct {
     request: Request,
     response: Response,
     allocator: std.mem.Allocator,
     arena: std.mem.Allocator,
 
-    /// Internal state tracking
+    //TODO: move these to single _inner ptr
     _aborted: bool = false,
+    _state_ptr: ?*const anyopaque = null,
 
     pub fn init(request: Request, response: Response, allocator: std.mem.Allocator, arena: std.mem.Allocator) ProxyContext {
         return .{
@@ -1928,6 +1930,15 @@ pub const ProxyContext = struct {
             .allocator = allocator,
             .arena = arena,
         };
+    }
+
+    /// Set typed state data to be passed to downstream route/page handlers.
+    /// (e.g., `zx.RouteCtx(AppCtx, MyState)` or `zx.PageCtx(AppCtx, MyState)`).
+    pub fn state(self: *ProxyContext, value: anytype) void {
+        const T = @TypeOf(value);
+        const ptr = self.arena.create(T) catch return;
+        ptr.* = value;
+        self._state_ptr = @ptrCast(ptr);
     }
 
     /// Abort the request chain - no further handlers (proxies, page, route) will be called
@@ -1958,6 +1969,7 @@ pub const NotFoundContext = routing.NotFoundContext;
 pub const NotFoundCtx = routing.NotFoundCtx;
 pub const ErrorContext = routing.ErrorContext;
 pub const RouteContext = routing.RouteContext;
+pub const RouteCtx = routing.RouteCtx;
 pub const SocketContext = routing.SocketContext;
 pub const SocketCtx = routing.SocketCtx;
 pub const SocketOpenContext = routing.SocketOpenContext;

@@ -1,0 +1,69 @@
+pub fn Page(ctx: zx.PageCtx(void, AuthState)) zx.Component {
+    const allocator = ctx.arena;
+    const auth = ctx.state;
+    const msg = ctx.request.searchParams.get("msg");
+
+    // Handle login/logout POST actions
+    handleAction(ctx);
+
+    return (
+        <div @{allocator}>
+            <h2>Auth Example</h2>
+            <p>Demonstrates login/logout using proxy state.</p>
+
+            <p style="color: red">{msg}</p>
+
+            {if (auth.is_authenticated) (
+                <div>
+                    <p>Welcome, <strong>{auth.username}</strong>!</p>
+                    <form method="post" action="/examples/auth">
+                        <input type="submit" name="action" value="Logout"/>
+                    </form>
+                </div>
+            ) else (
+                <div>
+                    <p>You are not logged in.</p>
+                    <form method="post" action="/examples/auth">
+                        <label>Username: <input type="text" name="username" required /></label>
+                        <input type="submit" name="action" value="Login"/>
+                    </form>
+                </div>
+            )}
+
+            <p>Try visiting <a href="/examples/auth/protected">the protected page</a></p>
+        </div>
+    );
+}
+
+fn handleAction(ctx: zx.PageCtx(void, @import("proxy.zig").AuthState)) void {
+    if (ctx.request.method != .POST) return;
+
+    const fd = ctx.request.formData();
+    const action = fd.get("action") orelse return;
+
+    if (std.mem.eql(u8, action, "Login")) {
+        const username = fd.get("username") orelse return;
+        if (username.len > 0) {
+            ctx.response.setCookie("session", username, .{
+                .path = "/",
+                .max_age = 3600, // 1 hour
+            });
+        }
+    } else if (std.mem.eql(u8, action, "Logout")) {
+        ctx.response.deleteCookie("session", .{ .path = "/" });
+    }
+
+    // Redirect back to GET to avoid form resubmission
+    ctx.response.setHeader("Location", "/examples/auth");
+    ctx.response.setStatus(.found);
+}
+
+
+const AuthState = @import("proxy.zig").AuthState;
+
+pub const options = zx.PageOptions{
+    .methods = &.{ .GET, .POST },
+};
+
+const zx = @import("zx");
+const std = @import("std");

@@ -594,16 +594,53 @@ pub const ServerMeta = struct {
         }.wrapper;
     }
 
-    /// Wrapper to allow routes to return void or !void
+    /// Wrapper to allow routes to return void or !void.
+    /// Handles both zx.RouteContext (void app/state) and zx.RouteCtx(AppCtx, State) (custom context).
     fn wrapRoute(comptime routeFn: anytype) RouteHandler {
-        const R = @typeInfo(@TypeOf(routeFn)).@"fn".return_type.?;
+        const FnInfo = @typeInfo(@TypeOf(routeFn)).@"fn";
+        const R = FnInfo.return_type.?;
+        const CtxType = FnInfo.params[0].type.?;
+
         return struct {
             fn wrapper(ctx: zx.RouteContext) anyerror!void {
-                // Handle both errorable and non-errorable return types
-                if (R == void) {
-                    routeFn(ctx);
+                if (CtxType == zx.RouteContext) {
+                    // Standard RouteContext, pass directly
+                    if (R == void) {
+                        routeFn(ctx);
+                    } else {
+                        try routeFn(ctx);
+                    }
                 } else {
-                    try routeFn(ctx);
+                    // Custom context type - cast app pointer and state
+                    const AppType = @TypeOf(@as(CtxType, undefined).app);
+                    const app: AppType = if (AppType == void) {} else if (AppType == ?*const anyopaque)
+                        ctx.app
+                    else if (@typeInfo(AppType) == .pointer)
+                        @ptrCast(@alignCast(ctx.app))
+                    else
+                        (@as(*const AppType, @ptrCast(@alignCast(ctx.app)))).*;
+
+                    // Cast state from type-erased pointer
+                    const StateType = @TypeOf(@as(CtxType, undefined).state);
+                    const state: StateType = if (StateType == void) {} else if (ctx._state_ptr) |ptr|
+                        (@as(*const StateType, @ptrCast(@alignCast(ptr)))).*
+                    else
+                        std.mem.zeroes(StateType);
+
+                    const custom_ctx = CtxType{
+                        .app = app,
+                        .state = state,
+                        .request = ctx.request,
+                        .response = ctx.response,
+                        .socket = ctx.socket,
+                        .allocator = ctx.allocator,
+                        .arena = ctx.arena,
+                    };
+                    if (R == void) {
+                        routeFn(custom_ctx);
+                    } else {
+                        try routeFn(custom_ctx);
+                    }
                 }
             }
         }.wrapper;
@@ -657,8 +694,8 @@ pub const ServerMeta = struct {
     pub const LayoutHandler = *const fn (ctx: zx.LayoutContext, component: Component) Component;
 
     /// Comptime function to wrap a page module's Page function.
-    /// Handles both zx.PageContext (void app) and zx.PageCtx(AppCtx) (custom app context).
-    /// The app context is read from ctx.app and cast to the appropriate type.
+    /// Handles both zx.PageContext (void app/state) and zx.PageCtx(AppCtx, State) (custom context).
+    /// The app context and state are read from type-erased pointers and cast to the appropriate types.
     pub fn page(comptime T: type) PageHandler {
         const pageFn = T.Page;
         const FnType = @TypeOf(pageFn);
@@ -676,16 +713,26 @@ pub const ServerMeta = struct {
                         return try pageFn(ctx);
                     }
                 } else {
-                    // Page expects custom context type - cast app pointer to correct type
+                    // Page expects custom context type - cast app pointer and state to correct types
                     // ctx.app for void is ?*const anyopaque (type-erased pointer)
                     const AppType = @TypeOf(@as(CtxType, undefined).app);
-                    const app: AppType = if (AppType == void) {} else if (@typeInfo(AppType) == .pointer)
+                    const app: AppType = if (AppType == void) {} else if (AppType == ?*const anyopaque)
+                        ctx.app
+                    else if (@typeInfo(AppType) == .pointer)
                         @ptrCast(@alignCast(ctx.app))
                     else
                         (@as(*const AppType, @ptrCast(@alignCast(ctx.app)))).*;
 
+                    // Cast state from type-erased pointer
+                    const StateType = @TypeOf(@as(CtxType, undefined).state);
+                    const state: StateType = if (StateType == void) {} else if (ctx._state_ptr) |ptr|
+                        (@as(*const StateType, @ptrCast(@alignCast(ptr)))).*
+                    else
+                        std.mem.zeroes(StateType);
+
                     const custom_ctx = CtxType{
                         .app = app,
+                        .state = state,
                         .request = ctx.request,
                         .response = ctx.response,
                         .allocator = ctx.allocator,
@@ -702,7 +749,7 @@ pub const ServerMeta = struct {
     }
 
     /// Comptime function to wrap a layout module's Layout function.
-    /// Handles both zx.LayoutContext (void app) and zx.LayoutCtx(AppCtx) (custom app context).
+    /// Handles both zx.LayoutContext (void app/state) and zx.LayoutCtx(AppCtx, State) (custom context).
     pub fn layout(comptime T: type) LayoutHandler {
         const layoutFn = T.Layout;
         const FnType = @TypeOf(layoutFn);
@@ -715,16 +762,26 @@ pub const ServerMeta = struct {
                 if (CtxType == zx.LayoutContext) {
                     return layoutFn(ctx, component);
                 } else {
-                    // Layout expects custom context type - cast app pointer to correct type
+                    // Layout expects custom context type - cast app pointer and state to correct types
                     // ctx.app for void is ?*const anyopaque (type-erased pointer)
                     const AppType = @TypeOf(@as(CtxType, undefined).app);
-                    const app: AppType = if (AppType == void) {} else if (@typeInfo(AppType) == .pointer)
+                    const app: AppType = if (AppType == void) {} else if (AppType == ?*const anyopaque)
+                        ctx.app
+                    else if (@typeInfo(AppType) == .pointer)
                         @ptrCast(@alignCast(ctx.app))
                     else
                         (@as(*const AppType, @ptrCast(@alignCast(ctx.app)))).*;
 
+                    // Cast state from type-erased pointer
+                    const StateType = @TypeOf(@as(CtxType, undefined).state);
+                    const state: StateType = if (StateType == void) {} else if (ctx._state_ptr) |ptr|
+                        (@as(*const StateType, @ptrCast(@alignCast(ptr)))).*
+                    else
+                        std.mem.zeroes(StateType);
+
                     const custom_ctx = CtxType{
                         .app = app,
+                        .state = state,
                         .request = ctx.request,
                         .response = ctx.response,
                         .allocator = ctx.allocator,

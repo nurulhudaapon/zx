@@ -1,0 +1,13 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+
+    return (
+        <div @{allocator}>
+            <p>Super Secret Protected Content!</p>
+
+            <a href="/examples/auth">Back to Auth page</a>
+        </div>
+    );
+}
+
+const zx = @import("zx");

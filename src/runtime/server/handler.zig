@@ -366,7 +366,8 @@ pub fn Handler(comptime AppCtxType: type) type {
             // Execute proxy handlers for the closest route before handling notfound
             // This allows auth/logging proxies to run even for 404 pages
             if (self.findRoute(path, .{ .match = .closest })) |route| {
-                if (try self.executeNotFoundProxy(route, path, abstract_req, abstract_res, req.arena)) {
+                const proxy_result = try self.executeNotFoundProxy(route, path, abstract_req, abstract_res, req.arena);
+                if (proxy_result.aborted) {
                     // Proxy handled the request, don't continue
                     return;
                 }
@@ -711,8 +712,14 @@ pub fn Handler(comptime AppCtxType: type) type {
             return count;
         }
 
+        /// Result of proxy chain execution
+        const ProxyResult = struct {
+            aborted: bool = false,
+            state_ptr: ?*const anyopaque = null,
+        };
+
         /// Execute proxy chain: cascading Proxy() handlers + optional local proxy
-        /// Returns true if any proxy aborted the request
+        /// Returns ProxyResult with abort status and any state set by proxy
         fn executeProxyChain(
             self: *Self,
             path: []const u8,
@@ -721,7 +728,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             req: zx.Request,
             res: zx.Response,
             arena: std.mem.Allocator,
-        ) !bool {
+        ) !ProxyResult {
             _ = local_proxy_name;
             var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
 
@@ -733,7 +740,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 try proxy_fn(&proxy_ctx);
                 if (proxy_ctx.isAborted()) {
                     ProxyStatus.markAborted();
-                    return true;
+                    return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
                 }
             }
 
@@ -743,25 +750,25 @@ pub fn Handler(comptime AppCtxType: type) type {
                 try proxy_fn(&proxy_ctx);
                 if (proxy_ctx.isAborted()) {
                     ProxyStatus.markAborted();
-                    return true;
+                    return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
                 }
             }
 
-            return false;
+            return .{ .aborted = false, .state_ptr = proxy_ctx._state_ptr };
         }
 
         /// Execute proxy handlers for page routes
-        fn executePageProxy(self: *Self, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !bool {
+        fn executePageProxy(self: *Self, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !ProxyResult {
             return self.executeProxyChain(route.path, route.page_proxy, "PageProxy", req, res, arena);
         }
 
         /// Execute proxy handlers for API routes
-        fn executeRouteProxy(self: *Self, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !bool {
+        fn executeRouteProxy(self: *Self, route: *const App.Meta.Route, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !ProxyResult {
             return self.executeProxyChain(route.path, route.route_proxy, "RouteProxy", req, res, arena);
         }
 
         /// Execute proxy handlers for notfound routes (only cascading Proxy(), no local proxies)
-        fn executeNotFoundProxy(self: *Self, _: *const App.Meta.Route, path: []const u8, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !bool {
+        fn executeNotFoundProxy(self: *Self, _: *const App.Meta.Route, path: []const u8, req: zx.Request, res: zx.Response, arena: std.mem.Allocator) !ProxyResult {
             return self.executeProxyChain(path, null, "", req, res, arena);
         }
 
@@ -771,12 +778,15 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_res = httpz_adapter.createResponse(res, req.arena);
 
             // Execute proxy handlers before API handling
+            var proxy_state_ptr: ?*const anyopaque = null;
             if (req.route_data) |rd| {
                 const route_data: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-                if (try self.executeRouteProxy(route_data, abstract_req, abstract_res, req.arena)) {
+                const proxy_result = try self.executeRouteProxy(route_data, abstract_req, abstract_res, req.arena);
+                if (proxy_result.aborted) {
                     // Proxy handled the request, don't continue
                     return;
                 }
+                proxy_state_ptr = proxy_result.state_ptr;
             }
 
             if (req.route_data) |rd| {
@@ -817,7 +827,8 @@ pub fn Handler(comptime AppCtxType: type) type {
                         .res = res,
                     };
                     const socket = httpz_adapter.createUpgradeSocket(&upgrade_ctx);
-                    const routectx = zx.RouteContext.initWithSocket(abstract_req, abstract_res, socket, allocator);
+                    var routectx = zx.RouteContext.initWithAppPtrAndSocket(self.app_ctx, abstract_req, abstract_res, socket, allocator);
+                    routectx._state_ptr = proxy_state_ptr;
 
                     handler(routectx) catch |err| {
                         return self.uncaughtError(req, res, err);
@@ -839,7 +850,8 @@ pub fn Handler(comptime AppCtxType: type) type {
                     }
                 } else {
                     // No socket handler, use regular route context
-                    const routectx = zx.RouteContext.init(abstract_req, abstract_res, allocator);
+                    var routectx = zx.RouteContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
+                    routectx._state_ptr = proxy_state_ptr;
                     handler(routectx) catch |err| {
                         return self.uncaughtError(req, res, err);
                     };
@@ -876,17 +888,22 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_res = httpz_adapter.createResponse(res, req.arena);
 
             // Execute proxy handlers before page handling
+            var proxy_state_ptr: ?*const anyopaque = null;
             if (req.route_data) |rd| {
                 const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-                if (try self.executePageProxy(route, abstract_req, abstract_res, req.arena)) {
+                const proxy_result = try self.executePageProxy(route, abstract_req, abstract_res, req.arena);
+                if (proxy_result.aborted) {
                     // Proxy handled the request, don't continue
                     return;
                 }
+                proxy_state_ptr = proxy_result.state_ptr;
             }
 
-            // Create page and layout contexts with type-erased app context
-            const pagectx = zx.PageContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
-            const layoutctx = zx.LayoutContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
+            // Create page and layout contexts with type-erased app context and proxy state
+            var pagectx = zx.PageContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
+            pagectx._state_ptr = proxy_state_ptr;
+            var layoutctx = zx.LayoutContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
+            layoutctx._state_ptr = proxy_state_ptr;
 
             // log.debug("cli command: {s}", .{@tagName(meta.cli_command orelse .serve)});
 

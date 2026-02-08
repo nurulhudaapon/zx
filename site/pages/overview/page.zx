@@ -1,6 +1,7 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageCtx(root.AppCtx, void)) zx.Component {
     return (
         <main @allocator={ctx.arena}>
+            <p>{ctx.app.port}</p>
             <QuickExample />
         </main>
     );
@@ -8,3 +9,4 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
 const QuickExample = @import("./../examples/overview.zx").QuickExample;
 const zx = @import("zx");
+const root = @import("root");
