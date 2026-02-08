@@ -317,6 +317,19 @@ test "fmt" {
     });
 }
 
+test "upgrade" {
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    try test_cmd(.{
+        .args = &.{"upgrade"},
+        .expected_exit_code = 0,
+        .expected_stdout_strings = &.{
+            "was installed successfully",
+            "0.1.0-dev",
+        },
+        .expected_files = &.{},
+    });
+}
+
 const TestCmdOptions = struct {
     args: []const []const u8,
     expected_stderr_strings: []const []const u8 = &.{},
@@ -481,4 +494,5 @@ const allocator = std.testing.allocator;
 const test_util = @import("./../test_util.zig");
 
 const std = @import("std");
+const zx = @import("zx");
 const builtin = @import("builtin");
