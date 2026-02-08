@@ -15,7 +15,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     // persons[0] = person;
     // persons[1] = person;
 
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .section,
         .{

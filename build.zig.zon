@@ -20,6 +20,7 @@
         .zig_js = .{ .path = "vendor/jsz" },
         .tree_sitter = .{ .path = "vendor/zig-tree-sitter" },
         .tree_sitter_zx = .{ .path = "pkg/tree-sitter-zx" },
+        .tree_sitter_mdzx = .{ .path = "pkg/tree-sitter-mdzx" },
         .cachez = .{ .path = "vendor/cachez" },
     },
     .paths = .{
@@ -27,6 +28,7 @@
         "build.zig.zon",
         "src",
         "pkg/tree-sitter-zx",
+        "pkg/tree-sitter-mdzx",
         "vendor/cachez",
         "vendor/cliz",
         "vendor/jsz",

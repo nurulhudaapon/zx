@@ -41,8 +41,14 @@ pub const ParseOptions = struct {
             };
         }
     };
+    pub const Lang = enum {
+        zx,
+        mdzx,
+        md,
+    };
     path: ?[]const u8 = null,
     map: MapMode = .none,
+    lang: Lang = .zx,
 };
 
 pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOptions) !ParseResult {

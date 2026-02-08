@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .div,
         .{

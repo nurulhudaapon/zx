@@ -30,12 +30,14 @@ pub fn build(b: *std.Build) !void {
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
     const tree_sitter_dep = b.dependency("tree_sitter", .{ .target = target, .optimize = optimize });
     const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
+    const tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
     const cachez_dep = b.dependency("cachez", .{ .target = target, .optimize = optimize });
 
     mod.addImport("cachez", cachez_dep.module("cache"));
     mod.addImport("httpz", httpz_dep.module("httpz"));
     mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
     mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+    mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
     mod.addOptions("zx_info", options);
     // Add stub meta for standalone builds (overridden in user projects with generated meta)
     // stub_meta.zig imports stub_components.zig directly from the same directory
@@ -83,6 +85,7 @@ pub fn build(b: *std.Build) !void {
                 }),
             });
             zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+            zx_docsite_exe.root_module.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
             zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
 
             var zx_b = try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
@@ -177,12 +180,13 @@ pub fn build(b: *std.Build) !void {
 
             const release_tree_sitter_dep = b.dependency("tree_sitter", .{ .target = resolved_target, .optimize = .ReleaseSafe });
             const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
-
+            const release_tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
             const release_mod = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
 
             release_mod.addImport("httpz", httpz_dep.module("httpz"));
             release_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
             release_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
+            release_mod.addImport("tree_sitter_mdzx", release_tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
             release_mod.addImport("cachez", cachez_dep.module("cache"));
             release_mod.addOptions("zx_info", options);
 

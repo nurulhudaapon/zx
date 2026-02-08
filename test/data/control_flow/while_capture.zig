@@ -1,14 +1,14 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     var iter = getIterator();
 
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 _zx_whl_blk_0: {
-                    var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
+                    var __zx_list_0 = @import("std").ArrayList(@import("zx").Component).empty;
                     while (iter.next()) |item| {
                         __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                             .p,

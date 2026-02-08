@@ -2,21 +2,21 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     var i: usize = 0;
     var j: usize = 0;
 
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
                 _zx_whl_blk_0: {
-                    var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
+                    var __zx_list_0 = @import("std").ArrayList(@import("zx").Component).empty;
                     while (i < 2) : (i += 1) {
                         __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                             .div,
                             .{
                                 .children = &.{
                                     _zx_whl_blk_1: {
-                                        var __zx_list_1 = @import("std").ArrayList(zx.Component).empty;
+                                        var __zx_list_1 = @import("std").ArrayList(@import("zx").Component).empty;
                                         while (j < 2) : (j += 1) {
                                             __zx_list_1.append(_zx.getAlloc(), _zx.ele(
                                                 .p,

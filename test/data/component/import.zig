@@ -1,5 +1,5 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.allocInit(allocator);
+pub fn Page(allocator: z.Allocator) z.Component {
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -15,7 +15,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     );
 }
 
-const zx = @import("zx");
+const z = @import("zx");
 const Button = @import("basic.zig").Button;
 
 // const ClientComponent = @jsImport("basic.tsx");

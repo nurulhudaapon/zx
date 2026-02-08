@@ -462,7 +462,7 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                     const allocator_value = try getAllocatorAttribute(self, child);
 
                     try ctx.writeM("var", node.startByte(), self);
-                    try ctx.write(" _zx = zx.");
+                    try ctx.write(" _zx = @import(\"zx\").");
                     if (allocator_value) |alloc| {
                         try ctx.write("allocInit(");
                         try ctx.write(alloc);
@@ -529,14 +529,14 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
                 // Check if element has @allocator attribute
                 const allocator_value = try getAllocatorAttribute(self, child);
 
-                // Generate: _zx_ele_blk_N: { var _zx = zx.init(); break :_zx_ele_blk_N _zx.ele(...); }
+                // Generate: _zx_ele_blk_N: { var _zx = @import("zx").init(); break :_zx_ele_blk_N _zx.ele(...); }
                 try ctx.write("_zx_ele_blk_");
                 try ctx.write(idx_str);
                 try ctx.write(": {\n");
 
                 ctx.indent_level += 1;
                 try ctx.writeIndent();
-                try ctx.write("var _zx = zx.");
+                try ctx.write("var _zx = @import(\"zx\").");
                 if (allocator_value) |alloc| {
                     try ctx.write("allocInit(");
                     try ctx.write(alloc);
@@ -1539,7 +1539,7 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.writeIndent();
         try ctx.write("const __zx_children_");
         try ctx.write(idx_str);
-        try ctx.write(" = _zx.getAlloc().alloc(zx.Component, ");
+        try ctx.write(" = _zx.getAlloc().alloc(@import(\"zx\").Component, ");
         try ctx.writeM(try self.getNodeText(first_iterable_node.?), first_iterable_node.?.startByte(), self);
         try ctx.write(".len) catch unreachable;\n");
         try ctx.writeIndent();
@@ -1656,7 +1656,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAlloc()); while (cond) |payload| : (cont) { __zx_list_N.append(...); } else |err| { ... }; break :_zx_whl_blk_N ...; }
+        // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(@import("zx").Component).init(_zx.getAlloc()); while (cond) |payload| : (cont) { __zx_list_N.append(...); } else |err| { ... }; break :_zx_whl_blk_N ...; }
         try ctx.writeM("_zx_whl_blk_", node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
@@ -1665,7 +1665,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.writeIndent();
         try ctx.write("var __zx_list_");
         try ctx.write(idx_str);
-        try ctx.write(" = @import(\"std\").ArrayList(zx.Component).empty;\n");
+        try ctx.write(" = @import(\"std\").ArrayList(@import(\"zx\").Component).empty;\n");
 
         try ctx.writeIndent();
         try ctx.writeM("while", node.startByte(), self);

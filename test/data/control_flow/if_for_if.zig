@@ -2,7 +2,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const show_list = true;
     const items = [_][]const u8{ "Apple", "Banana", "Cherry" };
 
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -13,7 +13,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{
                         .children = &.{
                             _zx_for_blk_0: {
-                                const __zx_children_0 = _zx.getAlloc().alloc(zx.Component, items.len) catch unreachable;
+                                const __zx_children_0 = _zx.getAlloc().alloc(@import("zx").Component, items.len) catch unreachable;
                                 for (items, 0..) |item, _zx_i_0| {
                                     __zx_children_0[_zx_i_0] = _zx.ele(
                                         .li,

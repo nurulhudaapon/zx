@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.cmp(
         Button,
         .{},
@@ -8,7 +8,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn Button(allocator: zx.Allocator) zx.Component {
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .button,
         .{

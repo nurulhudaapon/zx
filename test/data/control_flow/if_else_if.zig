@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const is_trial = false;
     const is_guest = false;
 
-    var _zx = zx.allocInit(allocator);
+    var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .main,
         .{
