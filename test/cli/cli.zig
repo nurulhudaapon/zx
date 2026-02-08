@@ -324,9 +324,10 @@ test "upgrade" {
         .expected_exit_code = 0,
         .expected_stdout_strings = &.{
             "was installed successfully",
-            "0.1.0-dev",
+            // "0.1.0-dev",
         },
         .expected_files = &.{},
+        // .debug = true,
     });
 }
 

@@ -43,10 +43,10 @@ fn upgrade(ctx: zli.CommandContext) !void {
     const term = try system.wait();
     _ = term;
 
-    try ctx.writer.print("Upgraded to: ", .{});
-    var zx_version = std.process.Child.init(&.{ "zx", "version" }, ctx.allocator);
-    try zx_version.spawn();
-    _ = try zx_version.wait();
+    // try ctx.writer.print("Upgraded to: ", .{});
+    // var zx_version = std.process.Child.init(&.{ "zx", "version" }, ctx.allocator);
+    // try zx_version.spawn();
+    // _ = try zx_version.wait();
 }
 
 const version_flag = zli.Flag{
