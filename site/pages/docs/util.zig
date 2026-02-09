@@ -102,6 +102,62 @@ pub fn removeCommonIndentation(allocator: zx.Allocator, content: []const u8) []c
     return allocator.dupe(u8, result.items) catch unreachable;
 }
 
+/// Extract a section by marker comment, e.g. "Control Flow: if"
+/// The marker format is: // --- <section> ---
+pub fn extractSection(allocator: zx.Allocator, content: []const u8, section: []const u8) []const u8 {
+    var lines = std.array_list.Managed([]const u8).init(allocator);
+    defer lines.deinit();
+
+    var it = std.mem.splitScalar(u8, content, '\n');
+    while (it.next()) |line| {
+        lines.append(line) catch unreachable;
+    }
+
+    if (lines.items.len == 0) {
+        return allocator.dupe(u8, "") catch unreachable;
+    }
+
+    const prefix = "// --- ";
+    const suffix = " ---";
+    var start_index: ?usize = null;
+
+    for (lines.items, 0..) |line, i| {
+        const trimmed = std.mem.trim(u8, line, " \t");
+        if (std.mem.startsWith(u8, trimmed, prefix) and std.mem.endsWith(u8, trimmed, suffix)) {
+            const inner = trimmed[prefix.len .. trimmed.len - suffix.len];
+            if (std.mem.eql(u8, inner, section)) {
+                start_index = i + 1;
+                break;
+            }
+        }
+    }
+
+    if (start_index == null or start_index.? >= lines.items.len) {
+        return allocator.dupe(u8, "") catch unreachable;
+    }
+
+    var end_index: usize = lines.items.len;
+    for (lines.items[start_index.?..], 0..) |line, j| {
+        const trimmed = std.mem.trim(u8, line, " \t");
+        if (std.mem.startsWith(u8, trimmed, prefix) and std.mem.endsWith(u8, trimmed, suffix)) {
+            end_index = start_index.? + j;
+            break;
+        }
+    }
+
+    var result = std.array_list.Managed(u8).init(allocator);
+    defer result.deinit();
+
+    for (lines.items[start_index.?..end_index], 0..) |line, i| {
+        if (i > 0) {
+            result.append('\n') catch unreachable;
+        }
+        result.appendSlice(line) catch unreachable;
+    }
+
+    return removeCommonIndentation(allocator, result.items);
+}
+
 /// Extract content inside return (...) for ZX code
 pub fn extractZxReturnContent(allocator: zx.Allocator, content: []const u8) []const u8 {
     const return_pattern = "return (";

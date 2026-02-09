@@ -27,7 +27,7 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
             <header class="top-bar">
                 <div class="top-bar-content">
                     <div class="top-bar-left">
-                        <a href={root.configs.main_site_url} class="top-bar-logo">ZX</a>
+                        <a href={root.configs.main_site_url} class="top-bar-logo">Ziex</a>
                     </div>
                     <input type="checkbox" id="top-bar-toggle" class="top-bar-toggle" aria-label="Toggle navigation menu" />
                     <label for="top-bar-toggle" class="top-bar-hamburger" aria-label="Toggle menu">
@@ -42,6 +42,9 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                             <a href={root.configs.example_url} class="top-bar-link">Examples</a>
                         </nav>
                         <div class="top-bar-actions">
+                            <a href="https://discord.gg/39UgnhgpUD" target="_blank" rel="noopener noreferrer" class="top-bar-icon" aria-label="Discord" title="ZX Discord">
+                                <DiscordIcon allocator={allocator} />
+                            </a>
                             <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="top-bar-icon" aria-label="GitHub" title="v{zx.info.version_string}">
                                 <GitHubIcon allocator={allocator} />
                             </a>
@@ -164,6 +167,7 @@ fn SidebarSectionTitle(allocator: zx.Allocator, props: SidebarSectionProps) zx.C
 }
 
 const GitHubIcon = icons.GitHub;
+const DiscordIcon = icons.Discord;
 
 const icons = @import("../components/icons.zx");
 const zx = @import("zx");

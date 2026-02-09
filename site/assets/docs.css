@@ -1483,7 +1483,11 @@ code[class*="language-"] {
 }
 
 #tab-cli:checked ~ .simple-tab-label[for="tab-cli"],
-#tab-manual:checked ~ .simple-tab-label[for="tab-manual"] {
+#tab-manual:checked ~ .simple-tab-label[for="tab-manual"],
+#tab-control-if:checked ~ .simple-tab-label[for="tab-control-if"],
+#tab-control-switch:checked ~ .simple-tab-label[for="tab-control-switch"],
+#tab-control-for:checked ~ .simple-tab-label[for="tab-control-for"],
+#tab-control-while:checked ~ .simple-tab-label[for="tab-control-while"] {
     color: var(--link-color);
     border-bottom-color: var(--link-color);
     border-bottom-width: 2px;
@@ -1494,7 +1498,11 @@ code[class*="language-"] {
 }
 
 div:has(#tab-cli:checked) #content-cli,
-div:has(#tab-manual:checked) #content-manual {
+div:has(#tab-manual:checked) #content-manual,
+div:has(#tab-control-if:checked) #control-content-if,
+div:has(#tab-control-switch:checked) #control-content-switch,
+div:has(#tab-control-for:checked) #control-content-for,
+div:has(#tab-control-while:checked) #control-content-while {
     display: block;
 }
 

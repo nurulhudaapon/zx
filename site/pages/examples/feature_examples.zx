@@ -1,0 +1,245 @@
+// Feature examples for homepage/docs
+
+// --- Control Flow: if ---
+const ControlIfProps = struct { is_admin: bool };
+pub fn ControlIf(
+    allocator: zx.Allocator,
+    props: ControlIfProps,
+) zx.Component {
+    return (
+        <div @allocator={allocator}>
+            {if (props.is_admin) (
+                <span>Admin</span>
+            ) else (
+                <span>Member</span>
+            )}
+        </div>
+    );
+}
+
+// --- Control Flow: if optional capture ---
+pub fn ControlIfOptional(allocator: zx.Allocator) zx.Component {
+    const maybe_name: ?[]const u8 = "Zig";
+    return (
+        <div @allocator={allocator}>
+            {if (maybe_name) |name| (<span>{name}</span>)}
+        </div>
+    );
+}
+
+// --- Control Flow: if error capture ---
+pub fn ControlIfError(allocator: zx.Allocator) zx.Component {
+    const parsed =
+        std.fmt.parseInt(u32, "42", 10);
+
+    return (
+        <div @allocator={allocator}>
+            {if (parsed) |value| (
+                <span>{value}</span>
+            ) else |err| (
+                <span>{err}</span>
+            )}
+        </div>
+    );
+}
+
+// --- Control Flow: switch ---
+const Role = enum { admin, member, guest };
+const ControlSwitchProps = struct { role: Role };
+pub fn ControlSwitch(allocator: zx.Allocator, props: ControlSwitchProps) zx.Component {
+    return (
+        <div @allocator={allocator}>
+            {switch (props.role) {
+                .admin => (<span>Admin</span>),
+                .member => (<span>Member</span>),
+                else => (<span>Guest</span>),
+            }}
+        </div>
+    );
+}
+
+// --- Control Flow: for ---
+const ControlForProps = struct { items: []const []const u8 };
+pub fn ControlFor(allocator: zx.Allocator, props: ControlForProps) zx.Component {
+    return (
+        <ul @allocator={allocator}>
+            {for (props.items) |item| (<li>{item}</li>)}
+        </ul>
+    );
+}
+
+// --- Control Flow: while ---
+pub fn ControlWhile(allocator: zx.Allocator) zx.Component {
+    var i: usize = 0;
+    return (
+        <ul @allocator={allocator}>
+            {while (i < 3) : (i += 1) (<li>Item {i + 1}</li>)}
+        </ul>
+    );
+}
+
+// --- Control Flow: while optional capture ---
+pub fn ControlWhileOptional(allocator: zx.Allocator) zx.Component {
+    var maybe: ?u32 = 1;
+    return (
+        <ul @allocator={allocator}>
+            {while (maybe) |value| : (maybe = if (value < 3) value + 1 else null) (
+                <li>{value}</li>
+            )}
+        </ul>
+    );
+}
+
+// --- Control Flow: while error capture ---
+pub fn ControlWhileError(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @allocator={allocator}>
+            {while (std.fmt.parseInt(u32, "42", 10)) |value| (
+                <span>{value}</span>
+            ) else |err| (
+                <span>{err}</span>
+            )}
+        </div>
+    );
+}
+
+// --- Caching: component ---
+pub fn CachedHeader(allocator: zx.Allocator) zx.Component {
+    return (
+        <header @allocator={allocator} @caching="10s">
+            <h1>Cached Header</h1>
+        </header>
+    );
+}
+
+// --- Caching: page ---
+pub fn Caching__Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <h1>Cached Page</h1>
+        </div>
+    );
+}
+
+pub const options = zx.PageOptions{
+    .caching = .{ .seconds = 300 },
+};
+
+// --- File System Routing: page ---
+pub fn Routing__Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <h1>Home</h1>
+        </div>
+    );
+}
+
+// --- File System Routing: layout ---
+pub fn Layout(
+    ctx: zx.LayoutContext,
+    children: zx.Component,
+) zx.Component {
+    return (
+        <html @allocator={ctx.arena}>
+            <body>
+                {children}
+            </body>
+        </html>
+    );
+}
+
+// --- Component: basics ---
+const ButtonProps = struct { label: []const u8 };
+pub fn Button(
+    ctx: *zx.ComponentCtx(ButtonProps),
+) zx.Component {
+    return (
+        <button @allocator={ctx.allocator}>
+            {ctx.props.label}
+        </button>
+    );
+}
+
+// --- Component: fragment ---
+pub fn Fragment(allocator: zx.Allocator) zx.Component {
+    return (
+        <fragment @allocator={allocator}>
+            <span>One</span>
+            <>
+                <p>Two</p><p>Three</p>
+            </>
+        </fragment>
+    );
+}
+
+// --- Component: props ---
+pub fn SpreadProps(allocator: zx.Allocator) zx.Component {
+    const attrs = .{ .class = "btn", .id = "cta" };
+    const class = "primary";
+    return (
+        <section @allocator={allocator}>
+            <button {..attrs}>Attribute Spreading</button>
+            <button {class}>Attribute Shorthand</button>
+        </section>
+    );
+}
+
+// --- Component: attr ---
+pub fn DynamicAttr(allocator: zx.Allocator) zx.Component {
+    const is_active = true;
+    const class = if (is_active) "active" else "idle";
+    const color = if (is_active) "green" else "red";
+    return (
+        <section @allocator={allocator}>
+            <button class={class}>Go</button>
+            <button class={class} style=`color: {color};`>
+                Template String
+            </button>
+        </section>
+    );
+}
+
+// --- Dynamic Path ---
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const id = ctx.request.getParam("id");
+    return (
+        <section @allocator={ctx.arena}>
+            <h1>User {id}</h1>
+        </section>
+    );
+}
+
+// --- API Route ---
+pub fn PUT(ctx: zx.RouteContext) !void {
+    try ctx.response.json(.{ .status = "ok" });
+}
+
+pub fn POST(ctx: zx.RouteContext) !void {
+    const Data = struct { id: u32 };
+    const data =
+        try ctx.request.json(Data, .{});
+
+    try ctx.response.json(.{
+        .id = data.?.id,
+        .created = true,
+    });
+}
+
+// --- WebSocket ---
+pub fn GET(ctx: zx.RouteContext) !void {
+    try ctx.socket.upgrade({});
+}
+
+pub fn Socket(ctx: zx.SocketContext) !void {
+    try ctx.socket.write(
+        try ctx.fmt("{s}", .{ctx.message}),
+    );
+}
+
+pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
+    try ctx.socket.write("Welcome to the WebSocket!");
+}
+
+// --- Imports ---
+const zx = @import("zx");
+const std = @import("std");

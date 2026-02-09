@@ -1,21 +1,16 @@
 const features = [_]Feature{
     .{ .icon_fn = icons.Lightning, .title = "It's Fast", .description = "~100x faster SSR than Next.js. Compiles to native code instead of running JavaScript." },
-    // .{ .icon_fn = icons.Shield, .title = "Compile-Time Safety", .description = "Zig's type system catches bugs at compile time. No runtime surprises, no memory leaks, no garbage collection." },
+    .{ .icon_fn = icons.Shield, .title = "Compile-Time Safety", .description = "Zig's type system catches bugs at compile time. No runtime surprises, no GC." },
     .{ .icon_fn = icons.PaintBrush, .title = "Familiar Syntax", .description = "Familiar JSX like syntax or just like HTML with having access to Zig's control flow." },
     .{ .icon_fn = icons.Rocket, .title = "Server-Side Rendering", .description = "Server-side rendering by default. Pages render on the server with zero configuration." },
     .{ .icon_fn = icons.Rocket, .title = "Static Site Generation", .description = "Static site generation by default. Pages render on the server with zero configuration." },
     .{ .icon_fn = icons.Folder, .title = "File System Routing", .description = "Folder structure defines routes. No configs, no magic strings, just files in folders." },
-    .{ .icon_fn = icons.Wrench, .title = "Control Flow in Zig's Syntax", .description = "if/else, loops, switch—standard control flow works as expected. It's just Zig." },
+    .{ .icon_fn = icons.Rocket, .title = "Client-side Rendering", .description = "Optional client-side rendering for interactive experiences when you need it." },
+    .{ .icon_fn = icons.Flow, .title = "Control Flow in Zig's Syntax", .description = "if/else, for/while, switch, standard control flow works as expected. It's just Zig." },
+    .{ .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best DX." },
 };
 
 const performances = [_]Performance{
-    .{ .value = "~100x", .label = "Faster SSR than Next.js" },
-    .{ .value = "0ms", .label = "Runtime Overhead" },
-    .{ .value = "100%", .label = "Compile-time Safety" },
-    .{ .value = "∞", .label = "Memory Safety" },
-};
-
-const hero_stats = [_]HeroStat{
     .{ .value = "~100x", .label = "Faster SSR than Next.js" },
     .{ .value = "0ms", .label = "Runtime Overhead" },
     .{ .value = "100%", .label = "Compile-time Safety" },
@@ -32,8 +27,37 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     };
 
     const overview_code = @embedFile("./examples/overview.zx");
-    const util = @import("./docs/util.zig");
-    const overview_code_highlighted = util.highlightZx(allocator, overview_code) catch overview_code;
+    const feature_examples = normalizeFeatureExamples(
+        allocator,
+        @embedFile("./examples/feature_examples.zx"),
+    );
+
+
+    const control_tabs = [_]CodeTab{
+        .{ .id = "control-tab-if", .label = "If", .section = "Control Flow: if", .code = "", .checked = true },
+        .{ .id = "control-tab-if-opt", .label = "If Optional", .section = "Control Flow: if optional capture", .code = "", .checked = false },
+        .{ .id = "control-tab-if-err", .label = "If Error", .section = "Control Flow: if error capture", .code = "", .checked = false },
+        .{ .id = "control-tab-while", .label = "While", .section = "Control Flow: while", .code = "", .checked = false },
+        .{ .id = "control-tab-while-opt", .label = "While Optional", .section = "Control Flow: while optional capture", .code = "", .checked = false },
+        .{ .id = "control-tab-while-err", .label = "While Error", .section = "Control Flow: while error capture", .code = "", .checked = false },
+    };
+
+    const caching_tabs = [_]CodeTab{
+        .{ .id = "caching-tab-component", .label = "Component", .section = "Caching: component", .code = "", .checked = true },
+        .{ .id = "caching-tab-page", .label = "Page", .section = "Caching: page", .code = "", .checked = false },
+    };
+
+    const fs_tabs = [_]CodeTab{
+        .{ .id = "fs-tab-page", .label = "Page", .section = "File System Routing: page", .code = "", .checked = true },
+        .{ .id = "fs-tab-layout", .label = "Layout", .section = "File System Routing: layout", .code = "", .checked = false },
+    };
+
+    const component_tabs = [_]CodeTab{
+        .{ .id = "component-tab-basics", .label = "Basics", .section = "Component: basics", .code = "", .checked = true },
+        .{ .id = "component-tab-frag", .label = "Fragment", .section = "Component: fragment", .code = "", .checked = false },
+        .{ .id = "component-tab-props", .label = "Props", .section = "Component: props", .code = "", .checked = false },
+        .{ .id = "component-tab-attr", .label = "Attributes", .section = "Component: attr", .code = "", .checked = false },
+    };
 
     return (
         <div @allocator={allocator}>
@@ -42,7 +66,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </style>
             <nav class="nav">
                 <div class="nav-content">
-                    <a href={root.configs.main_site_url} class="nav-logo">ZX</a>
+                    <a href={root.configs.main_site_url} class="nav-logo">Ziex</a>
                     <input type="checkbox" id="nav-toggle" class="nav-toggle" />
                     <label for="nav-toggle" class="nav-hamburger" aria-label="Toggle menu">
                         <span></span>
@@ -55,6 +79,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <li><a href="/docs" class="nav-link"><span class="nav-link-full">Reference</span><span class="nav-link-short">Ref</span></a></li>
                             <li><a href={root.configs.example_url} class="nav-link">Examples</a></li>
                         </ul>
+                        <a href="https://discord.gg/39UgnhgpUD" target="_blank" rel="noopener noreferrer" class="nav-github" aria-label="Discord">
+                            <DiscordIcon allocator={allocator} />
+                            <span class="nav-github-text">Discord</span>
+                        </a>
                         <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="nav-github" aria-label="GitHub">
                             <GitHubIcon allocator={allocator} />
                             <span class="nav-github-text">GitHub</span>
@@ -67,7 +95,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <div class="hero-content">
                         <div class="hero-badge">v{zx.info.version_string}</div>
                         <div class="hero-title-wrapper">
-                            <h1 class="hero-title-main">ZX</h1>
+                            <h1 class="hero-title-main">Ziex</h1>
                             <div class="hero-title-accent">/</div>
                         </div>
                         <p class="hero-subtitle">
@@ -77,8 +105,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             JSX like syntax or just like HTML with having access to Zig's control flow. 
                             No JavaScript runtime, no garbage collection.
                         </p>
-                        <div class="hero-stats">
-                            {for (hero_stats) |h| (<HeroStatCard allocator={allocator} value={h.value} label={h.label} />)}
+                        <div class="hero-install">
+                            <InstallCLI allocator={allocator} />
                         </div>
                         <div class="hero-cta">
                             <a href="/learn" class="btn btn-primary">Get Started</a>
@@ -99,7 +127,24 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </p>
                     </div>
                     <div class="features-grid">
-                        {for (features) |f| (<FeatureCard allocator={allocator} icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
+                        {for (features) |f| (<FeatureCard  icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
+                    </div>
+                </section>
+                <section class="feature-examples">
+                    <div class="feature-examples-header">
+                        <h2 class="section-title">Feature Examples</h2>
+                        <p class="section-subtitle">
+                            Short, focused snippets that show how each feature feels in practice.
+                        </p>
+                    </div>
+                    <div class="feature-examples-grid">
+                        <FeatureExample title="Control Flow" wide={true} child={(<CodeWindowTabs id="control-flow-tabs" name="control-flow" title="" tabs={control_tabs[0..]} video_url="" source={feature_examples} />)} />
+                        <FeatureExample title="Caching" wide={false} child={(<CodeWindowTabs id="caching-tabs" name="caching" title="" tabs={caching_tabs[0..]} video_url="" source={feature_examples} />)} />
+                        <FeatureExample title="File System Routing" wide={false} child={(<CodeWindowTabs id="fs-routing-tabs" name="fs-routing" title="" tabs={fs_tabs[0..]} video_url="" source={feature_examples} />)} />
+                        <FeatureExample title="Components" wide={false} child={(<CodeWindowTabs id="components-tabs" name="components" title="" tabs={component_tabs[0..]} video_url="" source={feature_examples} />)} />
+                        <FeatureExample title="Dynamic Path" wide={false} child={(<CodeWindow title="pages/[id]/page.zx" section="Dynamic Path" source={feature_examples} code="" />)} />
+                        <FeatureExample title="API Route" wide={false} child={(<CodeWindow title="route.zig" section="API Route" source={feature_examples} code="" />)} />
+                        <FeatureExample title="WebSocket" wide={false} child={(<CodeWindow title="routes/ws/route.zig" section="WebSocket" source={feature_examples} code="" />)} />
                     </div>
                 </section>
                 <section class="code-section">
@@ -110,34 +155,25 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                                 Familiar JSX like syntax or just like HTML with having access to Zig's control flow.
                             </p>
                         </div>
-                        <div class="code-example">
-                            <div class="code-example-header">
-                                <div class="code-example-dots">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                                <div class="code-example-title">example.zx</div>
-                            </div>
-                            <pre><code class="hljs" @escaping={.none}>{overview_code_highlighted}</code></pre>
-                        </div>
+                        <CodeWindow allocator={allocator} title="example.zx" section="" source="" code={overview_code} />
                     </div>
                 </section>
-                <section class="performance">
-                    <div class="performance-header">
-                        <h2 class="section-title">The Numbers</h2>
-                        <p class="section-subtitle">
-                            Real numbers based on some initial benchmarks.
-                        </p>
-                    </div>
-                    <div class="performance-grid">
-                        {for (performances) |p| (<PerformanceCard allocator={allocator} value={p.value} label={p.label} />)}
-                    </div>
-                </section>
+                // <section class="performance">
+                //     <div class="performance-header">
+                //         <h2 class="section-title">The Numbers</h2>
+                //         <p class="section-subtitle">
+                //             Real numbers based on some initial benchmarks.
+                //         </p>
+                //     </div>
+                //     <div class="performance-grid">
+                //         {for (performances) |p| (<PerformanceCard allocator={allocator} value={p.value} label={p.label} />)}
+                //     </div>
+                // </section>
             </main>
             <footer class="footer">
                 <p>© {current_year} ZX Framework. Built with Zig.</p>
             </footer>
+            <script src={std.fmt.allocPrint(allocator, "/assets/clipboard.js?v={s}", .{zx.info.version_string}) catch unreachable} defer="true"></script>
         </div>
     );
 }
@@ -164,18 +200,161 @@ fn PerformanceCard(allocator: zx.Allocator, props: Performance) zx.Component {
     );
 }
 
-const HeroStat = struct { value: []const u8, label: []const u8 };
-fn HeroStatCard(allocator: zx.Allocator, props: HeroStat) zx.Component {
+
+const FeatureExampleProps = struct {
+    title: []const u8,
+    child: zx.Component,
+    wide: bool,
+};
+
+fn FeatureExample(allocator: zx.Allocator, props: FeatureExampleProps) zx.Component {
+    const class_name = if (props.wide) "feature-example feature-example--wide" else "feature-example";
     return (
-        <div @allocator={allocator} class="hero-stat">
-            <div class="hero-stat-value">{props.value}</div>
-            <div class="hero-stat-label">{props.label}</div>
+        <div @allocator={allocator} class={class_name}>
+            <div class="feature-example-title">{props.title}</div>
+            {props.child}
+        </div>
+    );
+}
+
+const CodeWindowProps = struct {
+    title: []const u8,
+    code: []const u8,
+    section: []const u8,
+    source: []const u8,
+};
+
+fn normalizeFeatureExamples(allocator: zx.Allocator, content: []const u8) []const u8 {
+    const step1 = replaceAll(allocator, content, "Caching__Page", "Page");
+    return replaceAll(allocator, step1, "Routing__Page", "Page");
+}
+
+fn replaceAll(allocator: zx.Allocator, input: []const u8, needle: []const u8, replacement: []const u8) []const u8 {
+    var out = std.array_list.Managed(u8).init(allocator);
+    defer out.deinit();
+
+    var start: usize = 0;
+    while (std.mem.indexOfPos(u8, input, start, needle)) |idx| {
+        out.appendSlice(input[start..idx]) catch unreachable;
+        out.appendSlice(replacement) catch unreachable;
+        start = idx + needle.len;
+    }
+    out.appendSlice(input[start..]) catch unreachable;
+
+    return allocator.dupe(u8, out.items) catch unreachable;
+}
+
+const CodeTab = struct {
+    id: []const u8,
+    label: []const u8,
+    section: []const u8,
+    code: []const u8,
+    checked: bool,
+};
+
+fn resolveCode(allocator: zx.Allocator, source: []const u8, section: []const u8, fallback: []const u8) []const u8 {
+    const raw = if (section.len > 0 and source.len > 0)
+        util.extractSection(allocator, source, section)
+    else
+        fallback;
+    return util.highlightZx(allocator, raw) catch raw;
+}
+
+fn CodeWindow(allocator: zx.Allocator, props: CodeWindowProps) zx.Component {
+    const highlighted = resolveCode(allocator, props.source, props.section, props.code);
+    return (
+        <div @allocator={allocator} class="code-example code-example--compact">
+            <div class="code-example-header">
+                <div class="code-example-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <div class="code-example-title">{props.title}</div>
+            </div>
+            <pre><code class="hljs" @escaping={.none}>{highlighted}</code></pre>
+        </div>
+    );
+}
+
+const CodeWindowTabsProps = struct {
+    id: []const u8,
+    name: []const u8,
+    title: []const u8,
+    tabs: []const CodeTab,
+    video_url: []const u8,
+    source: []const u8,
+};
+
+fn buildTabStyles(allocator: zx.Allocator, container_id: []const u8, tabs: []const CodeTab) []const u8 {
+    var out = std.array_list.Managed(u8).init(allocator);
+    defer out.deinit();
+
+    for (tabs) |tab| {
+        out.appendSlice("#") catch unreachable;
+        out.appendSlice(container_id) catch unreachable;
+        out.appendSlice(":has(#") catch unreachable;
+        out.appendSlice(tab.id) catch unreachable;
+        out.appendSlice(":checked) .code-example-panel[data-tab=\"") catch unreachable;
+        out.appendSlice(tab.id) catch unreachable;
+        out.appendSlice("\"] { display: block; }\n") catch unreachable;
+    }
+
+    return allocator.dupe(u8, out.items) catch unreachable;
+}
+
+fn CodeWindowTabs(allocator: zx.Allocator, props: CodeWindowTabsProps) zx.Component {
+    const tab_styles = buildTabStyles(allocator, props.id, props.tabs);
+
+    return (
+        <div @allocator={allocator} id={props.id} class="code-example code-example--tabs code-example--compact">
+            <style @escaping={.none}>{tab_styles}</style>
+            <div class="code-example-header code-example-header--tabs">
+                <div class="code-example-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <div class="code-example-tabs">
+                    {for (props.tabs) |tab| (
+                        <>
+                            {if (tab.checked) (
+                                <input type="radio" id={tab.id} name={props.name} class="code-example-tab-radio" checked="true" aria-label={tab.label} />
+                            ) else (
+                                <input type="radio" id={tab.id} name={props.name} class="code-example-tab-radio" aria-label={tab.label} />
+                            )}
+                            <label for={tab.id} class="code-example-tab-label">{tab.label}</label>
+                        </>
+                    )}
+                </div>
+                {if (props.video_url.len > 0) (
+                    <a class="code-example-video" href={props.video_url} target="_blank" rel="noopener noreferrer" aria-label="Play video">
+                        ▶
+                    </a>
+                )}
+                {if (props.title.len > 0) (<div class="code-example-title">{props.title}</div>)}
+            </div>
+            <div class="code-example-panels">
+                {for (props.tabs) |tab| (renderTabPanel(allocator, props.source, tab))}
+            </div>
+        </div>
+    );
+}
+
+fn renderTabPanel(allocator: zx.Allocator, source: []const u8, tab: CodeTab) zx.Component {
+    const highlighted = resolveCode(allocator, source, tab.section, tab.code);
+    return (
+        <div @allocator={allocator} class="code-example-panel" data-tab={tab.id}>
+            <pre><code class="hljs" @escaping={.none}>{highlighted}</code></pre>
         </div>
     );
 }
 
 const std = @import("std");
 const zx = @import("zx");
+const util = @import("./docs/util.zig");
 const icons = @import("./components/icons.zx");
 const GitHubIcon = icons.GitHub;
+const DiscordIcon = icons.Discord;
+const InstallCLI = @import("./components/install_guide.zx").InstallCLI;
 const root = @import("root");

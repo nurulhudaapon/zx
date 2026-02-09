@@ -244,3 +244,4 @@ const zx = @import("zx");
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 const ExampleBlock = @import("../components/example_block.zx").ExampleBlock;
+const feature_examples = @import("feature_examples.zx");

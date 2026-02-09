@@ -162,6 +162,12 @@ const zx = @import("zx");
 - ##### [Neovim](/editors/neovim/)
 - ##### [Zed](/editors/zed/)
 
+## Community
+
+- [ZX Discord](https://discord.gg/39UgnhgpUD)
+- [Ziggit Topic](https://ziggit.dev/t/zx-full-stack-web-framework-for-zig-like-next-js-react-but-for-zig/12848?u=nurulhudaapon)
+- [ZX Project on Zig Discord Community](https://discord.com/channels/605571803288698900/1435764771428237485) (Join Zig Discord first: https://discord.gg/zig)
+
 ## Similar Projects
 
 ### Rust

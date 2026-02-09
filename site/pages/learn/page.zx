@@ -125,7 +125,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     return (
         <fragment @{allocator}>
             <LearnHeader />
-            <YouWillLearn />
+            // <YouWillLearn />
             <Installation />
             <CreateProject build_manual_code={build_manual_code} />
             <EditorSetup />
@@ -244,6 +244,19 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                                 <span class="install-prompt">$ </span>
                                 <span class="function">zig</span>
                                 <span class="operator"> init</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Add ZX as a dependency:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zig</span>
+                                <span class="operator"> fetch </span>
+                                <span class="operator">--save </span>
+                                <span class="variable">git+https://github.com/nurulhudaapon/zx</span>
                             </div>
                         </div>
                     </div>
