@@ -1,23 +1,29 @@
 import { useState } from "react";
 
-export default function Page(props: { counter: number }) {
-    const [count, setCount] = useState(props.counter);
+export default function Page(props: { count: number }) {
+    const [count, setCount] = useState(props.count);
 
     return (
         <div>
-            <button onClick={updateCount(0)}>Reset</button>
+            <button onClick={handleReset}>Reset</button>
             <h5>{count}</h5>
-            <button onClick={updateCount(-1)}>Decrement</button>
-            <button onClick={updateCount(1)}>Increment</button>
+            <button onClick={handleDecrement}>Decrement</button>
+            <button onClick={handleIncrement}>Increment</button>
         </div>
     );
 
-    function updateCount(n: number) {
-        return () => {
-            setCount(c => n === 0 ? 0 : c + n);
-            if (n === 0) fetch(`?reset=true`);
-            if (n > 0) fetch(`?increment=true`);
-            if (n < 0) fetch(`?decrement=true`);
-        }
-    };
+    function handleIncrement() {
+        setCount(c => c + 1);
+        fetch(`?increment=true`);
+    }
+
+    function handleDecrement() {
+        setCount(c => c - 1);
+        fetch(`?decrement=true`);
+    }
+
+    function handleReset() {
+        setCount(0);
+        fetch(`?reset=true`);
+    }
 }

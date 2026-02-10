@@ -35,3 +35,21 @@ button {
         color: #000000;
     }
 }
+
+.counter-row {
+    height: 150px;
+    margin: 10px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: center;
+}
+
+.counter-row > * {
+    min-width: 150px;
+}
+
+.counter-plus {
+    width: 70px;
+    display: inline-block;
+}

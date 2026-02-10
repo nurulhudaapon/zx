@@ -1,18 +1,25 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const query = ctx.request.query() catch unreachable;
+    const query = ctx.request.searchParams;
 
-    if (query.get("reset")) |_| counter = 0 else if (query.get("increment")) |_| counter += 1 else if (query.get("decrement")) |_| counter -= 1 else counter += 1;
+    if (query.get("reset")) |_|
+        count = 0
+    else if (query.get("increment")) |_|
+        count += 1
+    else if (query.get("decrement")) |_|
+        count -= 1
+    else
+        count += 1;
 
     return (
         <main @allocator={ctx.arena}>
             <p>Ziex is a framework for building web applications with Zig.</p>
             <a href="https://ziex.dev" target="_blank">See Ziex Docs →</a>
             <br />
-            <div style="height: 150px; margin: 10px;">
-                <ReactCounterComponent @rendering={.react} counter={counter} />
-                <ZigCounterComponent @rendering={.client} counter={counter} />
+            <div class="counter-row">
+                <ZigCounterComponent @rendering={.client} count={count} />
+                <ReactCounterComponent @rendering={.react} count={count} />
             </div>
-            <h4>Ziex + React + WASM</h4>
+            <h4>╰ Ziex <span class="counter-plus">+</span> React ╯</h4>
             <hr />
             <a href="/about">Navigate to About Page</a>
 
@@ -20,8 +27,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         </main>
     );
 }
-var counter: i128 = 0;
+var count: i128 = 0;
 
-const zx = @import("zx");
 const ReactCounterComponent = @jsImport("./client.tsx");
 pub const ZigCounterComponent = @import("./client.zig").CounterComponent;
+
+const zx = @import("zx");

@@ -55,6 +55,9 @@ pub const Io = struct {
         return .{ .mode = .callback, .callback = callback };
     }
 
+    pub const noop: Io = .{ .mode = .callback, .callback = onFetchNoop };
+    fn onFetchNoop(_: ?*Response, _: ?FetchError) void {}
+
     /// Check if this Io mode is supported on the current platform.
     pub fn isSupported(self: Io) bool {
         return switch (self.mode) {

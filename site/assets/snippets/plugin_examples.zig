@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) !void {
     const exe = b.addExecutable(.{
         .name = "my-app",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("site/main.zig"),
+            .root_source_file = b.path("app/main.zig"),
             .target = target,
             .optimize = optimize,
         }),
@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) !void {
         .plugins = &.{
             zx.plugins.tailwind(b, .{
                 .bin = b.path("node_modules/.bin/tailwindcss"),
-                .input = b.path("site/assets/styles.css"),
+                .input = b.path("app/assets/styles.css"),
                 .output = b.path("{outdir}/assets/styles.css"),
                 .minify = optimize != .Debug,
             }),
@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) !void {
         .plugins = &.{
             zx.plugins.esbuild(b, .{
                 .bin = b.path("node_modules/.bin/esbuild"),
-                .input = b.path("site/main.ts"),
+                .input = b.path("app/main.ts"),
                 .output = b.path("{outdir}/assets/main.js"),
                 .bundle = true,
                 .format = .esm,
@@ -58,11 +58,11 @@ pub fn build(b: *std.Build) !void {
 try zx.init(b, exe, .{
     .plugins = &.{
         zx.plugins.esbuild(b, .{
-            .input = b.path("site/main.ts"),
+            .input = b.path("app/main.ts"),
             .output = b.path("{outdir}/assets/main.js"),
         }),
         zx.plugins.tailwind(b, .{
-            .input = b.path("site/assets/styles.css"),
+            .input = b.path("app/assets/styles.css"),
             .output = b.path("{outdir}/assets/styles.css"),
         }),
     },
@@ -87,7 +87,7 @@ fn createImageOptimizer(b: *std.Build) zx.ZxInitOptions.PluginOptions {
     const cmd = std.Build.Step.Run.create(b, "optimize-images");
     
     // Add your custom command
-    cmd.addArgs(&.{ "npx", "imagemin", "site/public/**/*", "--out-dir={outdir}/public" });
+    cmd.addArgs(&.{ "npx", "imagemin", "app/public/**/*", "--out-dir={outdir}/public" });
     
     // Allocate steps array
     const steps = b.allocator.alloc(zx.ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");

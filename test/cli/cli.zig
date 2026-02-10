@@ -7,6 +7,7 @@ test "init" {
             "Initializing ZX project!",
             "main.zig",
             ".gitattributes",
+            "client.zx",
             "page.zx",
         },
         .expected_files = &.{
@@ -14,6 +15,7 @@ test "init" {
             "build.zig",
             "app/main.zig",
             "app/pages/page.zx",
+            "app/pages/client.zx",
             "app/assets/style.css",
             "app/public/favicon.ico",
             ".gitignore",
@@ -49,6 +51,7 @@ test "init --force" {
             "build.zig",
             "app/main.zig",
             "app/pages/page.zx",
+            "app/pages/client.zx",
             ".gitignore",
             ".gitattributes",
             "README.md",
@@ -83,30 +86,6 @@ test "init -t react" {
             "react/package.json",
             "react/.gitattributes",
             "react/tsconfig.json",
-        },
-    });
-}
-
-test "init -t wasm" {
-    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
-    try test_cmd(.{
-        .args = &.{ "init", "wasm", "--template", "wasm" },
-        .expected_exit_code = 0,
-        .expected_stderr_strings = &.{
-            "Initializing ZX project!",
-            "wasm",
-            "build.zig",
-            "main.zig",
-            "page.zx",
-            ".gitattributes",
-            "client.zx",
-        },
-        .expected_files = &.{
-            "wasm/build.zig.zon",
-            "wasm/build.zig",
-            "wasm/app/main.zig",
-            "wasm/app/pages/page.zx",
-            "wasm/app/pages/client.zx",
         },
     });
 }
@@ -193,14 +172,14 @@ test "init → build" {
     }
 }
 
-test "init → build -t wasm" {
+test "init → build -t react" {
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
 
     const test_dir_abs = try getTestDirPath();
     defer allocator.free(test_dir_abs);
 
     // Update build.zig.zon to use the local zx dependency, copy local_zon_str to build.zig.zon
-    const build_zig_zon_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "wasm", "build.zig.zon" });
+    const build_zig_zon_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "react", "build.zig.zon" });
     defer allocator.free(build_zig_zon_path);
     var build_zig_zon = try std.fs.openDirAbsolute(test_dir_abs, .{});
     defer build_zig_zon.close();
@@ -210,7 +189,7 @@ test "init → build -t wasm" {
     try std.zon.stringify.serialize(local_wasm_zon_str, .{ .whitespace = true }, &aw.writer);
     try build_zig_zon.writeFile(.{ .sub_path = build_zig_zon_path, .data = aw.written() });
 
-    const wasm_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "wasm" });
+    const wasm_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "react" });
     defer allocator.free(wasm_path);
     var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
     build_child.cwd = wasm_path;

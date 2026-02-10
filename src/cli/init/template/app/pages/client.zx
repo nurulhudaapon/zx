@@ -1,5 +1,8 @@
-pub fn CounterComponent(allocator: zx.Allocator, props: struct {count: i128}) zx.Component {
+var count: zx.Signal(i128) = .init(0);
+
+pub fn CounterComponent(allocator: zx.Allocator, props: struct { count: i128 }) zx.Component {
     count.set(props.count);
+
     return (
         <div @allocator={allocator}>
             <button onclick={handleReset}>Reset</button>
@@ -10,18 +13,23 @@ pub fn CounterComponent(allocator: zx.Allocator, props: struct {count: i128}) zx
     );
 }
 
-var count: zx.Signal(i128) = .init(0);
-
 fn handleIncrement(_: zx.EventContext) void {
     count.set(count.get() + 1);
+    fetch("?increment=true");
 }
 
 fn handleDecrement(_: zx.EventContext) void {
     count.set(count.get() - 1);
+    fetch("?decrement=true");
 }
 
 fn handleReset(_: zx.EventContext) void {
     count.set(0);
+    fetch("?reset=true");
+}
+
+fn fetch(url: []const u8) void {
+    _ = zx.fetch(.noop, zx.client_allocator, url, .{}) catch {};
 }
 
 const zx = @import("zx");

@@ -16,7 +16,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <a href="https://ziex.dev" target="_blank">See Ziex Docs →</a>
             <br />
             <CounterComponent @rendering={.client} count={count} />
-            <h4>Ziex + WASM</h4>
+            <br />
             <hr />
             <a href="/about">Navigate to About Page</a>
         </main>
