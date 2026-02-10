@@ -53,6 +53,7 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                 </div>
             </header>
             <div class="container">
+                <label for="top-bar-toggle" class="sidebar-overlay" aria-hidden="true"></label>
                 <nav class="sidebar">
                     {if (props.categories.len > 0) (
                         <div class="sidebar-categories">
