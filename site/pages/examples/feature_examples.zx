@@ -7,7 +7,7 @@ pub fn ControlIf(
     props: ControlIfProps,
 ) zx.Component {
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             {if (props.is_admin) (
                 <span>Admin</span>
             ) else (
@@ -21,7 +21,7 @@ pub fn ControlIf(
 pub fn ControlIfOptional(allocator: zx.Allocator) zx.Component {
     const maybe_name: ?[]const u8 = "Zig";
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             {if (maybe_name) |name| (<span>{name}</span>)}
         </div>
     );
@@ -33,11 +33,11 @@ pub fn ControlIfError(allocator: zx.Allocator) zx.Component {
         std.fmt.parseInt(u32, "42", 10);
 
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             {if (parsed) |value| (
                 <span>{value}</span>
             ) else |err| (
-                <span>{err}</span>
+                <span>{@errorName(err)}</span>
             )}
         </div>
     );
@@ -48,7 +48,7 @@ const Role = enum { admin, member, guest };
 const ControlSwitchProps = struct { role: Role };
 pub fn ControlSwitch(allocator: zx.Allocator, props: ControlSwitchProps) zx.Component {
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             {switch (props.role) {
                 .admin => (<span>Admin</span>),
                 .member => (<span>Member</span>),
@@ -62,7 +62,7 @@ pub fn ControlSwitch(allocator: zx.Allocator, props: ControlSwitchProps) zx.Comp
 const ControlForProps = struct { items: []const []const u8 };
 pub fn ControlFor(allocator: zx.Allocator, props: ControlForProps) zx.Component {
     return (
-        <ul @allocator={allocator}>
+        <ul @{allocator}>
             {for (props.items) |item| (<li>{item}</li>)}
         </ul>
     );
@@ -72,7 +72,7 @@ pub fn ControlFor(allocator: zx.Allocator, props: ControlForProps) zx.Component 
 pub fn ControlWhile(allocator: zx.Allocator) zx.Component {
     var i: usize = 0;
     return (
-        <ul @allocator={allocator}>
+        <ul @{allocator}>
             {while (i < 3) : (i += 1) (<li>Item {i + 1}</li>)}
         </ul>
     );
@@ -82,7 +82,7 @@ pub fn ControlWhile(allocator: zx.Allocator) zx.Component {
 pub fn ControlWhileOptional(allocator: zx.Allocator) zx.Component {
     var maybe: ?u32 = 1;
     return (
-        <ul @allocator={allocator}>
+        <ul @{allocator}>
             {while (maybe) |value| : (maybe = if (value < 3) value + 1 else null) (
                 <li>{value}</li>
             )}
@@ -92,31 +92,40 @@ pub fn ControlWhileOptional(allocator: zx.Allocator) zx.Component {
 
 // --- Control Flow: while error capture ---
 pub fn ControlWhileError(allocator: zx.Allocator) zx.Component {
+    var first: bool = true;
     return (
-        <div @allocator={allocator}>
-            {while (std.fmt.parseInt(u32, "42", 10)) |value| (
+        <div @{allocator}>
+            {while (parseOnce(&first)) |value| (
                 <span>{value}</span>
             ) else |err| (
-                <span>{err}</span>
+                <span>{@errorName(err)}</span>
             )}
         </div>
     );
 }
 
+fn parseOnce(first: *bool) !u32 {
+    if (first.*) {
+        first.* = false;
+        return 42;
+    }
+    return error.Done;
+}
+
 // --- Caching: component ---
-pub fn CacheComponent(alloc: zx.Allocator) zx.Component {
-    return (<Expensive @allocator={alloc} @caching="10s" />);
+pub fn CacheComponent(allocator: zx.Allocator) zx.Component {
+    return (<Expensive @{allocator} @caching="10s" />);
 }
 
 fn Expensive(allocator: zx.Allocator) zx.Component {
-    std.Thread.sleep(std.time.ns_per_s * 3);
-    return (<div @allocator={allocator}></div>);
+    // std.Thread.sleep(std.time.ns_per_s * 3);
+    return (<div @{allocator}></div>);
 }
 // --- Caching: page ---
 pub fn Caching__Page(
     ctx: zx.PageContext,
 ) zx.Component {
-    std.Thread.sleep(std.time.ns_per_s * 3);
+    // std.Thread.sleep(std.time.ns_per_s * 3);
     return (
         <div @allocator={ctx.arena}>
             <h1>Expensive Page</h1>
@@ -171,7 +180,7 @@ pub fn Fragment(
     allocator: zx.Allocator,
 ) zx.Component {
     return (
-        <fragment @allocator={allocator}>
+        <fragment @{allocator}>
             <span>One</span>
             <>
                 <p>Two</p><p>Three</p>
@@ -188,7 +197,7 @@ pub fn SpreadProps(
         .{ .class = "btn", .id = "cta" };
     const class = "primary";
     return (
-        <section @allocator={allocator}>
+        <section @{allocator}>
             <button {..attrs}>Spreading</button>
             <button {class}>Shorthand</button>
         </section>
@@ -203,7 +212,7 @@ pub fn DynamicAttr(
     const class = if (is_active) "active" else "idle";
     const color = if (is_active) "green" else "red";
     return (
-        <section @allocator={allocator}>
+        <section @{allocator}>
             <button class={class}>Go</button>
             <button style=`color: {color};`>
                 Template String
@@ -254,5 +263,24 @@ pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
 }
 
 // --- Imports ---
+pub fn RenderTest(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @{allocator}>
+            <ControlIf is_admin={true} />
+            <ControlIfOptional />
+            <ControlIfError />
+            <ControlSwitch role={Role.member} />
+            <ControlFor items={&.{"One", "Two", "Three"}} />
+            <ControlWhile />
+            <ControlWhileOptional />
+            <ControlWhileError />
+            <CacheComponent />
+            <Fragment />
+            <SpreadProps />
+            <DynamicAttr />
+        </div>
+    );
+}
+
 const zx = @import("zx");
 const std = @import("std");

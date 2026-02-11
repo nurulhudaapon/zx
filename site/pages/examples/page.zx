@@ -71,6 +71,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <DynamicAttrSection zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
             <FormSection zx_code={zx_form} zig_code={zig_form} html_code={html_form} />
             <CachingSection />
+
+            <div style="display: none">
+                <RenderTest />
+            </div>
         </fragment>
     );
 }
@@ -237,6 +241,8 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
         </section>
     );
 }
+
+const RenderTest = feature_examples.RenderTest;
 
 const std = @import("std");
 const CodeBlock = @import("../components/code_block.zx").CodeBlock;
