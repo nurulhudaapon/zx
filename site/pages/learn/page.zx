@@ -118,7 +118,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const html_page_dynattr = @import("./examples/dynamic_attr.zig").DynamicAttrs(allocator);
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
-    
+
     // API route example
     const zig_api = @embedFile("./examples/route.zig");
 
@@ -236,8 +236,7 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                     <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
                 </div>
                 <div class="simple-tab-content" id="content-manual">
-                    <h3 style="margin-top: 0;">New Project</h3>
-                    <p>For a new project, first initialize a Zig project:</p>
+                    <p>First initialize a Zig project if you haven't already:</p>
                     <div class="install-box install-box-simple">
                         <div class="install-box-content">
                             <div class="install-code">
@@ -261,11 +260,10 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                         </div>
                     </div>
 
-                    <h3 style="margin-top: 1.5rem;">Existing Project</h3>
-                    <p>For an existing Zig project, add the following to your <code>build.zig</code>:</p>
+                    <p>Update your <code>build.zig</code> to the following:</p>
                     <CodeBlock code={props.build_manual_code} filename="build.zig" /> 
 
-                    <p style="margin-top: 1.5rem;">Then initialize the project with templates:</p>
+                    <p style="margin-top: 1.5rem;">Then initialize the project with the default template:</p>
                     <div class="install-box install-box-simple">
                         <div class="install-box-content">
                             <div class="install-code">
@@ -279,32 +277,26 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                             </div>
                         </div>
                     </div>
+
+                    <p style="margin-top: 1.5rem;">Start the ZX app in development mode with hot reloading:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code install-code-multiline">
+                                <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">dev</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
                 </div>
             </div>
 
             <h3>Project Structure</h3>
-            <pre class="language-text">
-                <code>
-                    {
-                    \\my-app/
-                    \\├── build.zig           # Zig build config
-                    \\├── site/
-                    \\│   ├── main.zig        # Entry point
-                    \\│   ├── pages/
-                    \\│   │   ├── page.zx     # Home page (/)
-                    \\│   │   ├── about/
-                    \\│   │   │   └── page.zx # About (/about)
-                    \\│   │   └── layout.zx   # Root layout
-                    \\│   └── public/         # Static assets
-                    \\└── src/
-                    \\    └── root.zig        # Shared code
-                }
-                </code>
-            </pre>
+            <ProjectTree />
             <div class="callout tip">
                 <strong>Tip:</strong>
                  The 
-                <code>site/pages/</code>
+                <code>app/pages/</code>
                  directory uses file-based routing. Each 
                 <code>page.zx</code>
                  file becomes a route.
@@ -575,15 +567,15 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
     return (
         <section id="pages-layouts" class="section" @allocator={allocator}>
             <h2>Pages and Layouts</h2>
-            <p>ZX uses file-based routing. Create <code>page.zx</code> files in the <code>site/pages/</code> directory:</p>
+            <p>ZX uses file-based routing. Create <code>page.zx</code> files in the <code>app/pages/</code> directory:</p>
             <ExampleBlock id="page-example" zx_code={props.zx_page} zig_code={props.zig_page} html_code={props.html_page} filename="page.zx" />
-            <p>The file path determines the URL: <code>site/pages/about/page.zx</code> → <code>/about</code></p>
+            <p>The file path determines the URL: <code>app/pages/about/page.zx</code> → <code>/about</code></p>
 
             <h3>Dynamic routes</h3>
             <p>Use brackets <code>[param]</code> in folder names to create dynamic segments:</p>
             <ul>
-                <li><code>site/pages/user/[id]/page.zx</code> → <code>/user/:id</code></li>
-                <li><code>site/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
+                <li><code>app/pages/user/[id]/page.zx</code> → <code>/user/:id</code></li>
+                <li><code>app/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
             </ul>
             <p>Access the parameter value using <code>ctx.request.getParam("name")</code>:</p>
             <ExampleBlock id="dynamic-route" zx_code={props.zx_dynamic} zig_code={props.zig_dynamic} html_code={props.html_dynamic} filename="user/[id]/user_profile.zx" />
@@ -619,7 +611,7 @@ fn APIRoutes(allocator: zx.Allocator, props: APIRoutesProps) zx.Component {
     return (
         <section id="api-routes" class="section" @allocator={allocator}>
             <h2>API Routes</h2>
-            <p>ZX makes it easy to create APIs by adding <code>route.zig</code> files to your <code>site/pages/</code> directory. These files handle HTTP methods like GET, POST, and more.</p>
+            <p>ZX makes it easy to create APIs by adding <code>route.zig</code> files to your <code>app/pages/</code> directory. These files handle HTTP methods like GET, POST, and more.</p>
             <p>Create a <code>route.zig</code> file to handle API requests:</p>
             <CodeBlock code={props.zig_code} filename="route.zig" />
             <p>API routes have access to <code>zx.RouteContext</code>, which provides the request, response, and even WebSocket support. Learn more in the <a href="/docs#api-routes">API documentation</a>.</p>
@@ -701,6 +693,7 @@ const example_block = @import("../components/example_block.zx");
 const ExampleBlock = example_block.ExampleBlock;
 const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zx").CodeBlock;
+const ProjectTree = @import("../components/project_tree.zx").ProjectTree;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
 

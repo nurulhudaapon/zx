@@ -146,11 +146,11 @@ fn init(ctx: zli.CommandContext) !void {
     }
 
     if (has_init_path_arg) {
-        const suggested_cmd = try std.fmt.allocPrint(ctx.allocator, "cd {s} && zx dev", .{init_path});
+        const suggested_cmd = try std.fmt.allocPrint(ctx.allocator, "cd {s} && zx build dev", .{init_path});
         defer ctx.allocator.free(suggested_cmd);
         printer.footer("Now run {s}\n\n{s}{s}{s}", .{ tui.Printer.emoji("→"), colors.cyan, suggested_cmd, colors.reset });
     } else {
-        printer.footer("Now run {s}\n\n{s}", .{ tui.Printer.emoji("→"), colors.Fns.cyan("zx dev") });
+        printer.footer("Now run {s}\n\n{s}", .{ tui.Printer.emoji("→"), colors.Fns.cyan("zx build dev") });
     }
 }
 

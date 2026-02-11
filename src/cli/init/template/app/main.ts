@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { filterComponents, prepareComponent } from "ziex/react";
 import { init } from "ziex/wasm";
 
-import { components } from "@ziex/components"; // The components array is generated once `zig build` or `zx dev` or `zx serve` is run.
+import { components } from "@ziex/components"; // The components array is generated once `zig build` or `zig build dev` or `zx serve` is run.
 
 /** Initialize the ZX WASM instance */
 init();

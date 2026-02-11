@@ -1665,7 +1665,7 @@ pub const prop = struct {
 };
 
 /// Serialize a value in positional array format (structs become arrays, nested structs too)
-pub fn serializePositional(comptime T: type, value: T, writer: *std.Io.Writer) !void {
+pub fn serializePositional(comptime T: type, value: T, writer: *std.Io.Writer) anyerror!void {
     const type_info = @typeInfo(T);
 
     switch (type_info) {
@@ -1785,6 +1785,17 @@ fn propsSerializerJson(comptime Props: type, allocator: std.mem.Allocator, props
 }
 
 fn isPropsSerializable(comptime T: type) bool {
+    return isPropsSerializableImpl(T, &.{});
+}
+
+fn isPropsSerializableImpl(comptime T: type, comptime visited: []const type) bool {
+    // Check if we've already visited this type (recursive type detection)
+    for (visited) |v| {
+        if (v == T) return true; // Recursive type, assume serializable
+    }
+
+    const new_visited = visited ++ [_]type{T};
+
     const type_info = @typeInfo(T);
     return switch (type_info) {
         .int, .comptime_int, .float, .comptime_float, .bool => true,
@@ -1792,7 +1803,7 @@ fn isPropsSerializable(comptime T: type) bool {
             // Handle slices
             if (ptr.size == .slice) {
                 if (ptr.child == u8) break :blk true;
-                if (isPropsSerializable(ptr.child)) break :blk true;
+                if (isPropsSerializableImpl(ptr.child, new_visited)) break :blk true;
             }
             if (ptr.size == .one) {
                 const child_info = @typeInfo(ptr.child);
@@ -1801,11 +1812,11 @@ fn isPropsSerializable(comptime T: type) bool {
             }
             break :blk false;
         },
-        .array => |arr| isPropsSerializable(arr.child),
-        .optional => |opt| isPropsSerializable(opt.child),
+        .array => |arr| isPropsSerializableImpl(arr.child, new_visited),
+        .optional => |opt| isPropsSerializableImpl(opt.child, new_visited),
         .@"struct" => |s| blk: {
             for (s.fields) |field| {
-                if (!isPropsSerializable(field.type)) break :blk false;
+                if (!isPropsSerializableImpl(field.type, new_visited)) break :blk false;
             }
             break :blk true;
         },
