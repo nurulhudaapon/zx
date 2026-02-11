@@ -16,3 +16,7 @@ fi
 
 echo "Using release notes from: $RELEASE_NOTES_FILE"
 gh release create $RELEASE_VERSION -F "$RELEASE_NOTES_FILE" --prerelease
+
+git pull
+
+bash tools/syncchangelog
