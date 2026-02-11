@@ -1415,6 +1415,140 @@ body {
     color: var(--zx-primary);
 }
 
+/* Benchmarks */
+.benchmarks {
+    padding: 5rem 2rem 6rem;
+    background: radial-gradient(circle at 80% 20%, rgba(0, 217, 255, 0.08), transparent 55%),
+        radial-gradient(circle at 10% 80%, rgba(255, 107, 53, 0.08), transparent 60%);
+    border-top: 1px solid var(--zx-border);
+    border-bottom: 1px solid var(--zx-border);
+}
+
+.benchmarks-header {
+    max-width: 980px;
+    margin: 0 auto 2.5rem;
+}
+
+.benchmarks-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ff4d6d;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.benchmarks-card {
+    max-width: 980px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, rgba(12, 16, 22, 0.98) 0%, rgba(9, 12, 18, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 1.5rem 1.75rem 2rem;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.benchmarks-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.benchmarks-tab-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.benchmarks-tab-label {
+    padding: 0.5rem 0.95rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.benchmarks-tab-label:hover {
+    color: #e6edf3;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.benchmarks-panel {
+    display: none;
+}
+
+.benchmarks-metric {
+    color: var(--zx-text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 1.25rem;
+}
+
+.benchmarks-chart {
+    display: grid;
+    gap: 1rem;
+}
+
+.bench-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 64px;
+    align-items: center;
+    gap: 1rem;
+}
+
+.bench-label {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.bench-bar {
+    position: relative;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bench-bar-fill {
+    display: block;
+    height: 100%;
+    width: calc(var(--value) * 100%);
+    background: linear-gradient(90deg, #2a63ff, #00f0c8);
+    border-radius: inherit;
+    box-shadow: 0 0 18px rgba(0, 240, 200, 0.35);
+    transition: width 0.6s ease;
+}
+
+.bench-row:first-child .bench-bar-fill {
+    background: linear-gradient(90deg, #2a63ff, #00f0c8, #7affc5);
+    box-shadow: 0 0 22px rgba(0, 240, 200, 0.5);
+}
+
+.bench-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: right;
+}
+
+.bench-row:first-child .bench-value {
+    color: var(--zx-primary-light);
+}
+
+.benchmarks-footnote {
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .hero {
@@ -1507,6 +1641,19 @@ body {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+
+    .benchmarks {
+        padding: 4rem 1rem 5rem;
+    }
+
+    .benchmarks-card {
+        padding: 1.25rem 1.2rem 1.5rem;
+    }
+
+    .bench-row {
+        grid-template-columns: 100px 1fr 56px;
+        gap: 0.75rem;
+    }
     
     .code-example pre {
         padding: 1.5rem 1rem;
@@ -1560,6 +1707,15 @@ body {
         overflow-x: auto;
         overflow-y: visible;
         touch-action: pan-x pan-y;
+    }
+
+    .bench-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+
+    .bench-value {
+        text-align: left;
     }
 }
 
