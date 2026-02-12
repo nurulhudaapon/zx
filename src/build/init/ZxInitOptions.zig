@@ -36,7 +36,7 @@ pub const CliOptions = struct {
         /// Step name for bundling the website (default: null/disabled)
         bundle: ?[]const u8 = null,
 
-        pub const default: Steps = .{ .dev = "dev" };
+        pub const default: Steps = .{ .dev = "dev", .serve = "serve" };
     };
 
     /// Path to the ZX CLI executable.

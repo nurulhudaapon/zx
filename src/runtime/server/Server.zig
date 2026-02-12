@@ -340,7 +340,7 @@ pub fn Server(comptime H: type) type {
 
                 allocator.free(self.version);
                 if (self.rootdir) |rootdir| allocator.free(rootdir);
-                if (self.binpath) |binpath| allocator.free(binpath);
+                // if (self.binpath) |binpath| allocator.free(binpath);
             }
 
             pub fn serialize(self: *const SerilizableAppMeta, writer: anytype) !void {

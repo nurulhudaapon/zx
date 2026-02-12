@@ -294,7 +294,7 @@ pub fn initInner(
 
     // --- Steps: Serve --- //
     if (opts.steps.serve) |serve_step_name| {
-        const serve_step = b.step(serve_step_name, "Run the Zx website");
+        const serve_step = b.step(serve_step_name, "Run the Ziex app with production behavior");
         const serve_cmd = b.addRunArtifact(exe);
         serve_cmd.step.dependOn(b.getInstallStep());
         serve_cmd.step.dependOn(&transpile_cmd.step);
@@ -305,8 +305,9 @@ pub fn initInner(
     // --- Steps: Dev --- //
     if (opts.steps.dev) |dev_step_name| {
         const dev_cmd = getZxRun(b, zx_exe, opts);
-        dev_cmd.addArgs(&.{"dev"});
-        const dev_step = b.step(dev_step_name, "Run the Zx website in development mode");
+        dev_cmd.addArgs(&.{ "dev", "--binpath" });
+        dev_cmd.addFileArg(exe.getEmittedBin());
+        const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         if (b.args) |args| dev_cmd.addArgs(args);
     }
@@ -315,7 +316,7 @@ pub fn initInner(
     if (opts.steps.@"export") |export_step_name| {
         const export_cmd = getZxRun(b, zx_exe, opts);
         export_cmd.addArgs(&.{"export"});
-        const export_step = b.step(export_step_name, "Export the Zx website");
+        const export_step = b.step(export_step_name, "Export the Ziex app for static hosting");
         export_step.dependOn(&export_cmd.step);
         if (b.args) |args| export_cmd.addArgs(args);
     }
@@ -324,7 +325,7 @@ pub fn initInner(
     if (opts.steps.bundle) |bundle_step_name| {
         const bundle_cmd = getZxRun(b, zx_exe, opts);
         bundle_cmd.addArgs(&.{"bundle"});
-        const bundle_step = b.step(bundle_step_name, "Bundle the Zx website");
+        const bundle_step = b.step(bundle_step_name, "Bundle the Ziex app for production deployment");
         bundle_step.dependOn(&bundle_cmd.step);
         if (b.args) |args| bundle_cmd.addArgs(args);
     }
