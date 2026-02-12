@@ -353,8 +353,10 @@ fn normalizeValue(value: f64, rows: []const BenchmarkRow) f64 {
 }
 
 fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab) zx.Component {
+    const panel_id = std.fmt.allocPrint(allocator, "panel-{s}", .{tab.id}) catch unreachable;
+    const tab_id = std.fmt.allocPrint(allocator, "tab-{s}", .{tab.id}) catch unreachable;
     return (
-        <div @allocator={allocator} class="benchmarks-panel" data-tab={tab.id}>
+        <div @allocator={allocator} class="benchmarks-panel" data-tab={tab.id} role="tabpanel" id={panel_id} aria-labelledby={tab_id}>
             <div class="benchmarks-metric">{tab.metric}</div>
             <div class="benchmarks-chart">
                 {for (tab.rows) |row| (
@@ -384,11 +386,11 @@ fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.
                     {for (props.tabs) |tab| (
                         <>
                             {if (tab.checked) (
-                                <input type="radio" id={tab.id} name="bench-tabs" class="benchmarks-tab-radio" checked="true" aria-label={tab.label} />
+                                <input type="radio" id={tab.id} name="bench-tabs" class="benchmarks-tab-radio" checked="true" aria-hidden="true" tabindex="-1" />
                             ) else (
-                                <input type="radio" id={tab.id} name="bench-tabs" class="benchmarks-tab-radio" aria-label={tab.label} />
+                                <input type="radio" id={tab.id} name="bench-tabs" class="benchmarks-tab-radio" aria-hidden="true" tabindex="-1" />
                             )}
-                            <label for={tab.id} class="benchmarks-tab-label">{tab.label}</label>
+                            <label for={tab.id} class="benchmarks-tab-label" role="tab" id={std.fmt.allocPrint(allocator, "tab-{s}", .{tab.id}) catch unreachable} aria-selected={if (tab.checked) "true" else "false"} aria-controls={std.fmt.allocPrint(allocator, "panel-{s}", .{tab.id}) catch unreachable} tabindex={if (tab.checked) "0" else "-1"}>{tab.label}</label>
                         </>
                     )}
                 </div>
