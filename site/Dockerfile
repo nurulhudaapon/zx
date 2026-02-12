@@ -22,8 +22,8 @@ COPY pkg/ ./pkg/
 COPY vendor/ ./vendor
 
 RUN (cd site && $HOME/.bun/bin/bun install)
-RUN /opt/zig/zig build -Ddoc -Doptimize=ReleaseSafe
-RUN /opt/zig/zig build -Ddoc -Doptimize=ReleaseSafe zx -- bundle
+RUN /opt/zig/zig build -Ddoc -Doptimize=ReleaseSmall
+RUN /opt/zig/zig build -Ddoc -Doptimize=ReleaseSmall zx -- bundle
 
 # Run the app
 FROM alpine:3.22.2

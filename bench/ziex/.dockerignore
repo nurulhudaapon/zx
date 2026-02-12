@@ -1,0 +1,5 @@
+.dockerignore
+Dockerfile
+zig-out
+.zig-cache
+.gitignore

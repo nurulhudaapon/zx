@@ -16,6 +16,7 @@ COPY pkg/ pkg/
 COPY build.zig.zon build.zig.zon
 COPY build.zig build.zig
 RUN cd bench/ziex && /opt/zig/zig build -Doptimize=ReleaseFast
+RUN cd bench/ziex &&  /opt/zig/zig build zx -Doptimize=ReleaseSafe -- bundle
 
 # Run the app
 FROM alpine:3.22.2
@@ -24,8 +25,8 @@ FROM alpine:3.22.2
 RUN apk add --no-cache curl
 
 COPY --from=build /build/bench/ziex/zig-out/bin/zx_bench_client /app/zx_bench_client
+COPY --from=build /build/bench/ziex/bundle/assets /app/assets
 
-WORKDIR /app
 EXPOSE 3000
 
-ENTRYPOINT ["/app/zx_bench_client"]
+ENTRYPOINT ["/app/zx_bench_client", "--rootdir", "./app"]
