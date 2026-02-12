@@ -5,17 +5,11 @@ Compares SSR performance of Ziex, Leptos, SolidStart, and Next.js in Docker cont
 ## Prerequisites
 
 - Docker
-- [oha](https://github.com/hatoo/oha) (`cargo install oha`)
 
 ## Usage
 
 ```bash
-# all frameworks
-./run.sh
-
-# one or more
-./run.sh ziex
-./run.sh ziex leptos
+./bench.sh
 ```
 
 Results are written to `result.csv` and `../site/pages/bench.zon` (used to generate the benchmark chart on ziex.dev).

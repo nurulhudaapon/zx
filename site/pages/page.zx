@@ -81,12 +81,19 @@ fn buildSsrRows() [bench_len]BenchmarkRow {
             .display = formatLargeNumber(d.requests_per_sec),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Framework", .value = d.label },
                 .{ .label = "Requests/sec", .value = formatRequests(d.requests_per_sec) },
                 .{ .label = "P50 Latency", .value = formatLatency(d.p50_latency_ms) },
                 .{ .label = "P99 Latency", .value = formatLatency(d.p99_latency_ms) },
             },
         };
     }
+    // Sort rows descending by value (higher is better)
+    std.sort.insertion(BenchmarkRow, &rows, {}, struct {
+        fn lessThan(_: void, a: BenchmarkRow, b: BenchmarkRow) bool {
+            return a.value > b.value;
+        }
+    }.lessThan);
     return rows;
 }
 
@@ -102,11 +109,18 @@ fn buildMemoryRows() [bench_len]BenchmarkRow {
             .display = formatMemory(d.peak_memory_mb),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Framework", .value = d.label },
                 .{ .label = "Idle Memory", .value = formatMemory(d.idle_memory_mb) },
                 .{ .label = "Peak Memory", .value = formatMemory(d.peak_memory_mb) },
             },
         };
     }
+    // Sort rows ascending by peak memory (lower is better, so -value is higher is better)
+    std.sort.insertion(BenchmarkRow, &rows, {}, struct {
+        fn lessThan(_: void, a: BenchmarkRow, b: BenchmarkRow) bool {
+            return a.value > b.value;
+        }
+    }.lessThan);
     return rows;
 }
 
@@ -126,7 +140,7 @@ const benchmark_tabs = [_]BenchmarkTab{
         .id = "bench-tab-ssr",
         .label = "SSR Throughput",
         .metric = "Requests per second (higher is better)",
-        .footnote = "Dockerized SSR endpoint hit with 5k requests at 50 concurrent connections, averaged over 2 runs.",
+        .footnote = "Dockerized SSR endpoint hit with 10k requests at 50 concurrent connections, averaged over 4 runs.",
         .rows = benchmark_ssr_rows[0..],
         .checked = true,
     },
@@ -256,7 +270,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     allocator={allocator}
                     eyebrow="Performance Benchmarks"
                     title="Performance"
-                    subtitle="<a href='https://github.com/nurulhudaapon/zx/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark code & methodology →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM."
+                    subtitle="<a href='https://github.com/nurulhudaapon/zx/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM."
                     tabs={benchmark_tabs[0..]}
                 />
                 <section class="feature-examples">
@@ -399,12 +413,13 @@ fn roundToNiceValue(value: f64) f64 {
     const magnitude = std.math.pow(f64, 10, @floor(log_val));
     const normalized = value / magnitude;
     
-    // Round up to nice values: 1, 2, 2.5, 3, 5, 10
+    // Round up to nice values: 1, 2, 2.5, 3, 4, 5, 10
     // This ensures the highest bar fills to ~90% of space
     if (normalized <= 1) return magnitude;
     if (normalized <= 2) return magnitude * 2;
     if (normalized <= 2.5) return magnitude * 2.5;
     if (normalized <= 3) return magnitude * 3;
+    if (normalized <= 4) return magnitude * 4;
     if (normalized <= 5) return magnitude * 5;
     return magnitude * 10;
 }

@@ -3,8 +3,6 @@ name: "ziex_bench"
 services:
   nextjs:
     build: ./nextjs
-    ports:
-      - "3000:3000"
     environment:
       - NODE_ENV=production
     healthcheck:
@@ -23,8 +21,6 @@ services:
 
   solidjs:
     build: ./solidjs
-    ports:
-      - "3001:3000"
     environment:
       - NODE_ENV=production
     healthcheck:
@@ -43,8 +39,6 @@ services:
 
   leptos:
     build: ./leptos
-    ports:
-      - "3002:3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
       interval: 1s
@@ -63,8 +57,6 @@ services:
     build:
       context: ../
       dockerfile: bench/ziex/Dockerfile
-    ports:
-      - "3003:3000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
       interval: 1s
@@ -76,6 +68,18 @@ services:
         limits:
           cpus: '2'
           memory: 2G
+    networks:
+      - bench-net
+
+  bench:
+    build:
+      context: .
+      dockerfile: Dockerfile.bench
+    depends_on:
+      - ziex
+      - leptos
+      - solidjs
+      - nextjs
     networks:
       - bench-net
 
