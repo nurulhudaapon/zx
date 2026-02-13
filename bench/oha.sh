@@ -3,8 +3,7 @@
 # ─── Config ──────────────────────────────────────────
 REQUESTS=10000
 CONCURRENCY=50
-WARMUP_REQUESTS=1000
-RUNS=4
+RUNS=3
 RESULTS_FILE="result.csv"
 
 # ─── Colors ──────────────────────────────────────────
@@ -75,7 +74,7 @@ echo -e "${DIM}─────────────────────�
 # ─── Build ───────────────────────────────────────────
 if [ "$IN_CONTAINER" = false ]; then
     echo -ne "Building images..."
-    docker-compose build --parallel $FRAMEWORKS &>/dev/null
+    docker compose build --parallel $FRAMEWORKS &>/dev/null
     echo -e " ${GREEN}✓${NC}\n"
 fi
 
@@ -106,20 +105,7 @@ benchmark() {
     local label=$(get_label "$name")
     local url="http://$name:$port/ssr"
 
-
-
     echo -e "${BOLD}▸ $label${NC} ${DIM}($name:$port)${NC}"
-
-    echo -ne "  Checking..."
-    if ! curl -sSf --max-time 5 "$url" > /dev/null; then
-        echo -e " ${RED}✗${NC} (service not responding)"
-        return 1
-    fi
-    echo -e " ${GREEN}✓${NC} (service responding)"
-
-    # Warmup (silent)
-    oha -n $WARMUP_REQUESTS "$url" --no-tui &>/dev/null
-    sleep 1
 
     # Benchmark runs
     echo -ne "  Benchmarking ×${RUNS}..."
@@ -151,7 +137,6 @@ benchmark() {
     echo -e " ${GREEN}✓${NC}"
     printf "  ${GREEN}→${NC} ${BOLD}%.0f req/s${NC} · p50: %sms · p99: %sms\n" \
         "$avg_rps" "$avg_p50" "$avg_p99"
-    echo ""
 
     echo "$name,$avg_rps,$avg_p50,$avg_p99" >> "$RESULTS_FILE"
 }
@@ -162,7 +147,7 @@ done
 
 # ─── Generate bench.zon ─────────────────────────────
 
-# docker-compose down &>/dev/null (remove auto-down)
+# docker compose down &>/dev/null (remove auto-down)
 
 # ─── Summary ─────────────────────────────────────────
 if [ "$QUIET" = false ]; then

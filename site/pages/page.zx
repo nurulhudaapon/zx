@@ -140,7 +140,7 @@ const benchmark_tabs = [_]BenchmarkTab{
         .id = "bench-tab-ssr",
         .label = "SSR Throughput",
         .metric = "Requests per second (higher is better)",
-        .footnote = "Dockerized SSR endpoint hit with 10k requests at 50 concurrent connections, averaged over 4 runs.",
+        .footnote = "Dockerized SSR endpoint hit with 10k requests at 50 concurrent connections, averaged over 3 runs.",
         .rows = benchmark_ssr_rows[0..],
         .checked = true,
     },

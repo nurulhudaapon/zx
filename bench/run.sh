@@ -30,16 +30,18 @@ echo "framework,idle_mb,peak_mb,rps,p50_ms,p99_ms" > "$RESULTS_FILE"
 
 # Start all framework containers
 echo "Starting containers..."
-docker compose up -d "${FRAMEWORKS[@]}" > /dev/null 2>&1
-sleep 3
+docker compose up -d --wait "${FRAMEWORKS[@]}"
 
 # Start bench container
-docker compose up -d --build bench > /dev/null 2>&1
-sleep 2
+docker compose up -d --build bench
 
-# Measure idle memory for all frameworks
+
+# Print a DIM line to separate startup logs from benchmark output
+echo -e "\033[2m───────────────────────────────────────────────────────────────────────\033[0m"
+
+
 declare -A IDLE_MEM
-echo "Measuring idle memory..."
+echo "▸ Measuring idle memory..."
 for fw in "${FRAMEWORKS[@]}"; do
   cid=$(docker compose ps -q "$fw")
   if [ -z "$cid" ]; then
@@ -50,16 +52,17 @@ for fw in "${FRAMEWORKS[@]}"; do
   IDLE_MEM[$fw]="${idle_mem:-0}"
 done
 echo ""
-echo "Running benchmarks..."
-echo ""
+
+echo "▸ Measuring req/s..."
+# echo -e "\033[2m───────────────────────────────────────────────────────────────────────\033[0m"
 
 # Benchmark each framework and measure peak memory immediately after
 declare -A PEAK_MEM
 declare -A BENCH_RESULTS
 
 for fw in "${FRAMEWORKS[@]}"; do
-  # Run benchmark for this single framework (quiet mode, -t for real-time output)
-  docker exec -t "$BENCH_CONTAINER" bash oha.sh --container --quiet "$fw" 2>&1 | \
+  # Run benchmark for this single framework, passing arguments to bench container
+  docker exec -t "$BENCH_CONTAINER" /bench/oha.sh --container --quiet "$fw" 2>&1 | \
     awk 'NR>=4 && NR<=8 {print; fflush()}'
   echo ""
 
@@ -88,7 +91,8 @@ done
 # Stop all services
 docker compose stop "${FRAMEWORKS[@]}" > /dev/null 2>&1
 
-# Pretty summary output from results
+# Pretty summary output from 
+echo -e "\033[2m───────────────────────────────────────────────────────────────────────\033[0m"
 echo ""
 printf '%-12s %9s %10s %10s %9s %9s\n' "Framework" "Req/s" "P50" "P99" "Idle" "Peak"
 tail -n +2 "$RESULTS_FILE" | while IFS=',' read -r fw idle peak rps p50 p99; do
@@ -98,7 +102,7 @@ tail -n +2 "$RESULTS_FILE" | while IFS=',' read -r fw idle peak rps p50 p99; do
 done
 
 echo ""
-echo "Results written to: $RESULTS_FILE"
+echo -e "\033[2mResults written to: $RESULTS_FILE\033[0m"
 
 # Generate bench.zon from results
 ZON_FILE="../site/pages/bench.zon"
@@ -121,4 +125,4 @@ EOF
   done
   echo "}"
 } > "$ZON_FILE"
-echo "bench.zon written to $ZON_FILE"
+echo -e "\033[2mbench.zon written to $ZON_FILE\033[0m"

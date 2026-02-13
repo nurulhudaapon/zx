@@ -1,10 +1,19 @@
-FROM rust:1.93-alpine as builder
-RUN apk add --no-cache curl bash bc git build-base
-RUN cargo install oha
-
-FROM alpine:3.19
-RUN apk add --no-cache bash curl bc
-COPY --from=builder /usr/local/cargo/bin/oha /usr/local/bin/oha
+FROM debian:stable
+RUN apt-get update && apt-get install -y wget curl bash bc gnupg
+# Download oha v1.13.0 binary using constructed URL
+ARG OHA_VER=1.13.0
+RUN ARCH=$(uname -m); \
+	if [ "$ARCH" = "x86_64" ]; then \
+		OHA_ARCH=amd64; \
+	elif [ "$ARCH" = "aarch64" ]; then \
+		OHA_ARCH=arm64; \
+	else \
+		echo "Unsupported architecture: $ARCH"; exit 1; \
+	fi; \
+	OHA_URL="https://github.com/hatoo/oha/releases/download/v${OHA_VER}/oha-linux-${OHA_ARCH}"; \
+	wget "$OHA_URL" -O /usr/local/bin/oha; \
+	chmod +x /usr/local/bin/oha
 WORKDIR /bench
 COPY oha.sh .
-CMD ["sleep", "infinity"]
+ENTRYPOINT ["/bin/bash"]
+CMD ["-c", "tail -f /dev/null"]
