@@ -25,10 +25,21 @@ jobs:
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: /tmp/.buildx-cache
+          path: ${{ github.workspace }}/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
+
+      - name: Build images with cache
+        run: |
+          docker compose build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --progress=plain \
+            --parallel
+        env:
+          DOCKER_BUILDKIT: 1
+          BUILDKIT_CACHE: ${{ github.workspace }}/.buildx-cache
+        working-directory: bench
 
       - name: Run benchmark script
         id: bench
@@ -42,7 +53,7 @@ jobs:
           fi
         env:
           DOCKER_BUILDKIT: 1
-          BUILDKIT_CACHE: /tmp/.buildx-cache
+          BUILDKIT_CACHE: ${{ github.workspace }}/.buildx-cache
 
       - name: Upload result.csv artifact
         uses: actions/upload-artifact@v4
