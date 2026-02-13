@@ -126,6 +126,10 @@ pub fn BaseContext(comptime H: type, comptime S: type) type {
         pub fn deinit(self: *Self) void {
             self.allocator.destroy(self);
         }
+
+        pub fn fmt(self: Self, comptime format: []const u8, args: anytype) ![]u8 {
+            return fmtInner(self.arena, format, args);
+        }
     };
 }
 

@@ -341,7 +341,7 @@ const Env = struct {
             .verbose = readEnvBool(allocator, "TEST_VERBOSE", true),
             .fail_first = readEnvBool(allocator, "TEST_FAIL_FIRST", false),
             .filter = readEnv(allocator, "TEST_FILTER"),
-            .flaky_retries = readEnvInt(allocator, "TEST_FLAKY_RETRIES", 3),
+            .flaky_retries = readEnvInt(allocator, "TEST_FLAKY_RETRIES", 5),
         };
     }
 

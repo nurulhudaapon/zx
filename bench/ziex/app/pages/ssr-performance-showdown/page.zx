@@ -1,0 +1,63 @@
+const zx = @import("zx");
+const std = @import("std");
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const wrapper_width: f32 = 960.0;
+    const wrapper_height: f32 = 720.0;
+    const cell_size: f32 = 10.0;
+    const center_x = wrapper_width / 2.0;
+    const center_y = wrapper_height / 2.0;
+
+    const Tile = struct { x: f32, y: f32 };
+    var tiles = std.ArrayList(Tile).empty;
+
+    var angle: f32 = 0.0;
+    var radius: f32 = 0.0;
+    const step = cell_size;
+
+    while (radius < @min(wrapper_width, wrapper_height) / 2.0) {
+        const x = center_x + std.math.cos(angle) * radius;
+        const y = center_y + std.math.sin(angle) * radius;
+        if (x >= 0.0 and x <= wrapper_width - cell_size and y >= 0.0 and y <= wrapper_height - cell_size) {
+            tiles.append(ctx.arena, .{ .x = x, .y = y }) catch {};
+        }
+        angle += 0.2;
+        radius += step * 0.015;
+    }
+
+    return (
+        <fragment @allocator={ctx.arena}>
+            <style>
+                {
+                \\body {
+                \\  display: flex;
+                \\  justify-content: center;
+                \\  align-items: center;
+                \\  height: 100vh;
+                \\  background-color: #f0f0f0;
+                \\  margin: 0;
+                \\}
+                \\#wrapper {
+                \\  width: 960px;
+                \\  height: 720px;
+                \\  position: relative;
+                \\  background-color: white;
+                \\}
+                \\.tile {
+                \\  position: absolute;
+                \\  width: 10px;
+                \\  height: 10px;
+                \\  background-color: #333;
+                \\}
+                }
+            </style>
+            <div id="root">
+                <div id="wrapper">
+                    {for (tiles.items) |tile| (
+                        <div class="tile" style={ctx.fmt("left: {d:.2}px; top: {d:.2}px", .{tile.x, tile.y}) catch ""}></div>
+                    )}
+                </div>
+            </div>
+        </fragment>
+    );
+}

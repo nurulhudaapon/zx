@@ -5,6 +5,10 @@ REQUESTS=10000
 CONCURRENCY=50
 RUNS=3
 RESULTS_FILE="result.csv"
+ENDPOINT="ssr-performance-showdown"
+
+HOST_PREFIX="http://"
+HOST_SUFFIX=""
 
 # ─── Colors ──────────────────────────────────────────
 BOLD='\033[1m'
@@ -103,7 +107,7 @@ benchmark() {
     local name=$1
     local port=$(get_port "$name")
     local label=$(get_label "$name")
-    local url="http://$name:$port/ssr"
+    local url="$HOST_PREFIX$name$HOST_SUFFIX:$port/$ENDPOINT"
 
     echo -e "${BOLD}▸ $label${NC} ${DIM}($name:$port)${NC}"
 
