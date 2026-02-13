@@ -21,14 +21,68 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v4
         with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
+          driver-opts: network=host
+
+      - name: Determine frameworks to build
+        id: frameworks
+        run: |
+          if [ -n "${{ github.event.inputs.frameworks }}" ]; then
+            echo "list=${{ github.event.inputs.frameworks }}" >> $GITHUB_OUTPUT
+          else
+            echo "list=nextjs solidjs leptos ziex" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build nextjs
+        if: contains(steps.frameworks.outputs.list, 'nextjs')
+        uses: docker/build-push-action@v6
+        with:
+          context: bench/nextjs
+          load: true
+          tags: ziex_bench-nextjs:latest
+          cache-from: type=gha,scope=nextjs
+          cache-to: type=gha,mode=max,scope=nextjs
+
+      - name: Build solidjs
+        if: contains(steps.frameworks.outputs.list, 'solidjs')
+        uses: docker/build-push-action@v6
+        with:
+          context: bench/solidjs
+          load: true
+          tags: ziex_bench-solidjs:latest
+          cache-from: type=gha,scope=solidjs
+          cache-to: type=gha,mode=max,scope=solidjs
+
+      - name: Build leptos
+        if: contains(steps.frameworks.outputs.list, 'leptos')
+        uses: docker/build-push-action@v6
+        with:
+          context: bench/leptos
+          load: true
+          tags: ziex_bench-leptos:latest
+          cache-from: type=gha,scope=leptos
+          cache-to: type=gha,mode=max,scope=leptos
+
+      - name: Build ziex
+        if: contains(steps.frameworks.outputs.list, 'ziex')
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: bench/ziex/Dockerfile
+          load: true
+          tags: ziex_bench-ziex:latest
+          cache-from: type=gha,scope=ziex
+          cache-to: type=gha,mode=max,scope=ziex
+
+      - name: Build bench
+        uses: docker/build-push-action@v6
+        with:
+          context: bench
+          file: bench/Dockerfile.bench
+          load: true
+          tags: ziex_bench-bench:latest
+          cache-from: type=gha,scope=bench
+          cache-to: type=gha,mode=max,scope=bench
 
       - name: Run benchmark script
         id: bench
@@ -42,7 +96,6 @@ jobs:
           fi
         env:
           DOCKER_BUILDKIT: 1
-          BUILDKIT_CACHE: /tmp/.buildx-cache
 
       - name: Upload result.csv artifact
         uses: actions/upload-artifact@v4
@@ -61,5 +114,20 @@ jobs:
 
       - name: Print summary
         run: |
-          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
-          cat bench/result.csv | column -t -s, >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Benchmark Results"
+            echo ""
+            echo "| Framework | Req/s | P50 (ms) | P99 (ms) | Idle (MB) | Peak (MB) |"
+            echo "|-----------|------:|---------:|---------:|----------:|----------:|"
+            tail -n +2 bench/result.csv | while IFS=',' read -r fw idle peak rps p50 p99; do
+              case "$fw" in
+                ziex) label="Ziex" ;;
+                leptos) label="Leptos" ;;
+                solidjs) label="SolidStart" ;;
+                nextjs) label="Next.js" ;;
+                *) label="$fw" ;;
+              esac
+              printf "| %s | %.0f | %.2f | %.2f | %.1f | %.1f |\n" \
+                "$label" "$rps" "$p50" "$p99" "$idle" "$peak"
+            done
+          } >> $GITHUB_STEP_SUMMARY
