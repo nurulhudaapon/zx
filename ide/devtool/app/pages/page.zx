@@ -9,9 +9,21 @@ const components = [_]Component{
         .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
         .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
     } },
-    .{ .name = "Repl", .has_children = true, .children = &[_]Component{
-        .{ .name = "SplitPane", .has_children = false, .children = &[_]Component{} },
-    } },
+    .{
+        .name = "Repl",
+        .has_children = true,
+        .children = &[_]Component{
+            .{
+                .name = "SplitPane",
+                .has_children = true,
+                .children = &[_]Component{
+                    .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
+                    .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
+                    .{ .name = "PanesThree", .has_children = false, .children = &[_]Component{} },
+                },
+            },
+        },
+    },
 };
 
 const setup_items = [_]StateItem{
@@ -51,7 +63,6 @@ const icons = @import("./components/icons.zx");
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena} class="devtools-container">
-            
             <div class="sidebar">
                 <div class="search-box">
                     <div class="search-wrapper">
@@ -94,43 +105,59 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <StateSection allocator={ctx.arena} title="Actions" items={&template_refs_items} />
                 </div>
             </div>
-        </div>;
+        </div>
     );
 }
 
-const Component = struct { name: []const u8, has_children: bool, children: []const Component };
+const Component = struct {
+    name: []const u8,
+    has_children: bool,
+    children: []const Component,
+};
 const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0 };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
+    const id = std.fmt.allocPrint(allocator, "comp-{d}-{s}", .{ props.depth, props.name }) catch "";
     const padding = props.depth * 16 + 24;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
     return (
         <div @allocator={allocator} class="component-group">
-            <div class="component-item" style={style_str}>
-                {if (props.has_children) (<span class="tree-arrow">▼</span>) else ""}
-                <span class="bracket">{"<"}</span>
-                <span class="component-name">{props.name}</span>
-                <span class="bracket">{">"}</span>
-            </div>
-            {if (props.children.len > 0) (
-                <div @allocator={allocator} class="component-children">
-                    {for (props.children) |child| (
-                        <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} />
-                    )}
+            {if (props.has_children) (
+                <>
+                    <input type="checkbox" id={id} class="component-toggle" checked />
+                    <label for={id} class="component-item" style={style_str}>
+                        <span class="tree-arrow"></span>
+                        <span class="bracket">{"<"}</span>
+                        <span class="component-name">{props.name}</span>
+                        <span class="bracket">{">"}</span>
+                    </label>
+                    <div class="component-children">
+                        {for (props.children) |child| (
+                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} />
+                        )}
+                    </div>
+                </>
+            ) else (
+                <div class="component-item" style={style_str}>
+                    <span class="bracket">{"<"}</span>
+                    <span class="component-name">{props.name}</span>
+                    <span class="bracket">{">"}</span>
                 </div>
-            ) else ""}
+            )}
         </div>
     );
 }
 
 const StateItem = struct { arrow: []const u8, key: []const u8, value: []const u8, meta: []const u8, is_nested: bool };
 fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, items: []const StateItem }) zx.Component {
+    const id = std.fmt.allocPrint(allocator, "state-section-{s}", .{props.title}) catch "";
     return (
         <div @allocator={allocator} class="state-section">
-            <div class="section-header">
-                <span class="section-arrow">▼</span>
+            <input type="checkbox" id={id} class="state-toggle" checked />
+            <label for={id} class="section-header">
+                <span class="section-arrow"></span>
                 <span class="section-title">{props.title}</span>
-            </div>
+            </label>
             <div class="section-items">
                 {for (props.items) |item| (
                     <StateItemRow allocator={allocator} item={item} />
@@ -144,23 +171,27 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem }) zx.C
     const item = props.item;
     const indent_class = if (item.is_nested) "state-item-nested" else "state-item";
     const has_arrow = item.arrow.len > 0;
-    
+    const id = std.fmt.allocPrint(allocator, "state-row-{s}", .{item.key}) catch "";
     const key_color = getKeyColor(item.value);
     const value_color_base = getValueColor(item.value);
     const is_hash = std.mem.eql(u8, item.key, "hash");
     const value_color = if (is_hash) "value-default hash-value" else value_color_base;
-    
     return (
         <div @allocator={allocator} class={indent_class}>
             {if (has_arrow) (
-                <span class="item-arrow">{item.arrow}</span>
+                <>
+                    <input type="checkbox" id={id} class="state-row-toggle" checked />
+                    <label for={id} class="item-arrow"></label>
+                </>
             ) else (
                 <span class="item-spacer"></span>
             )}
             <span class={key_color}>{item.key}</span>
             <span class="item-colon">:</span>
-            <span class={value_color}>{item.value}</span>
-            {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
+            <div class="state-row-value">
+                <span class={value_color}>{item.value}</span>
+                {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
+            </div>
         </div>
     );
 }

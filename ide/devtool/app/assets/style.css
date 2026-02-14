@@ -1,3 +1,72 @@
+.state-row-toggle {
+    display: none;
+}
+
+.state-row-toggle + .item-arrow::before {
+    content: "▼";
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.state-row-toggle:not(:checked) + .item-arrow::before {
+    content: "▶";
+    transform: rotate(0deg);
+}
+
+.state-row-toggle:not(:checked) + .item-arrow ~ .state-row-value {
+    display: none;
+}
+
+.state-row-toggle:checked + .item-arrow::before {
+    content: "▼";
+    transform: rotate(0deg);
+}
+.state-toggle {
+    display: none;
+}
+
+.state-toggle + .section-header .section-arrow::before {
+    content: "▼";
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.state-toggle:not(:checked) + .section-header .section-arrow::before {
+    content: "▶";
+    transform: rotate(0deg);
+}
+
+.state-toggle:not(:checked) + .section-header + .section-items {
+    display: none;
+}
+
+.state-toggle:checked + .section-header .section-arrow::before {
+    content: "▼";
+    transform: rotate(0deg);
+}
+.component-toggle {
+    display: none;
+}
+
+.component-toggle + .component-item .tree-arrow::before {
+    content: "▼";
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.component-toggle:not(:checked) + .component-item .tree-arrow::before {
+    content: "▶";
+    transform: rotate(0deg);
+}
+
+.component-toggle:not(:checked) + .component-item + .component-children {
+    display: none;
+}
+
+.component-toggle:checked + .component-item .tree-arrow::before {
+    content: "▼";
+    transform: rotate(0deg);
+}
 :root {
     color-scheme: dark;
     --text-muted: #9aa0a6;
