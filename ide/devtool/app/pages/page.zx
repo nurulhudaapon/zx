@@ -31,12 +31,12 @@ const setup_items = [_]StateItem{
 };
 
 const setup_other_items = [_]StateItem{
-    .{ .arrow = "", .key = "setVH", .value = "function i()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleProdMode", .value = "function p()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleSSR", .value = "function f()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleAutoSave", .value = "function m()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "reloadPage", .value = "function _()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleTheme", .value = "function y(I)", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "setVH", .value = "fn i()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleProdMode", .value = "fn p()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleSSR", .value = "fn f()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleAutoSave", .value = "fn m()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "reloadPage", .value = "fn _()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleTheme", .value = "fn y(I)", .meta = "", .is_nested = false },
     .{ .arrow = "", .key = "Header", .value = "Header", .meta = "", .is_nested = false },
     .{ .arrow = "▶", .key = "Repl", .value = "Object", .meta = "", .is_nested = false },
     .{ .arrow = "▶", .key = "Monaco", .value = "Object", .meta = "", .is_nested = false },
@@ -46,6 +46,8 @@ const template_refs_items = [_]StateItem{
     .{ .arrow = "▶", .key = "replRef", .value = "Object", .meta = "", .is_nested = false },
 };
 
+const icons = @import("./components/icons.zx");
+
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena} class="devtools-container">
@@ -54,7 +56,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <div class="search-box">
                     <div class="search-wrapper">
                         <input type="text" placeholder="Find components..." class="search-input" />
-                        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        {icons.Search(ctx.arena)}
                         <div class="search-shortcut">↲</div>
                     </div>
                 </div>
@@ -79,17 +81,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <input type="text" placeholder="Filter State..." class="filter-input" />
                     </div>
                     <div class="state-actions">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                        {icons.StateEye(ctx.arena)}
+                        {icons.StateArrows(ctx.arena)}
+                        {icons.StateList(ctx.arena)}
+                        {icons.StateExport(ctx.arena)}
                     </div>
                 </div>
 
                 <div class="state-content">
-                    <StateSection allocator={ctx.arena} title="setup" items={&setup_items} />
-                    <StateSection allocator={ctx.arena} title="setup (other)" items={&setup_other_items} />
-                    <StateSection allocator={ctx.arena} title="template refs" items={&template_refs_items} />
+                    <StateSection allocator={ctx.arena} title="Global Signals" items={&setup_items} />
+                    <StateSection allocator={ctx.arena} title="Components Signals" items={&setup_other_items} />
+                    <StateSection allocator={ctx.arena} title="Actions" items={&template_refs_items} />
                 </div>
             </div>
         </div>;
@@ -164,13 +166,13 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem }) zx.C
 }
 
 fn getKeyColor(value: []const u8) []const u8 {
-    if (std.mem.indexOf(u8, value, "function") != null) return ("key-function");
+    if (std.mem.indexOf(u8, value, "fn") != null) return ("key-function");
     if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return ("key-boolean");
     return ("key-default");
 }
 
 fn getValueColor(value: []const u8) []const u8 {
-    if (std.mem.indexOf(u8, value, "function") != null) return ("value-function");
+    if (std.mem.indexOf(u8, value, "fn") != null) return ("value-function");
     if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return ("value-boolean");
     if (std.mem.startsWith(u8, value, "\"")) return ("value-string");
     return ("value-default");

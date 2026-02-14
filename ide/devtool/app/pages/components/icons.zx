@@ -264,4 +264,64 @@ pub fn Pin(allocator: zx.Allocator) zx.Component {
     );
 }
 
+pub fn AllRoutes(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"></path>
+            <path d="M18 9l-5-5-5 5"></path>
+            <path d="M13 4v10a2 2 0 0 0 2 2h3"></path>
+        </svg>
+    );
+}
+
+pub fn Search(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+    );
+}
+
+pub fn StateEye(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+    );
+}
+
+pub fn StateArrows(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+    );
+}
+
+pub fn StateList(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+    );
+}
+
+pub fn StateExport(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+        </svg>
+    );
+}
+
 const zx = @import("zx");
