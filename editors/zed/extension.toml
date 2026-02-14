@@ -11,19 +11,19 @@ name = "zls"
 language = "ZX"
 
 [grammars.zx]
-# repository = "https://github.com/nurulhudaapon/ziex"
+repository = "https://github.com/nurulhudaapon/ziex"
+rev = "main"
 path = "pkg/tree-sitter-zx"
-# rev = "main"
 
-repository = "file:///Users/nurulhudaapon/Projects/nurulhudaapon/zx"
-rev = "feat/mdzx"
+# repository = "file:///Users/nurulhudaapon/Projects/nurulhudaapon/zx"
+# rev = "feat/mdzx"
 
 [grammars.mdzx]
-# repository = "https://github.com/nurulhudaapon/ziex"
+repository = "https://github.com/nurulhudaapon/ziex"
+rev = "main"
 path = "pkg/tree-sitter-mdzx"
-# rev = "main"
 
-repository = "file:///Users/nurulhudaapon/Projects/nurulhudaapon/zx"
-rev = "feat/mdzx"
+# repository = "file:///Users/nurulhudaapon/Projects/nurulhudaapon/zx"
+# rev = "feat/mdzx"
 
 [debug_locators.zx-locator]
