@@ -171,14 +171,13 @@ pub const SerilizableAppMeta = struct {
             return .{ "Route", try methods.toOwnedSlice(allocator) };
         }
 
+        try methods.append(allocator, "GET");
+
         if (route.page_opts) |page_opts| {
             for (page_opts.methods) |method| {
+                if (method == .GET) continue;
                 try methods.append(allocator, @tagName(method));
             }
-        }
-
-        if (methods.items.len == 0) {
-            try methods.append(allocator, "GET");
         }
 
         return .{ "Page", try methods.toOwnedSlice(allocator) };

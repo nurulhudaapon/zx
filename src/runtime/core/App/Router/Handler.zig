@@ -63,6 +63,8 @@ pub fn executeNotFoundProxy(pathname: []const u8, request: Request, response: Re
 }
 
 fn pageMethodAllowed(route: *const Route, method: Request.Method) bool {
+    if (method == .GET) return true;
+
     const methods = if (route.page_opts) |opts| opts.methods else &[_]zx.PageOptions.Method{.GET};
     for (methods) |m| {
         if (pageMethodEquals(m, method)) return true;

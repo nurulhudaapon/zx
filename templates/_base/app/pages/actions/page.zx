@@ -24,7 +24,7 @@ fn handleLogin(data: LoginInput) void {
 }
 
 pub const options: zx.PageOptions = .{
-    .methods = &.{.POST},
+    .methods = &.{ .GET, .POST },
 };
 
 const zx = @import("zx");
