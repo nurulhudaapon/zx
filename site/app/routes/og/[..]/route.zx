@@ -1,21 +1,40 @@
 pub fn GET(ctx: zx.RouteContext) !void {
-    const og_type = ctx.request.params.get("path") orelse "";
-    const og_data = getOgImageData(og_type);
+    const pathname = ctx.request.pathname;
+    if (!std.mem.startsWith(u8, pathname, "/og/") or !std.mem.endsWith(u8, pathname, ".png")) {
+        return error.NotFound;
+    }
+    const og_name = pathname["/og/".len .. pathname.len - ".png".len];
+    const og_data = getOgImageData(og_name);
 
-    if(builtin.cpu.arch.isWasm()) 
+    if (builtin.cpu.arch.isWasm())
         return try ctx.response.json(og_data, .{});
+
+    ensureOgFonts();
 
     const og_template = OgTemplate(ctx.arena, og_data);
     var aw = std.Io.Writer.Allocating.init(ctx.arena);
 
     try og_template.render(&aw.writer, .{});
     const svg_text = aw.written();
-    const png = try lunasvg.svgToPngAlloc(ctx.arena, svg_text, 1200, 630, 0x00000000);
-    // const png = try lunasvg.svgToPngAlloc(ctx.arena, svg_text, 1100, 275, 0x00000000);
+    const png = try lunasvg.svgToPngAlloc(ctx.arena, svg_text, 1200, 630, 0xff000000);
 
     ctx.response.text(png);
     ctx.response.setContentType(.@"image/png");
+    ctx.response.headers.add("Cache-Control", "public, max-age=86400");
 }
+
+fn ensureOgFonts() void {
+    if (fonts_registered.swap(true, .acq_rel)) return;
+    var ok = true;
+    if (!lunasvg.addFontFaceFromData("Geist", true, false, geist_fonts.bold)) ok = false;
+    if (!lunasvg.addFontFaceFromData("Geist", false, false, geist_fonts.regular)) ok = false;
+    if (!ok) {
+        fonts_registered.store(false, .release);
+        std.log.warn("lunasvg: failed to register Geist fonts", .{});
+    }
+}
+
+var fonts_registered: std.atomic.Value(bool) = .init(false);
 
 fn getOgImageData(path: []const u8) OgTemplateProps {
     for (og_images) |og_image| {
@@ -27,10 +46,11 @@ fn getOgImageData(path: []const u8) OgTemplateProps {
 }
 
 const default_og_image: OgTemplateProps = .{
-    .path = "",
+    .path = "home",
     .title = "Ziex",
     .subtitle = zx.info.description,
 };
+
 const og_images = [_]OgTemplateProps{
     default_og_image,
     .{
@@ -56,8 +76,8 @@ const og_images = [_]OgTemplateProps{
 };
 
 fn staticParams(ctx: *zx.StaticContext) !void {
-    for (og_images) |og_image| {
-        try ctx.params.add(.{ .path = og_image.path });
+    inline for (og_images) |og_image| {
+        try ctx.params.add(.{ .@"*" = og_image.path ++ ".png" });
     }
 }
 
@@ -65,12 +85,11 @@ pub const options = zx.RouteOptions{
     .static = staticParams,
 };
 
-const template = @import("banner_template.zx");
+const OgTemplate = @import("template.zx").OgTemplate;
+const OgTemplateProps = @import("template.zx").OgTemplateProps;
 
-const OgTemplate = template.OgTemplate;
-const OgTemplateProps = template.OgTemplateProps;
-
+const geist_fonts = @import("geist_fonts");
+const lunasvg = @import("lunasvg");
 const zx = @import("zx");
 const std = @import("std");
 const builtin = @import("builtin");
-const lunasvg = @import("lunasvg");

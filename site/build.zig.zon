@@ -19,9 +19,13 @@
             .hash = "N-V-__8AACJRHgCH8MXnlovqXGaz3lrGQkWP6HqE81M04zkV",
         },
         .lunasvg = .{
-            .url = "git+https://github.com/nuhulabs/lunasvg.git#3a977d33d137795f04f3dd7df00298f1d1b729de",
-            .hash = "lunasvg-0.0.0-9mEwLqAcAABMUDN1zRkpqiP0vtANX3cPTcomKCm-9X6w",
+            .url = "git+https://github.com/nurulhudaapon/lunasvg.git#a3c19981a7cef75440444b401485c693c3962c53",
+            .hash = "lunasvg-0.0.0-9mEwLiMRAQDctmwhbMAwCACtK02EefOHg0YIg1K3hHUf",
             .lazy = true,
+        },
+        .geist_font = .{
+            .url = "https://github.com/vercel/geist-font/releases/download/v1.7.2/geist-font-v1.7.2.zip",
+            .hash = "N-V-__8AAGcfRgGYQdv3bwuRkqz__9kZOc9D4-NZYcK7sDdn",
         },
         .zig = .{
             .url = "git+https://codeberg.org/ziglang/zig.git?ref=0.17.0#7647adab80dd088f4de3610fd245915a912eb6ad",

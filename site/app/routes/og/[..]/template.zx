@@ -2,18 +2,19 @@ pub const OgTemplateProps = struct {
     path: []const u8,
     title: []const u8,
     subtitle: []const u8,
+    domain: []const u8 = "ziex.dev",
 };
 
-pub fn Banner(allocator: zx.Allocator) zx.Component {
+fn Banner(allocator: zx.Allocator) zx.Component {
     return (
         <g @{allocator} id="Banner">
             <path fill="#0c1117" d="M0 0h1100v208c0 37-30 67-67 67H0z" />
             <g id="Container">
                 <g id="Ziex Text Logo">
-                    <text xml:space="preserve" id="Ziex" fill="#fff" font-family="Inter, sans-serif" font-size="70" font-weight="bold" letter-spacing="0" style="white-space:pre"><tspan x="100" y="139">Ziex</tspan></text>
+                    <text xml:space="preserve" id="Ziex" fill="#fff" font-family="'Geist', Arial, sans-serif" font-size="70" font-weight="bold" letter-spacing="0" style="white-space:pre"><tspan x="100" y="139">Ziex</tspan></text>
                 </g>
                 <g id="Ziex Moto">
-                    <g id="Ziex Moto Text" font-family="Cousine, Courier New, Courier, monospace" font-size="22" letter-spacing="0">
+                    <g id="Ziex Moto Text" font-family="'Geist', Arial, sans-serif" font-size="22" letter-spacing="0">
                         <text xml:space="preserve" fill="#569cd6" style="white-space:pre"><tspan x="100" y="182">const</tspan></text>
                         <text xml:space="preserve" fill="#d4d4d4" style="white-space:pre"><tspan x="166" y="182"> </tspan><tspan x="219" y="182"> </tspan><tspan x="245" y="182"> </tspan><tspan x="351" y="182">(</tspan></text>
                         <text xml:space="preserve" fill="#ce9178" style="white-space:pre"><tspan x="364" y="182">”speed”</tspan></text>
@@ -42,10 +43,30 @@ pub fn Banner(allocator: zx.Allocator) zx.Component {
     );
 }
 
-pub fn OgTemplate(allocator: zx.Allocator, _: OgTemplateProps) zx.Component {
+pub fn OgTemplate(allocator: zx.Allocator, props: OgTemplateProps) zx.Component {
     return (
-        <svg @allocator={allocator} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 1100 275">
-            <Banner />
+        <svg @{allocator} xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" fill="none">
+            <g id="Og">
+                <path fill="#00a86b" d="M0 0h1200v630H0z" />
+                <Banner />
+                <g font-family="'Geist', Arial, sans-serif" letter-spacing="0em">
+                    <text xml:space="preserve" id="subheader" fill="#fff" fill-opacity=".59" font-size="32" font-weight="500" style="white-space:pre">
+                        <tspan x="74" y="459.136">
+                            {props.subtitle}
+                        </tspan>
+                    </text>
+                    <text xml:space="preserve" id="header" fill="#fff" font-size="48" font-weight="bold" style="white-space:pre">
+                        <tspan x="74" y="376.455">
+                            {props.title}
+                        </tspan>
+                    </text>
+                    <text xml:space="preserve" id="domain" fill="#fff" font-size="36" font-weight="bold" style="white-space:pre">
+                        <tspan x="74" y="549.455">
+                            {props.domain}
+                        </tspan>
+                    </text>
+                </g>
+            </g>
             <defs>
                 <clipPath id="clip0_8_3">
                     <path fill="#fff" d="M865 78h135v120H865z" />

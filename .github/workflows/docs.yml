@@ -37,13 +37,6 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
-        
-      - name: Install fonts
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            fonts-inter \
-            fonts-croscore
 
       - name: Install Node Dependencies
         run: cd site && npm ci

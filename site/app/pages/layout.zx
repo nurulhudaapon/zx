@@ -32,7 +32,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         return (<fragment @allocator={ctx.arena}>{children}</fragment>);
     }
 
-    const og_image_url = getOgImageUrl(ctx) catch "https://ziex.dev/assets/ziex-og-image.png";
+    const og_image_url = getOgImageUrl(ctx);
 
     return (
         <html lang="en" @allocator={ctx.arena}>
@@ -59,9 +59,15 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <meta property="og:description" content={page_description} />
                 <meta property="og:url" content={site_url} />
                 <meta property="og:image" content={og_image_url} />
+                <meta property="og:image:width" content="1200" />
+                <meta property="og:image:height" content="630" />
+                <meta property="og:image:alt" content={page_title} />
                 <meta property="og:site_name" content="Ziex" />
                 <meta property="og:locale" content="en_US" />
                 <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content={page_title} />
+                <meta name="twitter:description" content={page_description} />
+                <meta name="twitter:image" content={og_image_url} />
                 <meta name="twitter:creator" content="@aspect_dev" />
 
                 <script type="application/ld+json">
@@ -110,22 +116,44 @@ fn getCss(ctx: zx.LayoutContext) []const u8 {
 }
 
 const domain = zx.info.homepage;
-fn startsWith(path: []const u8, prefix: []const u8) bool {
-    return std.mem.startsWith(u8, path, prefix);
+
+fn siteOrigin(ctx: zx.LayoutContext) []const u8 {
+    if (@import("builtin").optimize == .debug) {
+        if (ctx.request.headers.get("host")) |host| {
+            if (host.len > 0) {
+                return ctx.fmt("http://{s}", .{host}) catch domain;
+            }
+        }
+        if (originFromUrl(ctx.request.url)) |origin| return origin;
+    }
+    return domain;
 }
-fn getOgImageUrl(ctx: zx.LayoutContext) ![]const u8 {
+
+fn originFromUrl(url: []const u8) ?[]const u8 {
+    const scheme_end = std.mem.indexOf(u8, url, "://") orelse return null;
+    const after_scheme = url[scheme_end + 3 ..];
+    const path_start = std.mem.indexOfScalar(u8, after_scheme, '/') orelse after_scheme.len;
+    return url[0 .. scheme_end + 3 + path_start];
+}
+
+fn getOgImageUrl(ctx: zx.LayoutContext) []const u8 {
     const path = ctx.request.pathname;
+    const origin = siteOrigin(ctx);
 
-    const og_type = p: {
-        if (startsWith(path, "/examples")) break :p "examples";
-        if (startsWith(path, "/playground")) break :p "playground";
-        if (startsWith(path, "/learn")) break :p "learn";
-        if (startsWith(path, "/reference")) break :p "reference";
+    const og_name: []const u8 = if (std.mem.eql(u8, path, "/") or path.len == 0)
+        "home"
+    else if (std.mem.startsWith(u8, path, "/examples"))
+        "examples"
+    else if (std.mem.startsWith(u8, path, "/playground"))
+        "playground"
+    else if (std.mem.startsWith(u8, path, "/learn"))
+        "learn"
+    else if (std.mem.startsWith(u8, path, "/reference"))
+        "reference"
+    else
+        "home";
 
-        return error.UnsupportedPath;
-    };
-
-    return try ctx.fmt("{s}/og/{s}/image.png", .{ domain, og_type });
+    return ctx.fmt("{s}/og/{s}.png", .{ origin, og_name }) catch "https://ziex.dev/og/home.png";
 }
 
 const tags = @import("components/tags.zx");

@@ -207,6 +207,7 @@ pub fn build(b: *std.Build) !void {
     if (!target.result.cpu.arch.isWasm())
         if (b.lazyDependency("lunasvg", .{ .optimize = optimize, .target = target })) |lunasvg|
             app_exe.root_module.addImport("lunasvg", lunasvg.module("lunasvg"));
+    app_exe.root_module.addImport("geist_fonts", addGeistFontsModule(b));
 
     app_exe.step.dependOn(pg_step);
 
@@ -421,6 +422,21 @@ pub fn build(b: *std.Build) !void {
 
 fn assetId(b: *std.Build, _: std.builtin.Optimize) []const u8 {
     return b.allocator.print("{x}", .{99999999 + ziex_version}) catch "0";
+}
+
+fn addGeistFontsModule(b: *std.Build) *std.Build.Module {
+    const geist = b.dependency("geist_font", .{});
+    const wf = b.addWriteFiles();
+    _ = wf.addCopyFile(geist.path("Geist/ttf/Geist-Regular.ttf"), "Geist-Regular.ttf");
+    _ = wf.addCopyFile(geist.path("Geist/ttf/Geist-Bold.ttf"), "Geist-Bold.ttf");
+    const root = wf.add("root.zig",
+        \\pub const regular = @embedFile("Geist-Regular.ttf");
+        \\pub const bold = @embedFile("Geist-Bold.ttf");
+        \\
+    );
+    return b.createModule(.{
+        .root_source_file = root,
+    });
 }
 
 const esbuild = @import("esbuild");
