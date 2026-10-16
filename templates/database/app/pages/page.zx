@@ -1,11 +1,18 @@
-pub const options = zx.PageOptions{ .methods = &.{ .GET, .POST } };
-const Context = @import("../Context.zig");
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    _ = try zx.db.run(@embedFile("../db/migrations/init.sql"), .empty);
+    _ = try zx.db.run(
+        \\INSERT INTO ziex (id, count)
+        \\SELECT 1, 0
+        \\WHERE NOT EXISTS (SELECT 1 FROM ziex WHERE id = 1)
+    , .empty);
 
-pub fn Page(ctx: zx.PageContext, app: Context) zx.Component {
+    const CountRow = struct { count: i64 };
+    var count: i128 = if (try zx.db.row(ctx.arena, CountRow, "SELECT count FROM ziex WHERE id = 1", .{})) |row|
+        row.count
+    else
+        0;
+
     const query = ctx.request.queries;
-
-    count = app.db.getCount() catch -1;
-
     if (query.get("reset")) |_|
         count = 0
     else if (query.get("increment")) |_|
@@ -15,9 +22,7 @@ pub fn Page(ctx: zx.PageContext, app: Context) zx.Component {
     else
         count += 1;
 
-    app.db.setCount(count) catch |err| {
-        zx.log.err("setting {s}", .{@errorName(err)});
-    };
+    _ = try zx.db.run("UPDATE ziex SET count = ? WHERE id = 1", .{@as(i64, @intCast(count))});
 
     return (
         <main @allocator={ctx.arena}>
@@ -27,11 +32,15 @@ pub fn Page(ctx: zx.PageContext, app: Context) zx.Component {
             <CounterComponent @rendering={.client} count={count} />
             <br />
             <hr />
-            <a href="/about">Navigate to About Page</a>
+            <div class="link-row">
+                <a href="/form">Server State</a>
+                <a href="/actions">Server Action</a>
+                <a href="/actions/client">Client Action</a>
+                <a href="/actions/server">Server Event</a>
+            </div>
         </main>
     );
 }
-var count: i64 = 0;
 
 const zx = @import("zx");
 pub const CounterComponent = @import("./client.zx").CounterComponent;

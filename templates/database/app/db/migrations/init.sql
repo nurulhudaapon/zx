@@ -1,5 +1,4 @@
--- Initialize the database schema
 CREATE TABLE IF NOT EXISTS ziex (
-    id SERIAL PRIMARY KEY,
-    count BIGINT NOT NULL
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    count INTEGER NOT NULL DEFAULT 0
 );

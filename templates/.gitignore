@@ -47,11 +47,8 @@ node_modules/
 # database template
 !database/.gitignore
 !database/build.zig
-!database/build.zig.zon
 !database/README.md
-!database/app/Context.zig
 !database/app/db/**/*
-!database/app/main.zig
 !database/app/pages/page.zx
 
 

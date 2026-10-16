@@ -1,8 +1,8 @@
-# Ziex App with Postgres
+# Ziex App with SQLite
 
->This is a starter template for building web applications with [Ziex](https://ziex.dev), a full-stack web framework for Zig.
+>This is a starter template for building web applications with [Ziex](https://ziex.dev), a full-stack web framework for Zig. It enables the built-in `zx.db` SQLite database.
 
-**[Documentation →](https://ziex.dev)**
+**[Documentation →](https://ziex.dev/learn#database)**
 
 ## Getting Started
 
@@ -31,16 +31,39 @@ winget install -e --id zig.zig # Windows
 ```
 ├── app/
 │   ├── assets/         # Static assets (CSS, images, etc)
+│   ├── db/
+│   │   └── migrations/ # SQL migrations (run via zx.db)
 │   ├── main.zig        # Zig entrypoint
 │   ├── pages/          # Pages (Zig/ZX)
 │   │   ├── layout.zx   # Root layout
-│   │   ├── page.zx     # Home page
+│   │   ├── page.zx     # Home page (persists counter in zx.db)
 │   │   ├── client.zx   # Client side counter component
 │   │   └── ...
 │   └── public/         # Public static files (favicon, etc)
-├── build.zig           # Zig build script
+├── build.zig           # Zig build script (sqlite enabled)
 ├── build.zig.zon       # Zig package manager config
 └── README.md           # Project info
+```
+
+## Database
+
+SQLite is enabled in `build.zig`:
+
+```zig
+_ = try ziex.init(b, app_exe, .{
+    .app = .{
+        .features = .{
+            .sqlite = .enabled,
+        },
+    },
+});
+```
+
+The framework opens a local database under the app data directory. Use `zx.db` from pages and server code:
+
+```zig
+_ = try zx.db.run("INSERT INTO ziex (count) VALUES (?)", .{0});
+const row = try zx.db.row(ctx.arena, struct { count: i64 }, "SELECT count FROM ziex WHERE id = 1", .{});
 ```
 
 ## Usage
