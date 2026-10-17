@@ -203,7 +203,9 @@ export class ZxBridgeCore {
             signal: controller.signal,
         };
 
-        fetch(url, fetchOptions)
+        const target = url === '' && typeof location !== 'undefined' ? location.href : url;
+
+        fetch(target, fetchOptions)
             .then(async (response) => {
                 if (timeout) clearTimeout(timeout);
                 const bytes = new Uint8Array(await response.arrayBuffer());
