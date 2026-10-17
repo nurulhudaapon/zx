@@ -48,6 +48,9 @@ const Impl = struct {
     allocator: std.mem.Allocator,
     server: *zls.Server,
     config_manager: *zls.configuration.Manager,
+    global_cache_path: ?[]const u8,
+    zx_module_path: ?[]const u8,
+    active_build_file: ?[]const u8 = null,
 };
 
 const vtable: Handler.VTable = .{
@@ -65,7 +68,7 @@ pub fn create(options: Zls.CreateOptions) Zls.CreateError!Zls.Backing {
         const cache_suffix = if (builtin.os.tag == .macos) "Library/Caches/zls" else ".cache/zls";
         break :blk std.fs.path.join(allocator, &.{ home, cache_suffix }) catch null;
     };
-    defer if (global_cache_path) |p| allocator.free(p);
+    errdefer if (global_cache_path) |p| allocator.free(p);
 
     const config_manager = try allocator.create(zls.configuration.Manager);
     errdefer allocator.destroy(config_manager);
@@ -81,15 +84,9 @@ pub fn create(options: Zls.CreateOptions) Zls.CreateError!Zls.Backing {
         if (options.environ_map.get("ZX_MODULE_PATH")) |p| if (p.len > 0) break :blk p;
         break :blk null;
     };
-    try config_manager.setConfiguration(.frontend, &.{
-        .import_extensions = &.{"zx"},
-        .modules = if (zx_module_path) |path| &.{
-            .{
-                .name = "zx",
-                .path = path,
-            },
-        } else &.{},
-    });
+    try setFrontendConfig(config_manager, global_cache_path, if (zx_module_path) |path| &.{
+        .{ .name = "zx", .path = path },
+    } else &.{});
 
     const server = try zls.Server.create(.{
         .io = options.io,
@@ -99,12 +96,17 @@ pub fn create(options: Zls.CreateOptions) Zls.CreateError!Zls.Backing {
     });
     errdefer zls.Server.destroy(server);
 
+    const owned_zx_module_path: ?[]const u8 = if (zx_module_path) |p| try allocator.dupe(u8, p) else null;
+    errdefer if (owned_zx_module_path) |p| allocator.free(p);
+
     const impl = try allocator.create(Impl);
     errdefer allocator.destroy(impl);
     impl.* = .{
         .allocator = allocator,
         .server = server,
         .config_manager = config_manager,
+        .global_cache_path = global_cache_path,
+        .zx_module_path = owned_zx_module_path,
     };
 
     return .{
@@ -119,7 +121,112 @@ fn destroy(ptr: *anyopaque) void {
     zls.Server.destroy(impl.server);
     impl.config_manager.deinit();
     allocator.destroy(impl.config_manager);
+    if (impl.global_cache_path) |p| allocator.free(p);
+    if (impl.zx_module_path) |p| allocator.free(p);
+    if (impl.active_build_file) |p| allocator.free(p);
     allocator.destroy(impl);
+}
+
+fn isZxDocument(uri: []const u8) bool {
+    return std.mem.endsWith(u8, uri, ".zx") or std.mem.endsWith(u8, uri, ".mdzx");
+}
+
+fn syncModulesForParams(impl: *Impl, arena: std.mem.Allocator, comptime P: type, p: *const P) void {
+    if (comptime @typeInfo(P) != .@"struct" or !@hasField(P, "textDocument")) return;
+    const uri: []const u8 = p.textDocument.uri;
+    if (!isZxDocument(uri)) return;
+    syncModulesFor(impl, arena, uri) catch |err| {
+        std.log.err("zls module sync for {s} failed: {}", .{ uri, err });
+    };
+}
+
+fn syncModulesFor(impl: *Impl, arena: std.mem.Allocator, document_uri: []const u8) !void {
+    if (comptime !zls.DocumentStore.supports_build_system) return;
+
+    const server = impl.server;
+    const store = &server.document_store;
+    const io = server.io;
+
+    const uri = zls.Uri.parse(arena, document_uri) catch return;
+    const doc_path = uri.toFsPath(arena) catch return;
+
+    // Makes ZLS load every ancestor `build.zig` and start their build runners.
+    if (store.getHandle(uri)) |handle| {
+        _ = try handle.getAssociatedBuildFile(store);
+    }
+
+    var dir: ?[]const u8 = std.fs.path.dirname(doc_path);
+    while (dir) |d| : (dir = std.fs.path.dirname(d)) {
+        const build_path = try std.fs.path.join(arena, &.{ d, "build.zig" });
+        const build_uri = try zls.Uri.fromPath(arena, build_path);
+        const build_file = store.getBuildFile(build_uri) orelse continue;
+
+        if (impl.active_build_file) |active| {
+            if (std.mem.eql(u8, active, build_path)) return;
+        }
+
+        // Build runner still in progress; retry on the next request.
+        const build_config = build_file.tryLockConfig(io) orelse return;
+        const modules = blk: {
+            defer build_file.unlockConfig(io);
+            break :blk try collectModules(arena, build_config, impl.zx_module_path);
+        };
+
+        try applyModules(impl, modules);
+        if (impl.active_build_file) |old| impl.allocator.free(old);
+        impl.active_build_file = try impl.allocator.dupe(u8, build_path);
+        return;
+    }
+}
+
+/// Merge the named imports of every module in `build_config`. Modules that
+/// import `zx` (app pages and components) take precedence on name clashes.
+fn collectModules(
+    arena: std.mem.Allocator,
+    build_config: anytype,
+    zx_module_path: ?[]const u8,
+) ![]const zls.Config.Module {
+    var merged: std.array_hash_map.String([]const u8) = .empty;
+
+    if (zx_module_path) |path| try merged.put(arena, "zx", path);
+
+    const module_values = build_config.modules.map.values();
+    for ([_]bool{ true, false }) |zx_importers| {
+        for (module_values) |module| {
+            const imports = &module.import_table.map;
+            if ((imports.get("zx") != null) != zx_importers) continue;
+            for (imports.keys(), imports.values()) |name, path| {
+                if (std.mem.eql(u8, name, "std") or
+                    std.mem.eql(u8, name, "builtin") or
+                    std.mem.eql(u8, name, "root")) continue;
+                const gop = try merged.getOrPut(arena, name);
+                if (!gop.found_existing) gop.value_ptr.* = path;
+            }
+        }
+    }
+
+    const result = try arena.alloc(zls.Config.Module, merged.count());
+    for (merged.keys(), merged.values(), result) |name, path, *out| {
+        out.* = .{ .name = name, .path = path };
+    }
+    return result;
+}
+
+fn applyModules(impl: *Impl, modules: []const zls.Config.Module) !void {
+    try setFrontendConfig(impl.config_manager, impl.global_cache_path, modules);
+    try impl.server.resolveConfiguration();
+}
+
+fn setFrontendConfig(
+    config_manager: *zls.configuration.Manager,
+    global_cache_path: ?[]const u8,
+    modules: []const zls.Config.Module,
+) error{OutOfMemory}!void {
+    try config_manager.setConfiguration(.frontend, &.{
+        .import_extensions = &.{"zx"},
+        .modules = modules,
+        .global_cache_path = global_cache_path,
+    });
 }
 
 fn request(
@@ -136,6 +243,7 @@ fn request(
             const R = zls.lsp.ResultType(m);
             const p: *const P = @ptrCast(@alignCast(params));
             const r: *R = @ptrCast(@alignCast(result));
+            syncModulesForParams(impl, arena, P, p);
             r.* = impl.server.sendRequestSync(arena, m, p.*) catch |err| {
                 std.log.err("zls {s} failed: {}", .{ m, err });
                 return;
@@ -159,6 +267,7 @@ fn notification(
             impl.server.sendNotificationSync(arena, m, p.*) catch |err| {
                 std.log.err("zls {s} failed: {}", .{ m, err });
             };
+            syncModulesForParams(impl, arena, P, p);
             return;
         }
     }

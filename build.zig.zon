@@ -15,13 +15,13 @@
             .lazy = true,
         },
         .zls = .{
-            .url = "git+https://github.com/ziex-dev/zls.git#f3561c93d17657366b0add48dd161835964f844a",
-            .hash = "zls-0.17.0-dev-rmm5fm9sJQBlusm3ywdoYP4ta5H9PrbHpJivys5MKJX-",
+            .url = "git+https://github.com/ziex-dev/zls.git#1029991cdad2b295adfba00005fe6058b9c1cf74",
+            .hash = "zls-0.17.0-dev-rmm5fig_HAAgrLXJQtwVrVoU591jE4Otp7RGfnLflth_",
             .lazy = true,
         },
         .lsp_kit = .{
-            .url = "git+https://github.com/ziex-dev/lsp-kit.git#d148676ace1eaecf3c703ce7d350d0e94e502ed7",
-            .hash = "lsp_kit-0.1.0-bi_PLwc2DACoR7VTz_qKFXUvtx7veHvWcTQvP9pDFLpk",
+            .url = "git+https://github.com/ziex-dev/lsp-kit.git#3e1058db66079911fdde82f833fdce6856e0a706",
+            .hash = "lsp_kit-0.1.0-bi_PL9o2DADHS1PDra3MGz1MXnsboN_ewNvrc419z7Fb",
             .lazy = true,
         },
         .db_sqlite = .{ .path = "pkg/db-sqlite", .lazy = true },

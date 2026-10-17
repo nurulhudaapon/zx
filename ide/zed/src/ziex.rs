@@ -45,26 +45,25 @@ impl zed::Extension for ZiexExtension {
             .as_ref()
             .and_then(|zig| read_zx_module_path(zig, &build_file, worktree).ok().flatten());
 
-        // Prefer installed `zx lsp` only when we know the module path; otherwise
-        // `zx lsp` starts without `@import("zx")` resolution (see empty `modules`).
-        if let (Some(zx_path), Some(module_path)) =
-            (worktree.which("zx"), self.zx_module_path.clone())
-        {
+        // `zx lsp` resolves `@import("zx")` from each document's closest
+        // `build.zig`, so it works even when the worktree root is not a ziex app.
+        if let Some(zx_path) = worktree.which("zx") {
             let mut env = env;
-            env.push(("ZX_MODULE_PATH".into(), module_path.clone()));
+            let mut args = vec!["lsp".to_string()];
+            if let Some(module_path) = self.zx_module_path.clone() {
+                env.push(("ZX_MODULE_PATH".into(), module_path.clone()));
+                args.push("--zx-module".into());
+                args.push(module_path);
+            }
             return Ok(zed::Command {
                 command: zx_path,
-                args: vec![
-                    "lsp".into(),
-                    "--zx-module".into(),
-                    module_path,
-                ],
+                args,
                 env,
             });
         }
 
         // Fallback: `zig build zx -- lsp` — the zx run step injects ZX_MODULE_PATH.
-        let zig_path = zig_path.ok_or("Neither zx (with resolvable ZX_MODULE_PATH) nor zig found.")?;
+        let zig_path = zig_path.ok_or("Neither zx nor zig found in PATH.")?;
         Ok(zed::Command {
             command: zig_path,
             args: vec![
@@ -86,30 +85,12 @@ impl zed::Extension for ZiexExtension {
         _language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<Option<serde_json::Value>> {
-        let mut settings = LspSettings::for_worktree("zxls", worktree)
+        // `import_extensions` / `modules` are owned by `zx lsp` (per-build.zig);
+        // overriding them here would mask the build's module imports.
+        let settings = LspSettings::for_worktree("zxls", worktree)
             .ok()
             .and_then(|lsp_settings| lsp_settings.settings.clone())
             .unwrap_or_else(|| serde_json::json!({}));
-
-        if self.zx_module_path.is_none() {
-            if let Some(zig) = worktree.which("zig") {
-                let build_file = format!("{}/build.zig", worktree.root_path());
-                self.zx_module_path = read_zx_module_path(&zig, &build_file, worktree)
-                    .ok()
-                    .flatten();
-            }
-        }
-
-        if let Some(module_path) = &self.zx_module_path {
-            if let Some(obj) = settings.as_object_mut() {
-                obj.entry("import_extensions")
-                    .or_insert_with(|| serde_json::json!(["zx"]));
-                obj.insert(
-                    "modules".into(),
-                    serde_json::json!([{ "name": "zx", "path": module_path }]),
-                );
-            }
-        }
 
         if settings.as_object().map(|o| o.is_empty()).unwrap_or(true) {
             return Ok(None);
