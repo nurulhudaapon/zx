@@ -353,7 +353,7 @@ pub fn Backend(comptime H: type) type {
 
         const HandlerType = Handler(Ctx);
 
-        pub fn init(io: std.Io, allocator: std.mem.Allocator, config: AppConfig, app_ctx: H, inita: zx.Init) !*Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator, config: AppConfig, app_ctx: H, inita: anytype) !*Self {
             const self = try allocator.create(Self);
             errdefer allocator.destroy(self);
 

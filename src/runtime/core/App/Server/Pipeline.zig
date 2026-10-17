@@ -425,7 +425,7 @@ pub const net = struct {
         return std.Io.net.IpAddress.parse(ip, port_num) catch (std.Io.net.IpAddress.parse("0.0.0.0", port_num) catch unreachable);
     }
 
-    pub fn port(alloc: std.mem.Allocator, inita: zx.Init, which: Port) ?u16 {
+    pub fn port(alloc: std.mem.Allocator, inita: anytype, which: Port) ?u16 {
         const minimal: std.process.Init.Minimal = switch (@TypeOf(inita)) {
             std.process.Init.Minimal => inita,
             std.process.Init => inita.minimal,
