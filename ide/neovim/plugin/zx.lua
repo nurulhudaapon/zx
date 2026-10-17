@@ -66,16 +66,16 @@ local function setup_file_icon()
       override = {
         zx = {
           icon = "zx ",
-          color = "#ff9800",
-          cterm_color = "214",
+          color = "#4ade80",
+          cterm_color = "114",
           name = "zx",
         },
       },
       override_by_extension = {
         ["zx"] = {
           icon = "zx ",
-          color = "#ff9800",
-          cterm_color = "214", 
+          color = "#4ade80",
+          cterm_color = "114",
           name = "zx",
         },
       },
@@ -87,10 +87,10 @@ local function setup_file_icon()
   if ok_mini then
     mini_icons.setup({
       extension = {
-        zx = { glyph = "zx ", hl = "MiniIconsOrange" },
+        zx = { glyph = "zx ", hl = "MiniIconsGreen" },
       },
       filetype = {
-        zx = { glyph = "zx ", hl = "MiniIconsOrange" },
+        zx = { glyph = "zx ", hl = "MiniIconsGreen" },
       },
     })
   end

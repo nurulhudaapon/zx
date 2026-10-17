@@ -160,10 +160,7 @@ pub fn Database(allocator: zx.Allocator) zx.Component {
 
 pub fn ZxFileIcon(allocator: zx.Allocator) zx.Component {
     return (
-        <svg class="pg-icon pg-icon-zx project-tree-icon project-tree-icon-zx" viewBox="0 0 512 512" fill="none" @{allocator}>
-            <rect x="16" y="16" width="480" height="480" rx="48" fill="#1a1a1a" />
-            <path d="M84.3185 358V335.031L188.722 185.287H83.7219V154.364H234.461V177.332L130.157 327.077H235.057V358H84.3185ZM301.577 154.364L346.421 228.938H348.012L393.054 154.364H435.114L372.373 256.182L436.108 358H393.353L348.012 283.923H346.421L301.08 358H258.523L322.855 256.182L259.319 154.364H301.577Z" fill="#f7931a" />
-        </svg>
+        <img class="pg-icon pg-icon-zx project-tree-icon project-tree-icon-zx" src="/favicon.svg" alt="" @{allocator} />
     );
 }
 
