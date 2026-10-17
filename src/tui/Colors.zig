@@ -9,6 +9,7 @@ pub const green = "\x1b[32m";
 pub const red = "\x1b[31m";
 pub const gray = "\x1b[90m";
 pub const bold = "\x1b[1m";
+pub const dim = "\x1b[2m";
 pub const italic = "\x1b[3m";
 pub const underline = "\x1b[4m";
 pub const blink = "\x1b[5m";

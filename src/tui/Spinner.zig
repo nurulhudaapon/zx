@@ -110,13 +110,14 @@ pub fn start(self: *Spinner, comptime format: []const u8, args: anytype) !void {
     self.mutex.lockUncancelable(io);
     defer self.mutex.unlock(io);
 
-    self.is_spinning.store(true, .release);
-
+    const message = try std.fmt.allocPrint(self.allocator, format, args);
     if (self.message.len > 0) {
         self.allocator.free(self.message);
     }
+    self.message = message;
 
-    self.message = try std.fmt.allocPrint(self.allocator, format, args);
+    if (self.is_spinning.load(.acquire)) return;
+    self.is_spinning.store(true, .release);
 
     // WASI / single-threaded builds cannot spawn spinner threads.
     if (comptime builtin.single_threaded) return;
@@ -146,10 +147,38 @@ pub fn updateStyle(self: *Spinner, options: SpinnerOptions) void {
 }
 
 pub fn updateMessage(self: *Spinner, comptime format: []const u8, args: anytype) !void {
+    const message = try std.fmt.allocPrint(self.allocator, format, args);
+
+    const io = std.Io.Threaded.global_single_threaded.io();
+    self.mutex.lockUncancelable(io);
+    defer self.mutex.unlock(io);
+
     if (self.message.len > 0) {
         self.allocator.free(self.message);
     }
-    self.message = try std.fmt.allocPrint(self.allocator, format, args);
+    self.message = message;
+}
+
+pub fn isSpinning(self: *const Spinner) bool {
+    return self.is_spinning.load(.acquire);
+}
+
+/// Writes `bytes` to `file` above the spinner line, then redraws the spinner
+/// below it so other output never shares a line with the spinner.
+pub fn writeAbove(self: *Spinner, io: Io, file: Io.File, bytes: []const u8) void {
+    const lock_io = std.Io.Threaded.global_single_threaded.io();
+    self.mutex.lockUncancelable(lock_io);
+    defer self.mutex.unlock(lock_io);
+
+    if (!self.is_spinning.load(.acquire)) {
+        file.writeStreamingAll(io, bytes) catch {};
+        return;
+    }
+
+    self.writer.writeAll("\r\x1b[2K") catch {};
+    file.writeStreamingAll(io, bytes) catch {};
+    if (bytes.len > 0 and bytes[bytes.len - 1] != '\n') file.writeStreamingAll(io, "\n") catch {};
+    self.writer.print("{s}{s}", .{ self.frames[self.frame_index.load(.acquire)], self.message }) catch {};
 }
 
 pub fn succeed(self: *Spinner, comptime format: []const u8, args: anytype) !void {
@@ -196,12 +225,17 @@ fn finalize(self: *Spinner, state: State, comptime format: []const u8, args: any
 fn spinLoop(self: *Spinner) void {
     const io = std.Io.Threaded.global_single_threaded.io();
     while (self.is_spinning.load(.acquire)) {
-        self.writer.print("\r\x1b[2K", .{}) catch {};
+        {
+            self.mutex.lockUncancelable(io);
+            defer self.mutex.unlock(io);
 
-        const index = self.frame_index.load(.acquire);
-        self.writer.print("{s}{s}", .{ self.frames[index], self.message }) catch {};
+            self.writer.print("\r\x1b[2K", .{}) catch {};
 
-        self.frame_index.store((index + 1) % self.frames.len, .release);
+            const index = self.frame_index.load(.acquire);
+            self.writer.print("{s}{s}", .{ self.frames[index], self.message }) catch {};
+
+            self.frame_index.store((index + 1) % self.frames.len, .release);
+        }
 
         io.sleep(std.Io.Duration.fromNanoseconds(@intCast(self.refresh_rate_ms)), .awake) catch {};
     }

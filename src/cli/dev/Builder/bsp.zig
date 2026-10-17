@@ -25,6 +25,9 @@ stdin_writer: Io.File.Writer = undefined,
 client: Client = undefined,
 conf_arena: std.heap.ArenaAllocator,
 configuration: ?Configuration = null,
+step_dependants: []const []const Configuration.Step.Index = &.{},
+reachable_steps: std.DynamicBitSetUnmanaged = .{},
+step_scratch: std.ArrayList(Configuration.Step.Index) = .empty,
 pending: std.ArrayList(Event) = .empty,
 first_build_done: bool = false,
 previous_had_errors: bool = false,
@@ -41,11 +44,23 @@ const Cycle = struct {
     had_failure: bool = false,
     diagnostics: std.ArrayList(Diagnostic) = .empty,
     asset_paths: std.ArrayList([]const u8) = .empty,
+    running_steps: std.ArrayList(Configuration.Step.Index) = .empty,
+    shown_step: ?Configuration.Step.Index = null,
+    shown_step_done: bool = false,
+    expected_steps: std.DynamicBitSetUnmanaged = .{},
+    expected_count: u32 = 0,
+    completed_count: u32 = 0,
 
     fn reset(self: *Cycle, allocator: Allocator) void {
         freeDiagnostics(allocator, &self.diagnostics);
         for (self.asset_paths.items) |p| allocator.free(p);
         self.asset_paths.clearRetainingCapacity();
+        self.running_steps.clearRetainingCapacity();
+        self.shown_step = null;
+        self.shown_step_done = false;
+        self.expected_steps.unsetAll();
+        self.expected_count = 0;
+        self.completed_count = 0;
         self.server_fresh = false;
         self.client_fresh = false;
         self.assets_fresh = false;
@@ -57,6 +72,7 @@ const Cycle = struct {
         self.diagnostics.deinit(allocator);
         for (self.asset_paths.items) |p| allocator.free(p);
         self.asset_paths.deinit(allocator);
+        self.running_steps.deinit(allocator);
     }
 };
 
@@ -151,6 +167,7 @@ pub fn deinit(self: *Bsp, io: Io) void {
     }
     for (self.pending.items) |*event| freeEvent(event);
     self.pending.deinit(self.allocator);
+    self.step_scratch.deinit(self.allocator);
     self.cycle.deinit(self.allocator);
     self.multi_reader.deinit();
     self.conf_arena.deinit();
@@ -186,6 +203,7 @@ fn handshakeAndWatch(self: *Bsp, io: Io) !void {
                 var file = try Io.Dir.cwd().openFile(io, body, .{});
                 defer file.close(io);
                 self.configuration = try Configuration.loadFile(conf_arena, io, file);
+                try self.buildStepGraph();
             },
             .bsp_configuration_failed => {
                 var eb = try Server.allocErrorBundle(self.allocator, body);
@@ -241,13 +259,25 @@ fn handleMessage(self: *Bsp, tag: Server.Message.Tag, body: []const u8) !?Event 
         .bsp_build_started => {
             self.cycle.reset(self.allocator);
             self.cycle_started_at = Io.Timestamp.now(self.io, .awake);
-            if (self.first_build_done) {
-                log.debug("change_detected", .{});
-                return .change_detected;
+            if (!self.first_build_done) {
+                self.cycle.expected_steps.setUnion(self.reachable_steps);
+                self.cycle.expected_count = @intCast(self.reachable_steps.count());
+                return null;
             }
-            return null;
+            log.debug("change_detected", .{});
+            return .change_detected;
         },
-        .bsp_step_started => return null,
+        .bsp_step_started => {
+            var reader: Io.Reader = .fixed(body);
+            const step_index: Configuration.Step.Index = @fromBackingInt(@intCast(try reader.takeInt(u32, .little)));
+            try self.cycle.running_steps.append(self.allocator, step_index);
+            try self.expectStepAndDependants(step_index);
+            if (self.cycle.shown_step == null or self.cycle.shown_step_done) {
+                self.cycle.shown_step = step_index;
+                self.cycle.shown_step_done = false;
+            }
+            return self.progressEvent(c);
+        },
         .bsp_step_completed => {
             var reader: Io.Reader = .fixed(body);
             const bsc = try reader.takeStruct(Server.Message.BuildStepCompleted, .little);
@@ -287,7 +317,7 @@ fn handleMessage(self: *Bsp, tag: Server.Message.Tag, body: []const u8) !?Event 
                 },
                 .skipped, .skipped_oom => {},
             }
-            return null;
+            return self.advanceShownStep(c, bsc.step_index);
         },
         .bsp_build_completed => {
             const duration_ms = self.cycleDurationMs();
@@ -337,6 +367,97 @@ fn handleMessage(self: *Bsp, tag: Server.Message.Tag, body: []const u8) !?Event 
             log.warn("unexpected bsp message: {t}", .{tag});
             return null;
         },
+    }
+}
+
+/// Drops `finished` from the running set; if it was the step on display,
+/// hands the display over to the most recently started step still running.
+fn advanceShownStep(self: *Bsp, c: *const Configuration, finished: Configuration.Step.Index) Event {
+    const running = &self.cycle.running_steps;
+    if (std.mem.indexOfScalar(Configuration.Step.Index, running.items, finished)) |i| {
+        _ = running.orderedRemove(i);
+        self.cycle.completed_count += 1;
+    }
+    if (self.cycle.shown_step == finished) {
+        if (running.getLastOrNull()) |next_step| {
+            self.cycle.shown_step = next_step;
+        } else {
+            self.cycle.shown_step_done = true;
+        }
+    }
+    return self.progressEvent(c);
+}
+
+fn progressEvent(self: *const Bsp, c: *const Configuration) Event {
+    return .{ .step_progress = .{
+        .step = if (self.cycle.shown_step) |s| s.ptr(c).name.slice(c) else null,
+        .completed = self.cycle.completed_count,
+        .total = @max(self.cycle.expected_count, self.cycle.completed_count),
+    } };
+}
+
+/// Precomputes reverse edges for every step reachable from the default step.
+fn buildStepGraph(self: *Bsp) !void {
+    const c = &self.configuration.?;
+    const arena = self.conf_arena.allocator();
+    const steps_len = c.steps.len;
+
+    var reachable = try std.DynamicBitSetUnmanaged.initEmpty(arena, steps_len);
+    const dependants_len = try arena.alloc(u32, steps_len);
+    @memset(dependants_len, 0);
+
+    const stack = &self.step_scratch;
+    stack.clearRetainingCapacity();
+    try stack.append(self.allocator, c.default_step);
+    reachable.set(@backingInt(c.default_step));
+    while (stack.pop()) |step_index| {
+        for (step_index.ptr(c).deps.slice(c)) |dep| {
+            dependants_len[@backingInt(dep)] += 1;
+            if (reachable.isSet(@backingInt(dep))) continue;
+            reachable.set(@backingInt(dep));
+            try stack.append(self.allocator, dep);
+        }
+    }
+
+    const dependants = try arena.alloc([]Configuration.Step.Index, steps_len);
+    for (dependants, dependants_len) |*list, len| {
+        list.* = try arena.alloc(Configuration.Step.Index, len);
+    }
+    @memset(dependants_len, 0);
+    var it = reachable.iterator(.{});
+    while (it.next()) |i| {
+        const step_index: Configuration.Step.Index = @fromBackingInt(@intCast(i));
+        for (step_index.ptr(c).deps.slice(c)) |dep| {
+            const d = @backingInt(dep);
+            dependants[d][dependants_len[d]] = step_index;
+            dependants_len[d] += 1;
+        }
+    }
+
+    self.step_dependants = dependants;
+    self.reachable_steps = reachable;
+    self.cycle.expected_steps = try std.DynamicBitSetUnmanaged.initEmpty(arena, steps_len);
+}
+
+/// The build system re-runs every dependant of a dirty step, so a started
+/// step implies its whole dependant closure will run this cycle.
+fn expectStepAndDependants(self: *Bsp, step_index: Configuration.Step.Index) !void {
+    const expected = &self.cycle.expected_steps;
+    if (@backingInt(step_index) >= expected.bit_length) return;
+    if (expected.isSet(@backingInt(step_index))) return;
+
+    const stack = &self.step_scratch;
+    stack.clearRetainingCapacity();
+    expected.set(@backingInt(step_index));
+    self.cycle.expected_count += 1;
+    try stack.append(self.allocator, step_index);
+    while (stack.pop()) |current| {
+        for (self.step_dependants[@backingInt(current)]) |dependant| {
+            if (expected.isSet(@backingInt(dependant))) continue;
+            expected.set(@backingInt(dependant));
+            self.cycle.expected_count += 1;
+            try stack.append(self.allocator, dependant);
+        }
     }
 }
 

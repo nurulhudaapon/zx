@@ -63,8 +63,15 @@ pub const AssetChange = struct {
     }
 };
 
+pub const StepProgress = struct {
+    step: ?[]const u8,
+    completed: u32,
+    total: u32,
+};
+
 pub const Event = union(enum) {
     change_detected,
+    step_progress: StepProgress,
     should_restart: u64,
     errors: BuildResult,
     resolved,
