@@ -138,6 +138,9 @@ pub const Harness = struct {
 
     pub fn stop(self: *Harness) void {
         if (self.tcp) |*tcp| {
+            if (tcp.kind == .httpz) {
+                self.io.sleep(.fromMilliseconds(50), .awake) catch {};
+            }
             tcp.transport.stop();
             tcp.thread.join();
             deinitTcp(tcp, self.allocator);
@@ -193,13 +196,19 @@ fn deinitTcp(tcp: *Harness.Tcp, allocator: Allocator) void {
 }
 
 fn writeRequest(w: *std.Io.Writer, opts: FetchOptions) !void {
-    try w.print("{s} {s} HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n", .{
-        @tagName(opts.method),
-        opts.path,
-    });
+    var connection: []const u8 = "close";
     var has_content_length = false;
     for (opts.headers) |h| {
+        if (std.ascii.eqlIgnoreCase(h.name, "connection")) connection = h.value;
         if (std.ascii.eqlIgnoreCase(h.name, "content-length")) has_content_length = true;
+    }
+    try w.print("{s} {s} HTTP/1.1\r\nHost: localhost\r\nConnection: {s}\r\n", .{
+        @tagName(opts.method),
+        opts.path,
+        connection,
+    });
+    for (opts.headers) |h| {
+        if (std.ascii.eqlIgnoreCase(h.name, "connection")) continue;
         try w.print("{s}: {s}\r\n", .{ h.name, h.value });
     }
     if (opts.body.len > 0 and !has_content_length) {
@@ -325,23 +334,13 @@ pub fn connectPort(io: std.Io, port: u16) !std.Io.net.Stream {
     return try address.connect(io, .{ .mode = .stream });
 }
 
-const read_idle: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(50), .clock = .awake } };
-
 fn readChunk(stream: std.Io.net.Stream, io: std.Io, buf: []u8) !usize {
     var data: [1][]u8 = .{buf};
-    const result = io.operateTimeout(.{
-        .net_read = .{
-            .socket_handle = stream.socket.handle,
-            .data = &data,
-        },
-    }, read_idle) catch |err| switch (err) {
-        error.Timeout, error.Canceled, error.ConcurrencyUnavailable => return 0,
-    };
-    const rr = result.net_read catch |err| switch (err) {
+    const result = stream.readWithControl(io, &data, &.{}) catch |err| switch (err) {
         error.ConnectionResetByPeer => return 0,
         else => return err,
     };
-    return rr.data_len;
+    return result.data_len;
 }
 
 fn httpResponseComplete(raw: []const u8) bool {
@@ -358,17 +357,6 @@ fn httpResponseComplete(raw: []const u8) bool {
         return body.len >= n;
     }
     return true;
-}
-
-pub fn expectPeerClosed(stream: std.Io.net.Stream, io: std.Io) !void {
-    var buf: [64]u8 = undefined;
-    var i: usize = 0;
-    while (i < 100) : (i += 1) {
-        const n = try readChunk(stream, io, &buf);
-        if (n == 0) return;
-        return error.UnexpectedDataAfterHalfClose;
-    }
-    return error.ServerDidNotCloseAfterHalfClose;
 }
 
 fn waitUntilListening(io: std.Io, port: u16) !void {

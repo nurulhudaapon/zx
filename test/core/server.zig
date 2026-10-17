@@ -145,11 +145,12 @@ fn testKeepalive(backend: Backend) !void {
             var stream = try h.connect();
             defer stream.close(io);
 
-            const res1 = try h.fetch(arena, .{ .path = "/", .stream = &stream });
+            const keep = [_]zx.testing.Header{.{ .name = "Connection", .value = "keep-alive" }};
+            const res1 = try h.fetch(arena, .{ .path = "/", .headers = &keep, .stream = &stream });
             try std.testing.expectEqual(@as(u16, 200), res1.status);
             try std.testing.expectEqualStrings("ok", res1.body);
 
-            const res2 = try h.fetch(arena, .{ .path = "/echo?q=again", .stream = &stream });
+            const res2 = try h.fetch(arena, .{ .path = "/echo?q=again", .headers = &keep, .stream = &stream });
             try std.testing.expectEqual(@as(u16, 200), res2.status);
             try std.testing.expectEqualStrings("again", res2.body);
         }
