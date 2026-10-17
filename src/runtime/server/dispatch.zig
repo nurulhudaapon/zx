@@ -133,11 +133,10 @@ pub fn dispatchServerEvent(
     state_ptr: ?*const anyopaque,
     base_path: ?[]const u8,
 ) !DispatchResult {
-    if (!request.headers.has(Constants.event_header_name)) return .not_triggered;
+    const raw_handler_id = request.headers.get(Constants.event_header_name) orelse return .not_triggered;
+    const handler_id = std.fmt.parseInt(u32, raw_handler_id, 10) catch return .not_found;
     const payload = zx.util.zxon.parse(zx.EventHandler.Payload, arena, request.text() orelse return .not_found, .{}) catch return .not_found;
 
-    // TODO: get the handler_id from header instead, currently the id in header is not accurate
-    const handler_id = payload.handler_id;
     var event_fn = registry.getEvent(route_path, handler_id);
     if (event_fn == null) if (page_fn) |pfn| {
         if (slowPathRender(pfn, pagectx, route_path, arena, app_ptr, state_ptr, base_path)) |err| {

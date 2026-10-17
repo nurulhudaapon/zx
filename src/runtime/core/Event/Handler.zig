@@ -36,7 +36,6 @@ pub const Bound = struct {
 };
 
 pub const Payload = struct {
-    handler_id: u32 = 0,
     value: ?[]const u8 = null,
     states: []const []const u8 = &.{},
 };
@@ -594,7 +593,6 @@ fn eventHandler(ctx: *anyopaque, event: zx.client.Event) void {
     };
 
     const payload = Payload{
-        .handler_id = handler_id,
         .value = if (send_event_value) event.value() else null,
         .states = state_jsons.items,
     };
