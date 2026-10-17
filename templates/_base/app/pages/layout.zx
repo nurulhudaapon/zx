@@ -1,16 +1,29 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     return (
-        <html @allocator={ctx.arena} lang="en-US">
+        <html @allocator={ctx.arena} lang="en">
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <meta name="theme-color" content="#000000" />
                 <title>Ziex</title>
+                <link rel="icon" href="/favicon.ico" />
                 <link rel="stylesheet" href="/assets/style.css" />
             </head>
-
             <body>
-                <h1>Ziex</h1>
+                <header>
+                    <a href="./" class="brand"><img src="/favicon.ico" alt="" />Ziex</a>
+                    <nav>
+                        <span>Demos</span>
+                        <a href="events">Events</a>
+                        <a href="form">Forms</a>
+                        <a href="actions">Actions</a>
+                        <a href="db">DB</a>
+                        <a href="kv">KV</a>
+                        <a class="docs" href={zx.info.homepage} target="_blank">Docs</a>
+                    </nav>
+                </header>
                 {children}
+                <footer>Edit <a href="/.well-known/_zx/open-in-editor?file=app/pages/page.zx"><code>app/pages/page.zx</code></a> to get started.</footer>
             </body>
         </html>
     );

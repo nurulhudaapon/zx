@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { templateUrl } from '../../helpers/env';
 
-test.describe('Template Home UI and Navigation', () => {
+test.describe('Template Hybrid Counter', () => {
   test('Counter supports increment, decrement, and reset from any numeric state', async ({ page }) => {
     await page.goto(templateUrl());
     const counter = page.locator('main h5');

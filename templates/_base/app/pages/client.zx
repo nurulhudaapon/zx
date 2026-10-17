@@ -4,7 +4,7 @@ pub fn CounterComponent(ctx: *zx.ComponentCtx(struct { count: i128 })) zx.Compon
     count = ctx.state(i128, ctx.props.count);
 
     return (
-        <div @allocator={ctx.allocator}>
+        <div class="counter" @allocator={ctx.allocator}>
             <button onclick={reset}>Reset</button>
             <h5>{&count}</h5>
             <button onclick={decrement}>Decrement</button>

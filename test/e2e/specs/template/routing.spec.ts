@@ -1,34 +1,31 @@
 import { test, expect } from '@playwright/test';
-import { isTemplateServer, templateUrl } from '../../helpers/env';
+import { templateUrl } from '../../helpers/env';
 
-test.describe('Template Home UI and Navigation', () => {
-  test('Internal routing between Home and example pages works', async ({ page }) => {
-    await page.goto(templateUrl());
+const pages: { nav: string; path: string; heading: string }[] = [
+  { nav: 'Events', path: '/events', heading: 'Events' },
+  { nav: 'Forms', path: '/form', heading: 'Forms' },
+  { nav: 'Actions', path: '/actions', heading: 'Actions' },
+  { nav: 'DB', path: '/db', heading: 'Database' },
+  { nav: 'KV', path: '/kv', heading: 'Key-Value' },
+];
 
-    if (isTemplateServer) {
-      await page.getByRole('link', { name: 'Client Action' }).click();
-      await expect(page).toHaveURL(/\/actions\/client$/);
-    } else {
-      // Site embeds the template under /templates; absolute hrefs in the
-      // template source leave that prefix, so navigate the embed paths directly.
-      await page.goto(templateUrl('/actions/client'));
-      await expect(page).toHaveURL(/\/templates\/actions\/client$/);
-    }
-    await expect(page.getByRole('button', { name: /Click Me/ })).toBeVisible();
-
-    if (isTemplateServer) {
+test.describe('Template Routing', () => {
+  for (const { nav, path, heading } of pages) {
+    test(`Nav link navigates to ${path}`, async ({ page }) => {
       await page.goto(templateUrl());
-      await page.getByRole('link', { name: 'Server Event' }).click();
-      await expect(page).toHaveURL(/\/actions\/server$/);
-    } else {
-      await page.goto(templateUrl('/actions/server'));
-      await expect(page).toHaveURL(/\/templates\/actions\/server$/);
-    }
-    await expect(page.getByRole('heading', { name: 'Ziex' })).toBeVisible();
+      await page.locator('header nav').getByRole('link', { name: nav, exact: true }).click();
 
+      await expect(page).toHaveURL(new RegExp(`${templateUrl(path)}$`));
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+    });
+  }
+
+  test('Demo card and brand link navigate', async ({ page }) => {
     await page.goto(templateUrl());
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Decrement' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Increment' })).toBeVisible();
+    await page.locator('main').getByRole('link', { name: /^Database →/ }).click();
+    await expect(page).toHaveURL(new RegExp(`${templateUrl('/db')}$`));
+
+    await page.locator('header .brand').click();
+    await expect(page.getByRole('heading', { name: 'Build full-stack web apps with Zig.' })).toBeVisible();
   });
 });

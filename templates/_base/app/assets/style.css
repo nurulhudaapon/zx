@@ -1,63 +1,131 @@
-body {
-    margin: 0;
-    font-family: sans-serif;
-    font-size: 1.4rem;
-    line-height: 1.6;
-    color: white;
-    background-color: black;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    height: 100vh;
+:root {
+    --bg: #000;
+    --card: #111;
+    --fg: #fff;
+    --muted: #a1a1a1;
+    --line: #262626;
+    --accent: #4ade80;
+    color-scheme: dark;
 }
 
-a {
-    color: #ffffff;
-    font-size: 1rem;
-    text-decoration: none;
+* { box-sizing: border-box; margin: 0; }
+
+body {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+    font: 15px/1.6 Inter, system-ui, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
 }
+
+header, main, footer {
+    width: min(56rem, 100%);
+    margin: 0 auto;
+    padding: 1rem 1.25rem;
+}
+
+a { color: inherit; text-decoration: none; }
+p { color: var(--muted); }
+code { font: .85em ui-monospace, monospace; }
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+}
+
+.brand { display: flex; align-items: center; gap: .5rem; font-weight: 600; }
+.brand img { width: 22px; height: 22px; }
+
+nav { display: flex; align-items: baseline; gap: 1.25rem; font-size: .9rem; }
+nav a { color: var(--muted); }
+nav a:hover { color: var(--fg); }
+nav span { color: #666; font: .75rem ui-monospace, monospace; }
+nav .docs { padding-left: 1.25rem; border-left: 1px solid var(--line); }
+
+main { display: grid; gap: 2.5rem; align-content: start; padding-block: 3rem; }
+
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+footer a { color: var(--fg); }
+footer a:hover { color: var(--accent); }
+
+.hero, .page-head { display: grid; gap: .75rem; max-width: 44rem; }
+.hero h1 { font-size: 2.5rem; line-height: 1.15; letter-spacing: -.03em; }
+.page-head h1 { font-size: 1.75rem; letter-spacing: -.02em; }
+
+.actions { display: flex; gap: .6rem; margin-top: .5rem; }
+
+.btn {
+    padding: .5rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: .9rem;
+    font-weight: 500;
+}
+
+.btn:hover { border-color: var(--muted); }
+.btn.primary { border-color: var(--accent); background: var(--accent); color: #000; }
+
+.card {
+    display: grid;
+    gap: .4rem;
+    align-content: start;
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+}
+
+.card h3 { font-size: .95rem; font-weight: 600; }
+.card p { font-size: .875rem; }
+
+.live { grid-template-columns: 1fr auto; align-items: center; gap: 1rem; }
+
+.category { display: grid; gap: .75rem; }
+.category h2 { font-size: 1.1rem; font-weight: 600; }
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: .75rem;
+}
+
+
+.demo:hover { border-color: var(--accent); }
 
 button {
-    padding: 2px;
-    min-width: 100px;
-    font-size: 0.8rem;
-    border-radius: 5px;
-    margin: 3px;
-    border: 1px solid #ffffff;
-    background-color: transparent;
-    color: #ffffff;
+    padding: .45rem .9rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
+    font-size: .875rem;
     cursor: pointer;
-    transition: all 0.3s ease;
-    &:hover {
-        background-color: #ffffff;
-        color: #000000;
-    }
 }
 
-.counter-row {
-    height: 150px;
-    margin: 10px;
-    display: flex;
-    gap: 20px;
-    justify-content: center;
-    align-items: center;
+button:hover { border-color: var(--muted); }
+
+.counter { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.counter h5 { min-width: 3rem; font-size: 1.25rem; font-variant-numeric: tabular-nums; text-align: center; }
+
+form { display: grid; gap: .6rem; }
+
+input {
+    padding: .55rem .75rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
 }
 
-.counter-row > * {
-    min-width: 150px;
-}
+input:focus { outline: none; border-color: var(--accent); }
 
-.counter-plus {
-    width: 70px;
-    display: inline-block;
-}
+form button { border-color: var(--accent); background: var(--accent); color: #000; font-weight: 500; }
 
-.link-row {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    margin: 20px;
+@media (max-width: 640px) {
+    .live { grid-template-columns: 1fr; }
 }

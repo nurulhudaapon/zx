@@ -10,9 +10,3 @@ fi
 cd templates/_base
 echo "Updating template to ziex version: ${VERSION} of base template"
 zig fetch --save "git+https://github.com/ziex-dev/ziex#${VERSION}"
-
-
-# Database Template
-cd ../database
-echo "Updating template to ziex version: ${VERSION} of database template"
-zig fetch --save "git+https://github.com/ziex-dev/ziex#${VERSION}"

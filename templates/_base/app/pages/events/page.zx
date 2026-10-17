@@ -1,0 +1,58 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <div class="page-head">
+                <h1>Events</h1>
+                <p>Handle clicks on the client or round-trip to the server.</p>
+            </div>
+            <div class="grid">
+                <section class="card">
+                    <h3>Client</h3>
+                    <p>Updates state in the browser.</p>
+                    <ClientEvent @rendering={.client} />
+                </section>
+                <section class="card">
+                    <h3>Server</h3>
+                    <p>Runs the handler on the server.</p>
+                    <ServerEvent @rendering={.client} />
+                </section>
+            </div>
+        </main>
+    );
+}
+
+pub fn ClientEvent(ctx: *zx.ComponentContext) zx.Component {
+    const count = ctx.state(i32, 1);
+    return (
+        <button @allocator={ctx.allocator} onclick={ctx.bind(onClient)}>
+            Click Me {count}
+        </button>
+    );
+}
+
+fn onClient(e: *zx.client.Event.Stateful) void {
+    const c = e.state(i32);
+    c.set(c.get() + 1);
+    zx.log.info("Client> {d}\n", .{c.get()});
+}
+
+pub fn ServerEvent(ctx: *zx.ComponentContext) zx.Component {
+    const count = ctx.state(i32, 1);
+    return (
+        <button @allocator={ctx.allocator} onclick={ctx.bind(onServer)}>
+            Click Me {count}
+        </button>
+    );
+}
+
+fn onServer(e: *zx.server.Event.Stateful) void {
+    const c = e.state(i32);
+    c.set(c.get() + 1);
+    zx.log.info("Server> {d}\n", .{c.get()});
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{ .GET, .POST },
+};
+
+const zx = @import("zx");

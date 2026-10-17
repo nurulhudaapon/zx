@@ -22,8 +22,9 @@ pub const files = [_]TemplateFile{
     .{ .path = "app/pages/client.zx", .content = @embedFile(base ++ "app/pages/client.zx") },
     .{ .path = "app/pages/form/page.zx", .content = @embedFile(base ++ "app/pages/form/page.zx") },
     .{ .path = "app/pages/actions/page.zx", .content = @embedFile(base ++ "app/pages/actions/page.zx") },
-    .{ .path = "app/pages/actions/client/page.zx", .content = @embedFile(base ++ "app/pages/actions/client/page.zx") },
-    .{ .path = "app/pages/actions/server/page.zx", .content = @embedFile(base ++ "app/pages/actions/server/page.zx") },
+    .{ .path = "app/pages/events/page.zx", .content = @embedFile(base ++ "app/pages/events/page.zx") },
+    .{ .path = "app/pages/db/page.zx", .content = @embedFile(base ++ "app/pages/db/page.zx") },
+    .{ .path = "app/pages/kv/page.zx", .content = @embedFile(base ++ "app/pages/kv/page.zx") },
     .{ .path = ".gitignore", .content = @embedFile(base ++ ".gitignore") },
     .{ .path = ".gitattributes", .content = @embedFile(base ++ ".gitattributes") },
 

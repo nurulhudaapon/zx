@@ -1,0 +1,40 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    const visits = (try zx.kv.as(ctx.arena, "visits", u64) orelse 0) + 1;
+    try zx.kv.putAs("visits", visits, .{});
+    const message = try zx.kv.get(ctx.arena, "message");
+
+    return (
+        <main @allocator={ctx.arena}>
+            <div class="page-head">
+                <h1>Key-Value</h1>
+                <p>Built-in storage through zx.kv. Store strings or typed values, with optional expiry.</p>
+            </div>
+            <div class="grid">
+                <section class="card">
+                    <h3>Typed value</h3>
+                    <p>This page has been viewed {visits} times.</p>
+                </section>
+                <section class="card">
+                    <h3>Expiring value</h3>
+                    <p>{message orelse "Nothing saved. Values expire after 60 seconds."}</p>
+                    <form action={saveMessage}>
+                        <input name="message" placeholder="Save a message" required />
+                        <button>Save</button>
+                    </form>
+                </section>
+            </div>
+        </main>
+    );
+}
+
+const MessageInput = struct { message: []const u8 };
+
+fn saveMessage(data: MessageInput) void {
+    zx.kv.put("message", data.message, .{ .ttl = .fromSeconds(60) }) catch {};
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{ .GET, .POST },
+};
+
+const zx = @import("zx");

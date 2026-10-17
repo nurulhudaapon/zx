@@ -1,0 +1,40 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    _ = try zx.db.run("CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL)", .empty);
+    
+    const notes = try zx.db.rows(
+        ctx.arena,
+        Note,
+        "SELECT id, text FROM notes ORDER BY id DESC LIMIT 10",
+        .{},
+    );
+
+    return (
+        <main @allocator={ctx.arena}>
+            <div class="page-head">
+                <h1>Database</h1>
+                <p>Built-in SQLite through zx.db. Typed rows, persisted across restarts.</p>
+            </div>
+            <section class="card">
+                <form action={addNote}>
+                    <input name="text" placeholder="Write a note" required />
+                    <button>Add note</button>
+                </form>
+                {if (notes.len == 0) (<p>No notes yet.</p>)}
+                {for (notes) |note| (<p>#{note.id} {note.text}</p>)}
+            </section>
+        </main>
+    );
+}
+
+const Note = struct { id: i64, text: []const u8 };
+const NoteInput = struct { text: []const u8 };
+
+fn addNote(data: NoteInput) void {
+    _ = zx.db.run("INSERT INTO notes (text) VALUES (?)", .{data.text}) catch {};
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{ .GET, .POST },
+};
+
+const zx = @import("zx");

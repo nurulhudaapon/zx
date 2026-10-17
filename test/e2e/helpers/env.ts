@@ -12,17 +12,17 @@ export function isRemoteStaticDeploy(): boolean {
 
 export const skipOnRemoteStatic = isRemoteStaticDeploy();
 
-/** Standalone `_base` server (`TEMPLATE_TESTS=1`) vs site embed under `/templates`. */
+/** Standalone `_base` server (`TEMPLATE_TESTS=1`) vs site embed under `/template`. */
 export const isTemplateServer = !!process.env.TEMPLATE_TESTS;
 
 /** Root path for the `_base` template app in the current e2e mode. */
-export const templateRoot = isTemplateServer ? '/' : '/templates';
+export const templateRoot = isTemplateServer ? '/' : '/template';
 
 /** Resolve a template-app path for the current e2e mode. */
 export function templateUrl(path = '/'): string {
   if (!path || path === '/') return templateRoot;
   const normalized = path.startsWith('/') ? path : `/${path}`;
-  return isTemplateServer ? normalized : `/templates${normalized}`;
+  return isTemplateServer ? normalized : `/template${normalized}`;
 }
 
 /** Dedicated `bench/ziex` CSR server (`CSR_BENCH=1`) vs site embed under `/bench`. */
