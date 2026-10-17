@@ -407,7 +407,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <FeatureExample title="File System Routing" wide={false} child={(<CodeWindowTabs id="fs-routing-tabs" name="fs-routing" title="" tabs={fs_tabs[0..]} video_url="" source={feature_examples} />)} />
                         <FeatureExample title="Components" wide={false} child={(<CodeWindowTabs id="components-tabs" name="components" title="" tabs={component_tabs[0..]} video_url="" source={feature_examples} />)} />
                         <FeatureExample title="Dynamic Path" wide={false} child={(<CodeWindow title="pages/[id]/page.zx" section="Dynamic Path" source={feature_examples} code="" />)} />
-                        <FeatureExample title="API Route" wide={false} child={(<CodeWindow title="route.zig" section="API Route" source={feature_examples} code="" />)} />
+                        <FeatureExample title="API Route" wide={false} child={(<CodeWindow title="routes/api/route.zig" section="API Route" source={feature_examples} code="" />)} />
                         <FeatureExample title="WebSocket" wide={false} child={(<CodeWindow title="routes/ws/route.zig" section="WebSocket" source={feature_examples} code="" />)} />
                         <FeatureExample title="Client-side Rendering" wide={true} child={(<CodePreviewExample title="counter.zx" section="Client-side Rendering" source={feature_examples} code="" preview={(<Examples.Client />)} />)} />
                     </div>

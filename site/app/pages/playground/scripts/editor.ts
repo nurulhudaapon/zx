@@ -689,10 +689,13 @@ function loadTemplateFiles(templateId = activeTemplateId) {
 function ensureBaselinePlaygroundFiles(filesDecoded: { [filename: string]: string }): { [filename: string]: string } {
     const normalized: { [filename: string]: string } = { ...filesDecoded };
     const looksLikeApp = Boolean(
-        normalized["app/pages/page.zx"] ||
-            normalized["app/main.zig"] ||
-            normalized["app/pages/layout.zx"] ||
-            Object.keys(normalized).some((name) => name.startsWith("app/routes/") && name.endsWith("route.zig")),
+        normalized["app/main.zig"] ||
+            Object.keys(normalized).some(
+                (name) =>
+                    name.startsWith("app/pages/") ||
+                    name.startsWith("app/routes/") ||
+                    name === "app/main.zig",
+            ),
     );
 
     if (looksLikeApp) {

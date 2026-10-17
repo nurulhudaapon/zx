@@ -716,7 +716,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
                 <li><code>app/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
             </ul>
             <p>Access the parameter value using <code>ctx.request.params.get("name")</code>:</p>
-            <ExampleBlock id="dynamic-route" zx_code={props.zx_dynamic} zig_code={props.zig_dynamic} html_code={props.html_dynamic} filename="user/[id]/user_profile.zx" />
+            <ExampleBlock id="dynamic-route" zx_code={props.zx_dynamic} zig_code={props.zig_dynamic} html_code={props.html_dynamic} filename="pages/user/[id]/page.zx" />
 
             <h3>Creating layouts</h3>
             <p>Layouts wrap pages with common UI. Create a <code>layout.zx</code> file:</p>
@@ -749,7 +749,7 @@ fn APIRoutes(allocator: zx.Allocator, props: APIRoutesProps) zx.Component {
             <h2>API Routes</h2>
             <p>ZX makes it easy to create APIs by adding <code>route.zig</code> files to your <code>app/pages/</code> directory. These files handle HTTP methods like GET, POST, and more.</p>
             <p>Create a <code>route.zig</code> file to handle API requests:</p>
-            <CodeBlock code={props.zig_code} filename="route.zig" />
+            <CodeBlock code={props.zig_code} filename="routes/api/route.zig" />
             <p>API routes have access to <code>zx.RouteContext</code>, which provides the request, response, and even WebSocket support. Learn more in the <a href="/reference#api-routes">API documentation</a>.</p>
         </section>
     );

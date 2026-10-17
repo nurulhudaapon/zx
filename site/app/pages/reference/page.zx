@@ -377,7 +377,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 </ul>
                 <h3>Accessing Route and Query Parameters</h3>
                 <p>Use <code>ctx.request.params.get("name")</code> to access dynamic route parameters and <code>ctx.request.query("name")</code> for query strings:</p>
-                <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} filename="user_profile.zx" />
+                <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} filename="pages/[id]/page.zx" />
                 <p>Both methods return <code>?[]const u8</code>, so use <code>orelse</code> to provide a default value.</p>
             </section>
             <APIAndWebSockets api_code={zig_api_route} ws_code={zig_websocket_route} />
@@ -449,7 +449,7 @@ fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Co
 
             <h3 id="api-routes">API Routes</h3>
             <p>To create an API route, define a <code>route.zig</code> file and export functions for the HTTP methods you want to handle (<code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>, etc.).</p>
-            <CodeBlock code={props.api_code} filename="route.zig" />
+            <CodeBlock code={props.api_code} filename="routes/api/route.zig" />
 
             <h3 id="route-context">RouteContext</h3>
             <p>All API handlers receive a <code>zx.RouteContext</code>, which provides everything needed to handle the request:</p>
@@ -463,7 +463,7 @@ fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Co
 
             <h3 id="websockets">WebSockets</h3>
             <p>ZX has first-class support for WebSockets. You can upgrade an API request to a WebSocket connection and handle real-time messages with simple lifecycle hooks.</p>
-            <CodeBlock code={props.ws_code} filename="route.zig" />
+            <CodeBlock code={props.ws_code} filename="routes/ws/route.zig" />
 
             <h4 id="websocket-lifecycle">Lifecycle Handlers</h4>
             <ul>

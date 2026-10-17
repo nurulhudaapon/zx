@@ -112,12 +112,10 @@ function filenameFromSection(section: string | undefined, fallback: string): str
   if (!section) return fallback;
   const lower = section.toLowerCase();
   if (lower.includes("layout")) return "layout.zx";
-  if (lower.includes("websocket") || lower.includes("api route") || /(^|:\s*)route\b/.test(lower)) {
-    return "route.zig";
-  }
-  if (lower.endsWith(": page") || lower.includes("routing: page") || lower.includes("dynamic path")) {
-    return "page.zx";
-  }
+  if (lower.includes("websocket")) return "routes/ws/route.zig";
+  if (lower.includes("api route") || /(^|:\s*)route\b/.test(lower)) return "route.zig";
+  if (lower.includes("dynamic path")) return "pages/[id]/page.zx";
+  if (lower.endsWith(": page") || lower.includes("routing: page")) return "page.zx";
   if (lower.includes("client-side")) return "page.zx";
   return fallback;
 }

@@ -307,7 +307,7 @@ fn Card(allocator: zx.Allocator, props: CardChildrenProps) zx.Component {
 }
 
 // --- API Route ---
-pub fn PUT(ctx: zx.RouteContext) !void {
+pub fn Api__GET(ctx: zx.RouteContext) !void {
     try ctx.response.json(.{ .status = "ok" }, .{});
 }
 
@@ -1231,7 +1231,7 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     _ = try RefInline__GET(route_ctx);
     _ = try RefInline__Socket(socket_ctx);
     _ = try POST(route_ctx);
-    _ = try PUT(route_ctx);
+    _ = try Api__GET(route_ctx);
     _ = try GET(route_ctx);
     _ = try Learn__GET(route_ctx);
     _ = try Learn__KvBasic(page_ctx);
