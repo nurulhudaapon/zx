@@ -335,6 +335,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
+    const clients: ?*Clients = if (build_client_wasm) try b.allocator.create(Clients) else null;
     const manifest_path: LazyPath = if (build_client_wasm) blk: {
         const wasm_exe = b.addExecutable(.{
             .name = b.fmt("main", .{}),
@@ -385,10 +386,25 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         }
         try wasm_app_imports.append(.{ .name = "zx", .module = wasm_app_module });
 
-        wasm_app_module.addAnonymousImport("app", .{
+        const wasm_meta_module = b.createModule(.{
             .root_source_file = transpile_store.path(b, "app.zig"),
             .imports = wasm_app_imports.items,
         });
+        wasm_app_module.addImport("app", wasm_meta_module);
+        const zons = b.addWriteFiles();
+        transpile_cmd.addArg("--client-dir");
+        transpile_cmd.addDirectoryArg(zons.getDirectory());
+        clients.?.* = .{
+            .b = b,
+            .zons = zons,
+            .zx = zx_module,
+            .app = app_module,
+            .wasm_zx = wasm_app_module,
+            .wasm_app = wasm_meta_module,
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .stub_mode = opts.server_only_stub_mode,
+        };
         // Client/wasm builds must not analyze Httpz (no httpz module on that dep).
         wasm_app_module.addOptions("app_opts", addAppOpts(b, .{
             .base_path = opts.base_path,
@@ -522,8 +538,94 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             .exe = zx_cli,
         },
         .transformer = .{ .b = b, .userdata = injections },
+        .clients = clients,
     };
 }
+
+const Clients = struct {
+    const Module = std.Build.Module;
+
+    b: *std.Build,
+    zons: *std.Build.Step.WriteFile,
+    zx: *Module,
+    app: *Module,
+    wasm_zx: *Module,
+    wasm_app: *Module,
+    target: std.Build.ResolvedTarget,
+    optimize: ?std.builtin.OptimizeMode,
+    stub_mode: ServerOnlyStubMode,
+    added: std.AutoHashMapUnmanaged(*Module, void) = .empty,
+    wasm: std.AutoHashMapUnmanaged(*Module, *Module) = .empty,
+    clones: std.ArrayListUnmanaged(struct { src: *Module, dst: *Module }) = .empty,
+
+    fn add(self: *Clients, mod: *Module) void {
+        const b = self.b;
+        self.syncAll();
+        if (self.added.contains(mod)) return;
+        const root = mod.root_source_file orelse return;
+        if (root != .generated or !self.usesZx(mod)) return;
+
+        const name = b.fmt("__zx_client_module_{d}", .{self.added.count()});
+        self.added.put(b.allocator, mod, {}) catch @panic("OOM");
+        self.app.addImport(name, mod);
+        self.wasm_app.addImport(name, self.toWasm(name, mod));
+        _ = self.zons.addCopyFile(root.dirname().path(b, "__zx_client.zon"), b.fmt("{s}.zon", .{name}));
+    }
+
+    fn toWasm(self: *Clients, name: []const u8, mod: *Module) *Module {
+        const b = self.b;
+        if (mod == self.zx) return self.wasm_zx;
+        if (self.wasm.get(mod)) |m| return m;
+
+        if (!self.usesZx(mod)) {
+            const libc = moduleRequiresLibC(b.allocator, mod) catch @panic("OOM");
+            const m = if (libc) makeServerOnlyStubModule(b, name, self.stub_mode) else mod;
+            self.wasm.put(b.allocator, mod, m) catch @panic("OOM");
+            return m;
+        }
+
+        const m = b.createModule(.{
+            .root_source_file = mod.root_source_file,
+            .target = self.target,
+            .optimize = self.optimize,
+        });
+        self.wasm.put(b.allocator, mod, m) catch @panic("OOM");
+        self.clones.append(b.allocator, .{ .src = mod, .dst = m }) catch @panic("OOM");
+        self.sync(mod, m);
+        return m;
+    }
+
+    fn sync(self: *Clients, src: *Module, dst: *Module) void {
+        var it = src.import_table.iterator();
+        while (it.next()) |e| {
+            if (dst.import_table.contains(e.key_ptr.*)) continue;
+            dst.addImport(e.key_ptr.*, self.toWasm(e.key_ptr.*, e.value_ptr.*));
+        }
+    }
+
+    fn syncAll(self: *Clients) void {
+        var i: usize = 0;
+        while (i < self.clones.items.len) : (i += 1) {
+            self.sync(self.clones.items[i].src, self.clones.items[i].dst);
+        }
+    }
+
+    fn usesZx(self: *Clients, mod: *Module) bool {
+        var seen: std.AutoHashMapUnmanaged(*Module, void) = .empty;
+        defer seen.deinit(self.b.allocator);
+        return self.reaches(mod, &seen);
+    }
+
+    fn reaches(self: *Clients, mod: *Module, seen: *std.AutoHashMapUnmanaged(*Module, void)) bool {
+        if (mod == self.zx) return true;
+        if ((seen.getOrPut(self.b.allocator, mod) catch @panic("OOM")).found_existing) return false;
+        var it = mod.import_table.iterator();
+        while (it.next()) |e| {
+            if (self.reaches(e.value_ptr.*, seen)) return true;
+        }
+        return false;
+    }
+};
 
 /// Resolved init state passed to CLI/asset helpers.
 const Resolved = struct {
@@ -845,6 +947,8 @@ pub const Build = struct {
 
     transformer: Transformer,
 
+    clients: ?*Clients,
+
     /// Transpile a `.zx` component file and return a Zig module wired to this
     /// app's canonical `zx` module.
     pub fn addComponent(self: Build, opts: build_zig.TranslatedZx.Options) *std.Build.Module {
@@ -855,6 +959,7 @@ pub const Build = struct {
 
         const mod = build_zig.addTranslateZx(self.build, component_opts).createModule();
         mod.addImport("zx", self.zx_module);
+        if (self.clients) |c| c.add(mod);
         return mod;
     }
 
@@ -869,6 +974,7 @@ pub const Build = struct {
     pub fn addImport(self: Build, name: []const u8, mod: *std.Build.Module) void {
         self.app.exe.root_module.addImport(name, mod);
         self.app.module.addImport(name, mod);
+        if (self.clients) |c| c.add(mod);
     }
 };
 

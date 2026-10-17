@@ -207,6 +207,10 @@ pub const transpile: Command = .{
             .default_value = "",
             .help = "Path to the executable",
         }),
+        Argument.init(.@"client-dir", []const u8, .{
+            .default_value = "",
+            .help = "Directory of module client component lists",
+        }),
     },
     .positional_args = &.{
         Argument.init(.path, []const u8, .{

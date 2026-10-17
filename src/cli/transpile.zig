@@ -33,6 +33,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .manifest = nonEmpty(args.manifest),
         .build_injections = nonEmpty(args.@"build-injections"),
         .exe_path = nonEmpty(args.@"exe-path"),
+        .client_dir = nonEmpty(args.@"client-dir"),
     };
 
     if (verbose) {
@@ -683,6 +684,7 @@ fn transpileFileRecursive(
     visited: *std.StringHashMap(void),
     input_files: *std.array_list.Managed([]const u8),
     companions_visited: *std.StringHashMap(void),
+    pub_imports: *std.array_list.Managed(PubImport),
 ) !void {
     const abs_source = std.fs.path.resolve(allocator, &.{source_path}) catch
         try allocator.dupe(u8, source_path);
@@ -700,7 +702,7 @@ fn transpileFileRecursive(
         for (imports.items) |p| allocator.free(p);
         imports.deinit();
     }
-    try transpileFile(io, allocator, global_components, opts, source_path, output_path, &imports, input_files, companions_visited);
+    try transpileFile(io, allocator, global_components, opts, source_path, output_path, &imports, input_files, companions_visited, pub_imports);
 
     const source_dir = std.fs.path.dirname(source_path) orelse ".";
     const out_dir = std.fs.path.dirname(output_path) orelse opts.outdir;
@@ -716,7 +718,7 @@ fn transpileFileRecursive(
         const dep_output = try std.fs.path.join(allocator, &.{ out_dir, out_rel });
         defer allocator.free(dep_output);
 
-        try transpileFileRecursive(io, allocator, global_components, opts, dep_source, dep_output, visited, input_files, companions_visited);
+        try transpileFileRecursive(io, allocator, global_components, opts, dep_source, dep_output, visited, input_files, companions_visited, pub_imports);
     }
 }
 
@@ -1039,6 +1041,188 @@ fn writeClientComponents(writer: anytype, allocator: std.mem.Allocator, componen
         try writer.writeAll(zon_str[2 .. zon_str.len - 1]);
     }
     try writer.writeAll("\n};\n\n");
+}
+
+const client_zon = "__zx_client.zon";
+
+const ModuleClient = struct {
+    id: []const u8,
+    name: []const u8,
+    path: []const u8,
+    route: []const u8,
+    decl: []const u8,
+};
+
+const PubImport = struct {
+    from: []const u8,
+    name: []const u8,
+    to: []const u8,
+};
+
+fn collectPubImports(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    out: *std.array_list.Managed(PubImport),
+    ast: *const std.zig.Ast,
+    source_dir: []const u8,
+    from: []const u8,
+) !void {
+    for (ast.rootDecls()) |decl| {
+        const var_decl = ast.fullVarDecl(decl) orelse continue;
+        const visib = var_decl.visib_token orelse continue;
+        if (!std.mem.eql(u8, ast.tokenSlice(visib), "pub")) continue;
+        const init_node = var_decl.ast.init_node.unwrap() orelse continue;
+        const import_path = importPath(allocator, ast, init_node) orelse continue;
+        defer allocator.free(import_path);
+        const rel = resolveZx(io, allocator, source_dir, import_path) orelse continue;
+        defer allocator.free(rel);
+        const ext_len = zxExtLen(rel) orelse continue;
+
+        const from_dir = std.fs.path.dirname(from) orelse "";
+        const to_rel = try std.mem.concat(allocator, u8, &.{ rel[0 .. rel.len - ext_len], ".zig" });
+        defer allocator.free(to_rel);
+        try out.append(.{
+            .from = try allocator.dupe(u8, from),
+            .name = try allocator.dupe(u8, ast.tokenSlice(var_decl.ast.mut_token + 1)),
+            .to = try std.fs.path.resolveAllocPosix(allocator, &.{ from_dir, to_rel }),
+        });
+    }
+}
+
+fn importPath(allocator: std.mem.Allocator, ast: *const std.zig.Ast, node: std.zig.Ast.Node.Index) ?[]u8 {
+    switch (ast.nodeTag(node)) {
+        .builtin_call_two, .builtin_call_two_comma => {},
+        else => return null,
+    }
+    if (!std.mem.eql(u8, ast.tokenSlice(ast.nodeMainToken(node)), "@import")) return null;
+    const arg = ast.nodeData(node).opt_node_and_opt_node[0].unwrap() orelse return null;
+    if (ast.nodeTag(arg) != .string_literal) return null;
+    return std.zig.string_literal.parseAlloc(allocator, ast.tokenSlice(ast.nodeMainToken(arg))) catch null;
+}
+
+fn resolveZx(io: std.Io, allocator: std.mem.Allocator, source_dir: []const u8, import_path: []const u8) ?[]u8 {
+    const stem = if (std.mem.endsWith(u8, import_path, ".zig"))
+        import_path[0 .. import_path.len - ".zig".len]
+    else if (zxExtLen(import_path)) |ext_len|
+        import_path[0 .. import_path.len - ext_len]
+    else
+        return null;
+
+    for ([_][]const u8{ ".zx", ".mdzx", ".md" }) |ext| {
+        const cand = std.fmt.allocPrint(allocator, "{s}{s}", .{ stem, ext }) catch return null;
+        const resolved = std.fs.path.join(allocator, &.{ source_dir, cand }) catch {
+            allocator.free(cand);
+            return null;
+        };
+        defer allocator.free(resolved);
+        if (std.Io.Dir.cwd().statFile(io, resolved, .{})) |_| return cand else |_| allocator.free(cand);
+    }
+    return null;
+}
+
+fn writeClientZon(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    outdir: []const u8,
+    root_rel: []const u8,
+    components: []const ClientComponentSerializable,
+    pub_imports: []const PubImport,
+) !void {
+    var prefixes = std.StringHashMap([]const u8).init(allocator);
+    defer prefixes.deinit();
+    try prefixes.put(root_rel, "");
+    var queue = std.array_list.Managed([]const u8).init(allocator);
+    defer queue.deinit();
+    try queue.append(root_rel);
+    var head: usize = 0;
+    while (head < queue.items.len) : (head += 1) {
+        const file = queue.items[head];
+        const prefix = prefixes.get(file).?;
+        for (pub_imports) |imp| {
+            if (!std.mem.eql(u8, imp.from, file) or prefixes.contains(imp.to)) continue;
+            try prefixes.put(imp.to, try joinDecl(allocator, prefix, imp.name));
+            try queue.append(imp.to);
+        }
+    }
+
+    var entries = std.array_list.Managed(ModuleClient).init(allocator);
+    defer entries.deinit();
+    for (components) |component| {
+        const file = try std.mem.replaceOwned(u8, allocator, component.path, "\\", "/");
+        const prefix = prefixes.get(file) orelse {
+            std.debug.print(
+                "Warning: client component '{s}' in {s} is not reachable from {s} through pub declarations\n",
+                .{ component.name, component.path, root_rel },
+            );
+            continue;
+        };
+        try entries.append(.{
+            .id = component.id,
+            .name = component.name,
+            .path = component.path,
+            .route = component.route,
+            .decl = try joinDecl(allocator, prefix, component.name),
+        });
+    }
+
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    defer aw.deinit();
+    try std.zon.stringify.serialize(entries.items, .{ .whitespace = true }, &aw.writer);
+    const out_path = try std.fs.path.join(allocator, &.{ outdir, client_zon });
+    defer allocator.free(out_path);
+    try writeFile(io, out_path, aw.written());
+}
+
+fn joinDecl(allocator: std.mem.Allocator, prefix: []const u8, name: []const u8) ![]const u8 {
+    if (prefix.len == 0) return allocator.dupe(u8, name);
+    return std.fmt.allocPrint(allocator, "{s}.{s}", .{ prefix, name });
+}
+
+fn readClientZons(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    dir_path: []const u8,
+    out: *std.array_list.Managed(ClientComponentSerializable),
+) !void {
+    var dir = try std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true });
+    defer dir.close(io);
+
+    var names = std.array_list.Managed([]const u8).init(allocator);
+    defer names.deinit();
+    var it = dir.iterate();
+    while (try it.next(io)) |entry| {
+        if (entry.kind != .file or !std.mem.endsWith(u8, entry.name, ".zon")) continue;
+        try names.append(try allocator.dupe(u8, entry.name));
+    }
+    std.mem.sort([]const u8, names.items, {}, struct {
+        fn less(_: void, a: []const u8, b: []const u8) bool {
+            return std.mem.lessThan(u8, a, b);
+        }
+    }.less);
+
+    for (names.items) |file_name| {
+        const module = file_name[0 .. file_name.len - ".zon".len];
+        const path = try std.fs.path.join(allocator, &.{ dir_path, file_name });
+        const raw = try readFile(io, allocator, path);
+        const source = try allocator.dupeSentinel(u8, raw, 0);
+        var diagnostics: std.zon.parse.Diagnostics = undefined;
+        const parsed = try std.zon.parse.fromSlice([]const ModuleClient, .{
+            .gpa = allocator,
+            .arena = allocator,
+            .source = source,
+            .diagnostics = &diagnostics,
+        });
+        for (parsed) |component| {
+            try out.append(.{
+                .type = .client,
+                .id = try allocator.dupe(u8, component.id),
+                .name = try allocator.dupe(u8, component.name),
+                .path = try allocator.dupe(u8, component.path),
+                .route = try allocator.dupe(u8, component.route),
+                .import = try std.fmt.allocPrint(allocator, "@zx.client.ComponentMeta.init(@@@import(@@{s}@@).{s})@", .{ module, component.decl }),
+            });
+        }
+    }
 }
 
 const Route = struct {
@@ -1376,6 +1560,7 @@ fn transpileFile(
     imports_out: ?*std.array_list.Managed([]const u8),
     input_files: *std.array_list.Managed([]const u8),
     companions_visited: *std.StringHashMap(void),
+    pub_imports: ?*std.array_list.Managed(PubImport),
 ) !void {
     const source = try readFile(io, allocator, source_path);
     defer allocator.free(source);
@@ -1407,6 +1592,13 @@ fn transpileFile(
     const ast_source_dir = std.fs.path.dirname(source_path) orelse ".";
     if (imports_out) |out| {
         try collectZxImports(io, allocator, out, &result.zig_ast, ast_source_dir);
+    }
+    if (pub_imports) |out| {
+        const rel = try relativePath(allocator, opts.outdir, output_path);
+        defer allocator.free(rel);
+        const from = try std.mem.replaceOwned(u8, allocator, rel, "\\", "/");
+        defer allocator.free(from);
+        try collectPubImports(io, allocator, out, &result.zig_ast, ast_source_dir, from);
     }
     // Copy only companions reachable via `@embedFile` / relative `@import`.
     {
@@ -1615,7 +1807,7 @@ fn transpileDirectory(
                 if (opts.verbose) std.debug.print("Skipped (up-to-date): {s}\n", .{input_path});
             } else {
                 const components_before = global_components.items.len;
-                transpileFile(io, allocator, global_components, opts, input_path, output_path, null, input_files, companions_visited) catch |err| {
+                transpileFile(io, allocator, global_components, opts, input_path, output_path, null, input_files, companions_visited, null) catch |err| {
                     global_components.items.len = components_before;
                     std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                     continue;
@@ -1657,6 +1849,7 @@ const TranspileOptions = struct {
     manifest: ?[]const u8 = null,
     build_injections: ?[]const u8 = null,
     exe_path: ?[]const u8 = null,
+    client_dir: ?[]const u8 = null,
 };
 
 fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOptions) !void {
@@ -1762,7 +1955,10 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
                 while (it.next()) |k| allocator.free(k.*);
                 visited.deinit();
             }
-            try transpileFileRecursive(io, allocator, &all_client_cmps, opts, opts.path, outpath, &visited, &input_files, &companions_visited);
+            var pub_imports = std.array_list.Managed(PubImport).init(allocator);
+            defer pub_imports.deinit();
+            try transpileFileRecursive(io, allocator, &all_client_cmps, opts, opts.path, outpath, &visited, &input_files, &companions_visited, &pub_imports);
+            try writeClientZon(io, allocator, opts.outdir, output_rel_path, all_client_cmps.items, pub_imports.items);
             task.completeOne();
         },
         else => {
@@ -1811,6 +2007,10 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
     }
 
     // Generate app.zig with routes and client components
+    if (opts.client_dir) |dir| {
+        try readClientZons(io, allocator, dir, &client_cmps);
+    }
+
     genRoutes(io, allocator, opts.outdir, opts.base_path, client_cmps.items, if (manifest) |*m| m else null, opts.verbose) catch |err| switch (err) {
         error.NoPagesOrRoutes => {}, // No routes to generate is not an error
         else => std.debug.print("Warning: Failed to generate app.zig: {}\n", .{err}),
