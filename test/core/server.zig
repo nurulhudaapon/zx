@@ -20,6 +20,14 @@ test "POST /echo body" {
     try forEachBackend(testPostEcho);
 }
 
+test "POST without Content-Length has an empty body" {
+    try forEachBackend(testPostWithoutBody);
+}
+
+test "keepalive after POST without Content-Length" {
+    try forEachBackend(testKeepaliveAfterBodylessPost);
+}
+
 test "GET /echo query" {
     try forEachBackend(testGetEchoQuery);
 }
@@ -93,6 +101,36 @@ fn testPostEcho(backend: Backend) !void {
             });
             try std.testing.expectEqual(@as(u16, 200), res.status);
             try std.testing.expectEqualStrings("hello-echo", res.body);
+        }
+    }.run);
+}
+
+fn testPostWithoutBody(backend: Backend) !void {
+    try withHarness(backend, struct {
+        fn run(h: *Harness, arena: Allocator) !void {
+            const res = try h.fetch(arena, .{ .method = .POST, .path = "/echo" });
+            try std.testing.expectEqual(@as(u16, 200), res.status);
+            try std.testing.expectEqualStrings("", res.body);
+        }
+    }.run);
+}
+
+fn testKeepaliveAfterBodylessPost(backend: Backend) !void {
+    if (!backend.isTcp()) return;
+
+    try withHarness(backend, struct {
+        fn run(h: *Harness, arena: Allocator) !void {
+            var stream = try h.connect();
+            defer stream.close(io);
+
+            const keep = [_]zx.testing.Header{.{ .name = "Connection", .value = "keep-alive" }};
+            const res1 = try h.fetch(arena, .{ .method = .POST, .path = "/echo", .headers = &keep, .stream = &stream });
+            try std.testing.expectEqual(@as(u16, 200), res1.status);
+            try std.testing.expectEqualStrings("", res1.body);
+
+            const res2 = try h.fetch(arena, .{ .path = "/echo?q=after", .headers = &keep, .stream = &stream });
+            try std.testing.expectEqual(@as(u16, 200), res2.status);
+            try std.testing.expectEqualStrings("after", res2.body);
         }
     }.run);
 }

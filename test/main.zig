@@ -8,6 +8,7 @@ test {
     _ = @import("cli/cli.zig");
     _ = @import("core/net.zig");
     _ = @import("core/server.zig");
+    _ = @import("core/server/handlers.zig");
     _ = @import("core/zxon.zig");
     _ = @import("core/html.zig");
     _ = @import("core/props.zig");

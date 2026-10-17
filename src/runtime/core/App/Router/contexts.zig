@@ -249,6 +249,17 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
     const params = @typeInfo(@TypeOf(handler)).@"fn".param_types;
     const arg0 = params[0].?;
 
+    if (comptime params.len == 1 and arg0 == *ActionContext) {
+        const ec = alloc.create(zx.EventHandler.Context) catch @panic("OOM");
+        // handler_id is added later in `x.Context.attr` from the attribute @src().
+        ec.* = .{ .handler_id = 0, .bound_states = &.{} };
+        return .{
+            .callback = &zx.EventHandler.actionHandler,
+            .context = @ptrCast(ec),
+            .action_fn = &handler,
+        };
+    }
+
     if (comptime params.len == 2 and params[1] == *StateContext and
         (arg0 == ActionContext or @typeInfo(arg0) == .@"struct"))
     {
@@ -275,4 +286,6 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
             .bound_states = bound,
         };
     }
+
+    @compileError(BindSignMsg ++ @typeName(@TypeOf(handler)));
 }

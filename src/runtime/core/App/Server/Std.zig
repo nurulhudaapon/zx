@@ -294,8 +294,13 @@ pub fn Backend(comptime H: type) type {
                 }) catch {};
             }
 
+            // A request without Content-Length or Transfer-Encoding has no body (RFC 9112 §6.3);
+            // std.http would otherwise read the connection until EOF and stall.
+            const has_body = request.head.content_length != null or request.head.transfer_encoding != .none;
+            if (!has_body and ws_key == null) request.server.reader.state = .ready;
+
             var body_scratch: [8192]u8 = undefined;
-            const body: []const u8 = if (ws_key != null)
+            const body: []const u8 = if (ws_key != null or !has_body)
                 ""
             else if (request.readerExpectContinue(&body_scratch)) |body_reader|
                 body_reader.allocRemaining(arena, .unlimited) catch ""

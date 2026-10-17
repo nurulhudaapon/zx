@@ -12,7 +12,7 @@ pub const Options = struct {
     server_address: ?[]const u8 = null,
 };
 
-pub fn configure(b: *std.Build, zx_mod: *std.Build.Module, opts: Options) void {
+pub fn configure(b: *std.Build, zx_mod: *std.Build.Module, opts: Options) *std.Build.Module {
     const app_opts = b.addOptions();
     app_opts.addOption(?[]const u8, "app_base_path", opts.base_path);
     app_opts.addOption(?u16, "server_port", opts.server_port);
@@ -44,4 +44,6 @@ pub fn configure(b: *std.Build, zx_mod: *std.Build.Module, opts: Options) void {
     zx_mod.addImport("manifest", b.createModule(.{
         .root_source_file = opts.manifest,
     }));
+
+    return app_mod;
 }

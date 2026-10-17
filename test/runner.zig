@@ -80,18 +80,20 @@ pub fn main(init: std.process.Init) !void {
         const friendly_name = blk: {
             const name = t.name;
 
+            var segments: [16][]const u8 = undefined;
+            var count: usize = 0;
             var it = std.mem.splitScalar(u8, name, '.');
-            var prev_value: []const u8 = "";
             while (it.next()) |value| {
                 if (std.mem.eql(u8, value, "test") or std.mem.eql(u8, value, "decltest")) {
-                    // Use the part before "test"/"decltest" as scope name
-                    if (prev_value.len > 0) {
-                        scope_name = prev_value;
-                    }
+                    const path = if (count > 1) segments[1..count] else segments[0..count];
+                    scope_name = try std.mem.join(allocator, " > ", path);
                     const rest = it.rest();
                     break :blk if (rest.len > 0) rest else name;
                 }
-                prev_value = value;
+                if (count < segments.len) {
+                    segments[count] = value;
+                    count += 1;
+                }
             }
             break :blk name;
         };

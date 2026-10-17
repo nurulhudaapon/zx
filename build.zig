@@ -135,7 +135,7 @@ pub fn build(b: *std.Build) !void {
         mode_test.addOptions("zx_info", options);
         mode_test.addImport("lang", lang_mod);
 
-        @import("src/Build.zig").Testing.configure(b, mode_test, .{
+        const test_app_mod = @import("src/Build.zig").Testing.configure(b, mode_test, .{
             .target = target,
             .optimize = optimize,
             .app = b.path("test/server/app.zig"),
@@ -148,6 +148,7 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zx", .module = mode_test },
+                .{ .name = "app", .module = test_app_mod },
                 .{ .name = "lang", .module = lang_mod },
                 .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
                 .{ .name = "tree_sitter_mdzx", .module = tree_sitter_mdzx_dep.module("tree_sitter_mdzx") },
