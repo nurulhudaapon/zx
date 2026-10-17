@@ -136,10 +136,15 @@ pub fn deinit(ds: *DevServer) void {
     ds.live_connections.shutdownAll(ds.io);
     if (ds.serve_thread) |t| {
         if (ds.tcp_server) |*s| {
-            const listener: std.Io.net.Stream = .{ .socket = s.socket };
-            listener.shutdown(ds.io, .both) catch {
+            // Windows rejects shutdown on listening sockets; wake accept instead.
+            if (comptime builtin.os.tag == .windows) {
                 wakeLocalhostPort(ds.io, s.socket.address.getPort());
-            };
+            } else {
+                const listener: std.Io.net.Stream = .{ .socket = s.socket };
+                listener.shutdown(ds.io, .both) catch {
+                    wakeLocalhostPort(ds.io, s.socket.address.getPort());
+                };
+            }
         }
         t.join();
     }

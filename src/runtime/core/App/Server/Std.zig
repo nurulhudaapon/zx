@@ -82,10 +82,14 @@ pub fn Backend(comptime H: type) type {
         pub fn stop(self: *Self) void {
             if (self.shutting_down.swap(true, .acq_rel)) return;
             if (self.tcp) |*tcp| {
-                const listener: std.Io.net.Stream = .{ .socket = tcp.socket };
-                listener.shutdown(self.io, .both) catch {
+                if (comptime builtin.os.tag == .windows) {
                     http.wake(self.io, self.inner_port orelse self.port);
-                };
+                } else {
+                    const listener: std.Io.net.Stream = .{ .socket = tcp.socket };
+                    listener.shutdown(self.io, .both) catch {
+                        http.wake(self.io, self.inner_port orelse self.port);
+                    };
+                }
             }
             self.live_connections.shutdownAll(self.io);
             self.wakeQueueWaiters();
