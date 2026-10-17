@@ -1,6 +1,5 @@
 const std = @import("std");
 const zx = @import("root.zig");
-const posix = std.posix;
 const app_opts = @import("app_opts");
 
 const Allocator = std.mem.Allocator;
@@ -171,13 +170,10 @@ pub const Harness = struct {
 
         var raw_buf: std.Io.Writer.Allocating = .init(arena);
         var scratch: [4096]u8 = undefined;
-        const chunk = readAll(stream, self.io, &scratch);
-        try raw_buf.writer.writeAll(chunk);
-        var extra: usize = 0;
-        while (extra < 5) : (extra += 1) {
-            const more = readAll(stream, self.io, &scratch);
-            if (more.len == 0) break;
-            try raw_buf.writer.writeAll(more);
+        while (!httpResponseComplete(raw_buf.written())) {
+            const n = try readChunk(stream, self.io, &scratch);
+            if (n == 0) break;
+            try raw_buf.writer.writeAll(scratch[0..n]);
         }
 
         return try parseHttpResponse(arena, raw_buf.written());
@@ -326,49 +322,49 @@ fn splitPath(path: []const u8) struct { []const u8, []const u8 } {
 
 pub fn connectPort(io: std.Io, port: u16) !std.Io.net.Stream {
     const address = try std.Io.net.IpAddress.parse("127.0.0.1", port);
-    const stream = try address.connect(io, .{ .mode = .stream });
-    const timeout = std.mem.toBytes(posix.timeval{
-        .sec = 0,
-        .usec = 50_000,
-    });
-    try posix.setsockopt(stream.socket.handle, posix.SOL.SOCKET, posix.SO.RCVTIMEO, &timeout);
-    try posix.setsockopt(stream.socket.handle, posix.SOL.SOCKET, posix.SO.SNDTIMEO, &timeout);
-    return stream;
+    return try address.connect(io, .{ .mode = .stream });
 }
 
-pub fn readAll(stream: std.Io.net.Stream, io: std.Io, buf: []u8) []const u8 {
-    var pos: usize = 0;
-    var blocked = false;
-    while (true) {
-        std.debug.assert(pos < buf.len);
-        const n = posix.read(stream.socket.handle, buf[pos..]) catch |err| switch (err) {
-            error.WouldBlock => {
-                if (blocked) return buf[0..pos];
-                blocked = true;
-                io.sleep(.fromMilliseconds(1), .awake) catch {};
-                continue;
-            },
-            error.ConnectionResetByPeer => return buf[0..pos],
-            else => @panic(@errorName(err)),
-        };
-        if (n == 0) return buf[0..pos];
-        pos += n;
-        blocked = false;
+const read_idle: std.Io.Timeout = .{ .duration = .{ .raw = .fromMilliseconds(50), .clock = .awake } };
+
+fn readChunk(stream: std.Io.net.Stream, io: std.Io, buf: []u8) !usize {
+    var data: [1][]u8 = .{buf};
+    const result = io.operateTimeout(.{
+        .net_read = .{
+            .socket_handle = stream.socket.handle,
+            .data = &data,
+        },
+    }, read_idle) catch |err| switch (err) {
+        error.Timeout, error.Canceled, error.ConcurrencyUnavailable => return 0,
+    };
+    const rr = result.net_read catch |err| switch (err) {
+        error.ConnectionResetByPeer => return 0,
+        else => return err,
+    };
+    return rr.data_len;
+}
+
+fn httpResponseComplete(raw: []const u8) bool {
+    const header_end = std.mem.indexOf(u8, raw, "\r\n\r\n") orelse return false;
+    const head = raw[0..header_end];
+    const body = raw[header_end + 4 ..];
+
+    var lines = std.mem.splitSequence(u8, head, "\r\n");
+    _ = lines.next();
+    while (lines.next()) |line| {
+        if (!std.ascii.startsWithIgnoreCase(line, "content-length:")) continue;
+        const v = std.mem.trim(u8, line["content-length:".len..], " \t");
+        const n = std.fmt.parseInt(usize, v, 10) catch return false;
+        return body.len >= n;
     }
+    return true;
 }
 
 pub fn expectPeerClosed(stream: std.Io.net.Stream, io: std.Io) !void {
     var buf: [64]u8 = undefined;
     var i: usize = 0;
     while (i < 100) : (i += 1) {
-        const n = posix.read(stream.socket.handle, &buf) catch |err| switch (err) {
-            error.WouldBlock => {
-                try io.sleep(.fromMilliseconds(5), .awake);
-                continue;
-            },
-            error.ConnectionResetByPeer => return,
-            else => return err,
-        };
+        const n = try readChunk(stream, io, &buf);
         if (n == 0) return;
         return error.UnexpectedDataAfterHalfClose;
     }
