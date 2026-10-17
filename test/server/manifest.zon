@@ -1,0 +1,6 @@
+.{
+    .exe_path = null,
+    .transpile_dir = null,
+    .injections = .{},
+    .routes = .{},
+}

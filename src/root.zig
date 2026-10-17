@@ -18,6 +18,9 @@ const app_mod = @import("runtime/core/App.zig");
 // -- Build System --- //
 pub const Build = @import("Build.zig");
 
+// -- Testing --- //
+pub const testing = @import("testing.zig");
+
 // -- Core -- //
 pub const ElementTag = element.Tag;
 pub const Component = @import("Component.zig").Component;

@@ -135,6 +135,13 @@ pub fn build(b: *std.Build) !void {
         mode_test.addOptions("zx_info", options);
         mode_test.addImport("lang", lang_mod);
 
+        @import("src/Build.zig").Testing.configure(b, mode_test, .{
+            .target = target,
+            .optimize = optimize,
+            .app = b.path("test/server/app.zig"),
+            .manifest = b.path("test/server/manifest.zon"),
+        });
+
         const testing_mod = b.createModule(.{
             .root_source_file = b.path("test/main.zig"),
             .target = target,

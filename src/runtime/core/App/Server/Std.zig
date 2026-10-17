@@ -47,7 +47,7 @@ pub fn Backend(comptime H: type) type {
 
         live_connections: con = .{},
 
-        pub fn init(io: std.Io, allocator: std.mem.Allocator, config: Pipeline.Config, app_ctx: H, inita: zx.Init) !*Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator, config: Pipeline.Config, app_ctx: H, inita: anytype) !*Self {
             const self = try allocator.create(Self);
             errdefer allocator.destroy(self);
 
@@ -99,7 +99,7 @@ pub fn Backend(comptime H: type) type {
             }
 
             self.tcp = bind_address.listen(self.io, .{
-                .reuse_address = self.inner_port != null,
+                .reuse_address = true,
             }) catch |err| switch (err) {
                 error.AddressInUse => {
                     Pipeline.net.busy(bind_address.getPort());
