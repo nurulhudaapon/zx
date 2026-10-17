@@ -83,7 +83,7 @@ test "fenced code block" {
     try testing.expect(std.mem.indexOf(u8, out, "1;\n```") == null);
 }
 
-test "emits render and default Page" {
+test "emits render and default page" {
     const out = try transpile("# Hi\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "pub fn render(allocator:") != null);
@@ -91,7 +91,7 @@ test "emits render and default Page" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") != null);
 }
 
-test "author Page suppresses default Page" {
+test "author page suppresses default page" {
     const out = try transpile(
         \\---
         \\const zx = @import("zx");
@@ -129,7 +129,7 @@ test "user-declared render is an error" {
     try testing.expectError(error.UserDeclaredRender, result);
 }
 
-test "Props emits ComponentCtx render and skips default Page" {
+test "props emits component ctx render and skips default page" {
     const out = try transpile(
         \\---
         \\pub const Props = struct { name: []const u8 };
@@ -147,7 +147,7 @@ test "Props emits ComponentCtx render and skips default Page" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") == null);
 }
 
-test "pure md rejects ZX embeds" {
+test "pure md rejects zx embeds" {
     const result = Markdown.transpileWithOptions(testing.allocator,
         \\# Hi
         \\
@@ -167,7 +167,7 @@ test "pure md allows markdown-only" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") != null);
 }
 
-test "non-page path skips default Page" {
+test "non-page path skips default page" {
     const out = try Markdown.transpileWithOptions(testing.allocator, "# Hi\n", .{
         .emit_default_page = false,
     });
@@ -320,7 +320,7 @@ test "braces in fenced code stay literal" {
     try testing.expect(std.mem.indexOf(u8, out, "{\"type Point") != null);
 }
 
-test "braces in inline code are ZX-escaped" {
+test "braces in inline code are zx-escaped" {
     const out = try transpile("Use `{expressions}` here.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<code>") != null);

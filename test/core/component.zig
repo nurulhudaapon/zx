@@ -23,7 +23,7 @@ fn WithCtx(ctx: *zx.ComponentCtx(LabelProps)) Component {
     return .{ .text = ctx.props.label };
 }
 
-test "ComponentFn: allocator-only call" {
+test "fn > allocator-only call" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -34,7 +34,7 @@ test "ComponentFn: allocator-only call" {
     try testing.expectEqualStrings("alone", out.text);
 }
 
-test "ComponentFn: props call uses coerced defaults" {
+test "fn > props call uses coerced defaults" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -44,7 +44,7 @@ test "ComponentFn: props call uses coerced defaults" {
     try testing.expectEqualStrings("Count", out.text);
 }
 
-test "ComponentFn: contexted call" {
+test "fn > contexted call" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -58,7 +58,7 @@ test "ComponentFn: contexted call" {
     try testing.expectEqualStrings("owner-1", ctx._internal.component_id);
 }
 
-test "island: cmp builds hydrate_id + ZXON props + SSR children" {
+test "island > cmp builds hydrate_id + zxon props + ssr children" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -80,7 +80,7 @@ test "island: cmp builds hydrate_id + ZXON props + SSR children" {
     try testing.expectEqualStrings("Main Counter", cf.island.?.children.text);
 }
 
-test "island: render emits comment markers and SSR body" {
+test "island > render emits comment markers and ssr body" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -98,7 +98,7 @@ test "island: render emits comment markers and SSR body" {
     try testing.expectEqualStrings("<!--$abc [\"Hi\",2]-->Hi<!--/$abc-->", aw.written());
 }
 
-test "island: empty props omits ZXON payload in marker" {
+test "island > empty props omits zxon payload in marker" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -118,7 +118,7 @@ test "island: empty props omits ZXON payload in marker" {
     try testing.expectEqualStrings("<!--$z-->alone<!--/$z-->", aw.written());
 }
 
-test "plain cmp: not an island" {
+test "plain > not an island" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -129,7 +129,7 @@ test "plain cmp: not an island" {
     try testing.expect(!comp.component_fn.isIsland());
 }
 
-test "devtool: serialize includes props via dump_props" {
+test "devtool > serialize includes props via dump_props" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
@@ -151,7 +151,7 @@ test "devtool: serialize includes props via dump_props" {
     try testing.expect(std.mem.indexOf(u8, out, "label") != null);
 }
 
-test "ComponentFn: dump_props returns JSON" {
+test "fn > dump_props returns json" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();

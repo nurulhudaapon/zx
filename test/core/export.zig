@@ -17,12 +17,12 @@ fn emptyRoute(path: []const u8) Route {
     return .{ .path = path };
 }
 
-test "Route.staticFn: null when neither page nor route sets static" {
+test "static fn > null when neither page nor route sets static" {
     const route = emptyRoute("/posts/:slug");
     try std.testing.expect(route.staticFn() == null);
 }
 
-test "Route.staticFn: returns page_opts.static" {
+test "static fn > returns page_opts.static" {
     const route = Route{
         .path = "/posts/:slug",
         .page_opts = .{ .static = pageStatic },
@@ -30,7 +30,7 @@ test "Route.staticFn: returns page_opts.static" {
     try std.testing.expect(route.staticFn() == pageStatic);
 }
 
-test "Route.staticFn: returns route_opts.static when page unset" {
+test "static fn > returns route_opts.static when page unset" {
     const route = Route{
         .path = "/api/:id",
         .route_opts = .{ .static = routeStatic },
@@ -38,7 +38,7 @@ test "Route.staticFn: returns route_opts.static when page unset" {
     try std.testing.expect(route.staticFn() == routeStatic);
 }
 
-test "Route.staticFn: prefers page_opts over route_opts" {
+test "static fn > prefers page_opts over route_opts" {
     const route = Route{
         .path = "/posts/:slug",
         .page_opts = .{ .static = pageStatic },
@@ -47,12 +47,12 @@ test "Route.staticFn: prefers page_opts over route_opts" {
     try std.testing.expect(route.staticFn() == pageStatic);
 }
 
-test "Route.isDynamic: false by default" {
+test "dynamic > false by default" {
     const route = emptyRoute("/about");
     try std.testing.expect(!route.isDynamic());
 }
 
-test "Route.isDynamic: true from page_opts" {
+test "dynamic > true from page_opts" {
     const route = Route{
         .path = "/dashboard",
         .page_opts = .{ .dynamic = true },
@@ -60,7 +60,7 @@ test "Route.isDynamic: true from page_opts" {
     try std.testing.expect(route.isDynamic());
 }
 
-test "Route.isDynamic: true from route_opts" {
+test "dynamic > true from route_opts" {
     const route = Route{
         .path = "/api/stream",
         .route_opts = .{ .dynamic = true },
@@ -68,7 +68,7 @@ test "Route.isDynamic: true from route_opts" {
     try std.testing.expect(route.isDynamic());
 }
 
-test "Route.isDynamic: true when either opts flag is set" {
+test "dynamic > true when either opts flag is set" {
     const route = Route{
         .path = "/mixed",
         .page_opts = .{ .dynamic = false },
@@ -77,7 +77,7 @@ test "Route.isDynamic: true when either opts flag is set" {
     try std.testing.expect(route.isDynamic());
 }
 
-test "Route.resolveStaticParams: null when no static fn" {
+test "static params > null when no static fn" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -86,7 +86,7 @@ test "Route.resolveStaticParams: null when no static fn" {
     try std.testing.expect(try route.resolveStaticParams(arena, std.testing.io) == null);
 }
 
-test "Route.resolveStaticParams: runs page static fn" {
+test "static params > runs page static fn" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -102,7 +102,7 @@ test "Route.resolveStaticParams: runs page static fn" {
     try std.testing.expectEqualStrings("from-page", params[0][0].value);
 }
 
-test "Route.resolveStaticParams: prefers page static over route static" {
+test "static params > prefers page static over route static" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -117,7 +117,7 @@ test "Route.resolveStaticParams: prefers page static over route static" {
     try std.testing.expectEqualStrings("from-page", params[0][0].value);
 }
 
-test "Route.resolveStaticParams: uses route static when page unset" {
+test "static params > uses route static when page unset" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();

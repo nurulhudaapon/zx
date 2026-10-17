@@ -159,7 +159,7 @@ test "broken line scope" {
     try testing.expect(diags.items[0].end_line < last_line);
 }
 
-test "Ast.parse valid" {
+test "ast > parse valid" {
     const allocator = std.testing.allocator;
 
     const source: [:0]const u8 =
@@ -176,7 +176,7 @@ test "Ast.parse valid" {
     try testing.expectEqual(0, result.diagnostics.items.len);
 }
 
-test "Ast.parse invalid" {
+test "ast > parse invalid" {
     const allocator = std.testing.allocator;
 
     const source: [:0]const u8 =
@@ -190,7 +190,7 @@ test "Ast.parse invalid" {
     try testing.expect(result.diagnostics.items.len > 0);
 }
 
-test "Ast.fmt valid" {
+test "ast > fmt valid" {
     const allocator = std.testing.allocator;
 
     const source: [:0]const u8 =
@@ -207,7 +207,7 @@ test "Ast.fmt valid" {
     try testing.expect(result.source != null);
 }
 
-test "Ast.fmt invalid" {
+test "ast > fmt invalid" {
     const allocator = std.testing.allocator;
 
     const source: [:0]const u8 =
@@ -222,7 +222,7 @@ test "Ast.fmt invalid" {
     try testing.expect(result.diagnostics.items.len > 0);
 }
 
-test "hasErrors empty" {
+test "has errors empty" {
     const allocator = std.testing.allocator;
 
     const source: [:0]const u8 =
@@ -259,7 +259,7 @@ fn hasMessage(diags: check.DiagnosticList, needle: []const u8) bool {
     return countWithMessage(diags, needle) > 0;
 }
 
-test "semantic: invalid html tag name" {
+test "sema > invalid html tag name" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -273,7 +273,7 @@ test "semantic: invalid html tag name" {
     try testing.expect(hasMessage(diags, "not a valid HTML element"));
 }
 
-test "semantic: known elements are valid" {
+test "sema > known elements are valid" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -286,7 +286,7 @@ test "semantic: known elements are valid" {
     try testing.expectEqual(@as(usize, 0), diags.items.len);
 }
 
-test "semantic: svg elements are valid" {
+test "sema > svg elements are valid" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -299,7 +299,7 @@ test "semantic: svg elements are valid" {
     try testing.expectEqual(@as(usize, 0), diags.items.len);
 }
 
-test "semantic: svg camelCase elements are valid" {
+test "sema > svg camel case elements are valid" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -312,7 +312,7 @@ test "semantic: svg camelCase elements are valid" {
     try testing.expectEqual(@as(usize, 0), diags.items.len);
 }
 
-test "semantic: components are not html-validated" {
+test "sema > components are not html-validated" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -326,7 +326,7 @@ test "semantic: components are not html-validated" {
     try testing.expect(!hasMessage(diags, "not a valid HTML element"));
 }
 
-test "semantic: custom-element and component classification" {
+test "sema > custom-element and component classification" {
     // Hyphenated custom elements and namespaced/uppercase components are not
     // subject to HTML element-name validation. (Tested directly because the
     // ZX grammar does not yet parse hyphenated tag names inline.)
@@ -338,7 +338,7 @@ test "semantic: custom-element and component classification" {
     try testing.expect(!check.elements.isCustomOrComponent("blah"));
 }
 
-test "semantic: fragment is not html-validated" {
+test "sema > fragment is not html-validated" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -351,7 +351,7 @@ test "semantic: fragment is not html-validated" {
     try testing.expect(!diags.hasErrors());
 }
 
-test "semantic: deprecated element" {
+test "sema > deprecated element" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -365,7 +365,7 @@ test "semantic: deprecated element" {
     try testing.expect(hasMessage(diags, "deprecated and unsupported"));
 }
 
-test "semantic: html element cannot self-close" {
+test "sema > html element cannot self-close" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -379,7 +379,7 @@ test "semantic: html element cannot self-close" {
     try testing.expect(hasMessage(diags, "can't self-close"));
 }
 
-test "semantic: void element self-close is allowed" {
+test "sema > void element self-close is allowed" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -393,7 +393,7 @@ test "semantic: void element self-close is allowed" {
     try testing.expect(!hasMessage(diags, "can't self-close"));
 }
 
-test "semantic: void element with end tag" {
+test "sema > void element with end tag" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -406,7 +406,7 @@ test "semantic: void element with end tag" {
     try testing.expect(hasMessage(diags, "void elements have no end tag"));
 }
 
-test "semantic: duplicate attribute is a warning" {
+test "sema > duplicate attribute is a warning" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -421,7 +421,7 @@ test "semantic: duplicate attribute is a warning" {
     try testing.expect(!diags.hasErrors());
 }
 
-test "semantic: duplicate id is a warning" {
+test "sema > duplicate id is a warning" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -435,7 +435,7 @@ test "semantic: duplicate id is a warning" {
     try testing.expect(!diags.hasErrors());
 }
 
-test "semantic: distinct ids are fine" {
+test "sema > distinct ids are fine" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -448,7 +448,7 @@ test "semantic: distinct ids are fine" {
     try testing.expect(!hasMessage(diags, "duplicate id"));
 }
 
-test "semantic: unknown builtin attribute" {
+test "sema > unknown builtin attribute" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -462,7 +462,7 @@ test "semantic: unknown builtin attribute" {
     try testing.expect(hasMessage(diags, "unknown ZX builtin attribute"));
 }
 
-test "semantic: known builtin attribute is fine" {
+test "sema > known builtin attribute is fine" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -475,7 +475,7 @@ test "semantic: known builtin attribute is fine" {
     try testing.expect(!hasMessage(diags, "unknown ZX builtin attribute"));
 }
 
-test "semantic: unknown builtin shorthand" {
+test "sema > unknown builtin shorthand" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
@@ -489,7 +489,7 @@ test "semantic: unknown builtin shorthand" {
     try testing.expect(hasMessage(diags, "unknown ZX builtin attribute"));
 }
 
-test "semantic: known builtin shorthand is fine" {
+test "sema > known builtin shorthand is fine" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(allocator: zx.Allocator) zx.Component {
@@ -502,7 +502,7 @@ test "semantic: known builtin shorthand is fine" {
     try testing.expect(!hasMessage(diags, "unknown ZX builtin attribute"));
 }
 
-test "semantic: skipped when syntax errors present" {
+test "sema > skipped when syntax errors present" {
     const allocator = std.testing.allocator;
     // Unknown tag <blah> would normally be flagged, but the unclosed tag is a
     // syntax error, so the semantic pass is skipped to avoid cascading noise.

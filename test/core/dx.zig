@@ -78,7 +78,7 @@ test "sm > embed format roundtrip" {
     try testing.expectEqual(@as(i32, 1), parsed.entries[0].source_line);
 }
 
-test "sm > sourceToGenerated exact match" {
+test "sm > src to gen exact match" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 5, .generated_column = 8, .source_line = 2, .source_column = 4 },
@@ -95,7 +95,7 @@ test "sm > sourceToGenerated exact match" {
     try testing.expectEqual(@as(i32, 11), between.generated_column);
 }
 
-test "sm > generatedToSource exact match" {
+test "sm > gen to src exact match" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 3, .generated_column = 0, .source_line = 1, .source_column = 0 },
@@ -129,7 +129,7 @@ fn positionMapFrom(allocator: std.mem.Allocator, mappings: []const sourcemap.Map
     return builder.build();
 }
 
-test "sm > generatedToSource clamps extrapolation at next segment" {
+test "sm > gen to src clamps extrapolation at next segment" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
@@ -150,7 +150,7 @@ test "sm > generatedToSource clamps extrapolation at next segment" {
     try testing.expectEqual(@as(i32, 0), at10.source_column);
 }
 
-test "sm > generatedToSource duplicate generated position is deterministic" {
+test "sm > gen to src duplicate generated position is deterministic" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 3, .generated_column = 4, .source_line = 4, .source_column = 8 },
@@ -167,7 +167,7 @@ test "sm > generatedToSource duplicate generated position is deterministic" {
     try testing.expect(at6.source_column < 25 or at6.source_line != 2);
 }
 
-test "sm > generatedToSource does not extrapolate across generated lines" {
+test "sm > gen to src does not extrapolate across generated lines" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
@@ -180,7 +180,7 @@ test "sm > generatedToSource does not extrapolate across generated lines" {
     try testing.expectEqual(@as(i32, 7), m.source_column);
 }
 
-test "sm > sourceToGenerated clamps extrapolation at next segment" {
+test "sm > src to gen clamps extrapolation at next segment" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
@@ -201,7 +201,7 @@ test "sm > sourceToGenerated clamps extrapolation at next segment" {
     try testing.expectEqual(@as(i32, 0), at10.generated_column);
 }
 
-test "sm > sourceToGenerated prefers earliest generated position on tie" {
+test "sm > src to gen prefers earliest generated position on tie" {
     const allocator = testing.allocator;
     var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 2, .generated_column = 5, .source_line = 1, .source_column = 0 },
@@ -318,7 +318,7 @@ test "sm > e2e simple element transpilation" {
     }
 }
 
-test "sm > e2e generatedToSource roundtrip for zig code" {
+test "sm > e2e gen to src roundtrip for zig code" {
     const allocator = testing.allocator;
 
     const source =
@@ -381,7 +381,7 @@ test "sm > e2e expression in element" {
     try testing.expect(expr_offset != null);
 }
 
-test "sm > e2e allocInit allocator expr remaps to @allocator value" {
+test "sm > e2e alloc init allocator expr remaps to @allocator value" {
     const allocator = testing.allocator;
 
     // Typo in @allocator value: Zig errors on allocInit(ctx.arenad, ...) which must

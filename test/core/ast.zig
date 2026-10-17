@@ -409,7 +409,7 @@ test "flaky: performance > transpile" {
 
     const total_time_ms = total_time_ns / std.time.ns_per_ms;
     const average_time_ms = total_time_ms / TestFileCache.test_files.len;
-    std.debug.print("\x1b[33m⏲\x1b[0m ast \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms\n", .{ total_time_ms, average_time_ms });
+    test_util.perf("ast > {d:.2}ms | Avg: {d:.2}ms", .{ total_time_ms, average_time_ms });
 
     try expectLessThan(MAX_TIME_MS, total_time_ms);
     try expectLessThan(MAX_TIME_PER_FILE_MS, average_time_ms);
@@ -435,8 +435,8 @@ test "flaky: performance > render" {
     const total_time_ms = total_time_ns / std.time.ns_per_ms;
     const average_time_ms = total_time_ms / TestFileCache.test_files.len;
     const rate = test_util.Throughput.init(total_bytes, @intFromFloat(total_time_ns));
-    std.debug.print(
-        "\x1b[33m⏲\x1b[0m render \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms | {f} ({d} bytes)\n",
+    test_util.perf(
+        "render > {d:.2}ms | Avg: {d:.2}ms | {f} ({d} bytes)",
         .{ total_time_ms, average_time_ms, rate, total_bytes },
     );
 

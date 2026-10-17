@@ -57,17 +57,17 @@ fn makeReqRes(alloc: std.mem.Allocator) struct { req: Request, res: Response } {
 
 // --- Context Type Aliases --- //
 
-test "PageContext: is same as LayoutContext" {
+test "page ctx > same as layout ctx" {
     try std.testing.expect(PageContext == LayoutContext);
 }
 
-test "PageContext: is same as NotFoundContext" {
+test "page ctx > same as not found ctx" {
     try std.testing.expect(PageContext == NotFoundContext);
 }
 
 // --- PageContext --- //
 
-test "PageContext: has request field" {
+test "page ctx > has request field" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -89,7 +89,7 @@ test "PageContext: has request field" {
     try std.testing.expectEqual(Request.Method.POST, ctx.request.method);
 }
 
-test "PageContext: has response field" {
+test "page ctx > has response field" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -107,7 +107,7 @@ test "PageContext: has response field" {
     try std.testing.expectEqualStrings("Created", ctx.response.statusText);
 }
 
-test "PageContext: has allocator and arena fields" {
+test "page ctx > has allocator and arena fields" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -123,7 +123,7 @@ test "PageContext: has allocator and arena fields" {
     _ = ctx.data;
 }
 
-test "PageData: get returns null when unset" {
+test "page data > get returns null when unset" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -132,7 +132,7 @@ test "PageData: get returns null when unset" {
     try std.testing.expect(data.get("title") == null);
 }
 
-test "PageData: set then get round-trips and overwrites" {
+test "page data > set then get round-trips and overwrites" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -145,7 +145,7 @@ test "PageData: set then get round-trips and overwrites" {
     try std.testing.expectEqualStrings("World", data.get("title").?);
 }
 
-test "PageData: shared store visible across page and layout contexts" {
+test "page data > shared store visible across page and layout contexts" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -161,7 +161,7 @@ test "PageData: shared store visible across page and layout contexts" {
     try std.testing.expectEqualStrings("Meta", layout_ctx.data.get("description").?);
 }
 
-test "PageData: separate init contexts do not share" {
+test "page data > separate init contexts do not share" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -176,7 +176,7 @@ test "PageData: separate init contexts do not share" {
 
 // --- ErrorContext --- //
 
-test "ErrorContext: has error field" {
+test "error ctx > has error field" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -190,7 +190,7 @@ test "ErrorContext: has error field" {
     try std.testing.expectEqual(error.OutOfMemory, ctx.err);
 }
 
-test "ErrorContext: has request and response fields" {
+test "error ctx > has request and response fields" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -211,7 +211,7 @@ test "ErrorContext: has request and response fields" {
     try std.testing.expectEqual(@as(u16, 500), ctx.response.status);
 }
 
-test "ErrorContext: has allocator and arena fields" {
+test "error ctx > has allocator and arena fields" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -225,7 +225,7 @@ test "ErrorContext: has allocator and arena fields" {
     _ = ctx.io;
 }
 
-test "ServerMeta.page injects app/state positional values" {
+test "meta > page injects app/state positional values" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -243,7 +243,7 @@ test "ServerMeta.page injects app/state positional values" {
     try std.testing.expectEqual(@as(i32, 42), seen_page_state_count);
 }
 
-test "ServerMeta.layout injects app/state positional values" {
+test "meta > layout injects app/state positional values" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -263,7 +263,7 @@ test "ServerMeta.layout injects app/state positional values" {
     try std.testing.expectEqual(@as(i32, 7), seen_layout_state_count);
 }
 
-test "ServerMeta.page injects null for optional app parameter" {
+test "meta > page injects null for optional app param" {
     var buffer: [4096]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
@@ -279,33 +279,33 @@ test "ServerMeta.page injects null for optional app parameter" {
     try std.testing.expect(OptionalPageModule.saw_null);
 }
 
-test "tryExtractParams: glob_all catch-all matches nested paths" {
+test "params > glob_all catch-all matches nested paths" {
     var m = RouteMatch{ .route = undefined };
     try std.testing.expect(tryExtractParams("/:*", "/anything/everything", &m));
     try std.testing.expectEqual(@as(usize, 1), m.param_count);
     try std.testing.expectEqualStrings("anything", m.getParam("*").?);
 }
 
-test "tryExtractParams: glob_all catch-all matches single segment" {
+test "params > glob_all catch-all matches single segment" {
     var m = RouteMatch{ .route = undefined };
     try std.testing.expect(tryExtractParams("/:*", "/anything", &m));
     try std.testing.expectEqualStrings("anything", m.getParam("*").?);
 }
 
-test "tryExtractParams: static route does not match extra segments" {
+test "params > static route does not match extra segments" {
     var m = RouteMatch{ .route = undefined };
     try std.testing.expect(!tryExtractParams("/search.json", "/search.json/extra", &m));
 }
 
-test "tryExtractParams: static route matches exactly" {
+test "params > static route matches exactly" {
     var m = RouteMatch{ .route = undefined };
     try std.testing.expect(tryExtractParams("/search.json", "/search.json", &m));
 }
 
-test "patternMatchScore: static routes outrank catch-all params" {
+test "score > static routes outrank catch-all params" {
     try std.testing.expect(patternMatchScore("/search.json") > patternMatchScore("/:*"));
 }
 
-test "patternMatchScore: root route is specific" {
+test "score > root route is specific" {
     try std.testing.expect(patternMatchScore("/") > patternMatchScore("/:*"));
 }

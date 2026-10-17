@@ -24,7 +24,7 @@ test "formatting" {
     try std.testing.expect(std.mem.indexOf(u8, result, "width: 100px;") != null);
 }
 
-test "in Component" {
+test "in component" {
     const allocator = std.testing.allocator;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();

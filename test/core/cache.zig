@@ -143,7 +143,7 @@ test "stress many entries without expiration" {
     try std.testing.expectEqual(@as(usize, 512), keys.len);
 }
 
-test "list and delPrefix work for live entries" {
+test "list and del prefix work for live entries" {
     try ensureCache();
     defer cleanupCache();
 
@@ -212,7 +212,7 @@ test "scoped namespaces are isolated" {
     try std.testing.expectEqualStrings("default-value", default_value);
 }
 
-test "putAs/as roundtrip typed value" {
+test "typed roundtrip" {
     try ensureCache();
     defer cleanupCache();
 
@@ -253,7 +253,7 @@ test "as returns invalid type on schema mismatch" {
     try std.testing.expectError(error.InvalidType, cache.as(allocator, key, ProfileAlias));
 }
 
-test "scoped putAs/as roundtrip typed value" {
+test "scoped typed roundtrip" {
     try ensureCache();
     defer cleanupCache();
 

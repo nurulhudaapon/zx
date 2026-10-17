@@ -132,7 +132,7 @@ test "scoped() enum literal routes to a distinct namespace" {
     try std.testing.expectEqualStrings("in-default", from_default);
 }
 
-test "putAs/as roundtrip typed value" {
+test "typed roundtrip" {
     var key_buf: [64]u8 = undefined;
     const key = try uniqueLabel("kv-typed-key", &key_buf);
 
@@ -167,7 +167,7 @@ test "as returns invalid type on schema mismatch" {
     try std.testing.expectError(error.InvalidType, kv.as(allocator, key, UserAlias));
 }
 
-test "scoped putAs/as roundtrip typed value" {
+test "scoped typed roundtrip" {
     var ns_buf: [64]u8 = undefined;
     var key_buf: [64]u8 = undefined;
 

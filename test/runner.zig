@@ -186,7 +186,11 @@ pub fn main(init: std.process.Init) !void {
                 else => " ",
             };
             Printer.status(status, "{s}", .{checkmark});
-            Printer.fmt(" {s} \x1b[90m>\x1b[0m {s} ", .{ scope_name, friendly_name });
+            Printer.fmt(" ", .{});
+            Printer.name(scope_name);
+            Printer.name(" > ");
+            Printer.name(friendly_name);
+            Printer.fmt(" ", .{});
             Printer.fmt("\x1b[90m[{d:.2}ms]", .{ms});
             if (retried) {
                 Printer.fmt(" \x1b[33m⟳{d}\x1b[90m", .{attempt + 1});
@@ -239,6 +243,20 @@ pub fn main(init: std.process.Init) !void {
 const Printer = struct {
     fn fmt(comptime format: []const u8, args: anytype) void {
         std.debug.print(format, args);
+    }
+
+    fn name(test_name: []const u8) void {
+        var start: usize = 0;
+        var i: usize = 0;
+        while (i + 3 <= test_name.len) {
+            const sep = test_name[i..][0..3];
+            if (std.mem.eql(u8, sep, " > ") or std.mem.eql(u8, sep, " | ")) {
+                std.debug.print("{s} \x1b[90m{c}\x1b[0m ", .{ test_name[start..i], sep[1] });
+                i += 3;
+                start = i;
+            } else i += 1;
+        }
+        std.debug.print("{s}", .{test_name[start..]});
     }
 
     fn status(s: Status, comptime format: []const u8, args: anytype) void {

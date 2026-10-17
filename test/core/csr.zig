@@ -40,8 +40,8 @@ test "flaky: performance > csr" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr create \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} rows, ~{d} bytes)\n",
+        test_util.perf(
+            "csr create > {d:.2}ms | {f} ({d} rows, ~{d} bytes)",
             .{ ms, rate, ROW_COUNT, bytes },
         );
         try expectLessThan(3.5 * BUDGET_MULT, ms);
@@ -75,8 +75,8 @@ test "flaky: performance > csr" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr update \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr update > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(4.0 * BUDGET_MULT, ms);
@@ -103,8 +103,8 @@ test "flaky: performance > csr" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr clear \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr clear > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(0.5 * BUDGET_MULT, ms);
@@ -138,8 +138,8 @@ test "flaky: performance > csr" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr swap \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr swap > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(5.0 * BUDGET_MULT, ms);
@@ -173,8 +173,8 @@ test "flaky: performance > csr" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(combined);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr append \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr append > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(8.0 * BUDGET_MULT, ms);
@@ -211,8 +211,8 @@ test "flaky: performance > csr extreme" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr create 10k \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} rows, ~{d} bytes)\n",
+        test_util.perf(
+            "csr create 10k > {d:.2}ms | {f} ({d} rows, ~{d} bytes)",
             .{ ms, rate, LARGE_ROW_COUNT, bytes },
         );
         try expectLessThan(40.0 * BUDGET_MULT, ms);
@@ -246,8 +246,8 @@ test "flaky: performance > csr extreme" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr update 10k \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr update 10k > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(45.0 * BUDGET_MULT, ms);
@@ -274,8 +274,8 @@ test "flaky: performance > csr extreme" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr clear 10k \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr clear 10k > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(5.0 * BUDGET_MULT, ms);
@@ -309,8 +309,8 @@ test "flaky: performance > csr extreme" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(items);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr swap 10k \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr swap 10k > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(55.0 * BUDGET_MULT, ms);
@@ -344,8 +344,8 @@ test "flaky: performance > csr extreme" {
         const ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
         const bytes = approxTreeBytes(combined);
         const rate = test_util.Throughput.init(bytes, elapsed_ns);
-        std.debug.print(
-            "\x1b[33m⏲\x1b[0m csr append 1k→10k \x1b[90m>\x1b[0m {d:.2}ms | {f} ({d} patches)\n",
+        test_util.perf(
+            "csr append 1k→10k > {d:.2}ms | {f} ({d} patches)",
             .{ ms, rate, patches.items.len },
         );
         try expectLessThan(20.0 * BUDGET_MULT, ms);

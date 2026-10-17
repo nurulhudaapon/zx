@@ -9,13 +9,13 @@ const Props = struct {
     count: i32 = 0,
 };
 
-test "coerce: fills defaults for missing fields" {
+test "coerce > fills defaults for missing fields" {
     const coerced = props.coerce(Props, .{ .title = "hi" });
     try testing.expectEqualStrings("hi", coerced.title);
     try testing.expectEqual(@as(i32, 0), coerced.count);
 }
 
-test "coerce: keeps provided fields" {
+test "coerce > keeps provided fields" {
     const coerced = props.coerce(Props, .{ .title = "x", .count = 7 });
     try testing.expectEqualStrings("x", coerced.title);
     try testing.expectEqual(@as(i32, 7), coerced.count);
@@ -47,7 +47,7 @@ test "json > serializes named fields" {
     try testing.expect(std.mem.indexOf(u8, encoded, "5") != null);
 }
 
-test "props.Merged > override wins and adds new fields" {
+test "merged > override wins and adds new fields" {
     const Base = struct { a: i32 = 1, b: []const u8 = "b" };
     const Override = struct { b: []const u8 = "B", c: bool = true };
     const M = props.Merged(Base, Override);

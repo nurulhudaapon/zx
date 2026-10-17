@@ -52,7 +52,7 @@ fn freeEvents(allocator: std.mem.Allocator, events: *std.ArrayList(Event)) void 
     events.deinit(allocator);
 }
 
-test "parseStatusWord recognizes success/cached/failure" {
+test "parse > status word recognizes success/cached/failure" {
     try std.testing.expectEqual(StepStatus.success, parseStatusWord("success 35s MaxRSS:964M").?);
     try std.testing.expectEqual(StepStatus.cached, parseStatusWord("cached 102ms MaxRSS:32M").?);
     try std.testing.expectEqual(StepStatus.failure, parseStatusWord("1 errors").?);
@@ -60,14 +60,14 @@ test "parseStatusWord recognizes success/cached/failure" {
     try std.testing.expectEqual(@as(?StepStatus, null), parseStatusWord("(reused)"));
 }
 
-test "parseInstallStatus parses server/client lines" {
+test "parse > install status server/client lines" {
     try std.testing.expectEqual(StepStatus.success, parseInstallStatus("install server ziex_app success 35s", "server").?);
     try std.testing.expectEqual(StepStatus.cached, parseInstallStatus("install server ziex_app cached 102ms", "server").?);
     try std.testing.expectEqual(StepStatus.success, parseInstallStatus("install client ziex_app success", "client").?);
     try std.testing.expectEqual(@as(?StepStatus, null), parseInstallStatus("install ziex_app success", "server"));
 }
 
-test "stripTreePrefix handles unicode and ascii trees" {
+test "strip tree prefix handles unicode and ascii trees" {
     try std.testing.expectEqualStrings("install server x success", stripTreePrefix("│  └─ install server x success"));
     try std.testing.expectEqualStrings("install server x success", stripTreePrefix("|  +- install server x success"));
     try std.testing.expectEqualStrings("install x success", stripTreePrefix("├─ install x success"));
@@ -78,7 +78,7 @@ test "stripTreePrefix handles unicode and ascii trees" {
 //     try std.testing.expectEqualStrings("install server ziex_app success", out);
 // }
 
-test "FirstOutput.txt: first cycle is success, second is cached" {
+test "first output > first cycle is success, second is cached" {
     const allocator = std.testing.allocator;
     var state = BuildState.init(allocator);
     defer state.deinit();
@@ -102,7 +102,7 @@ test "FirstOutput.txt: first cycle is success, second is cached" {
     try std.testing.expect(found_restart);
 }
 
-test "FirstOutput.txt: second cycle is no-change (all cached)" {
+test "first output > second cycle is no-change (all cached)" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
 
     const allocator = std.testing.allocator;
@@ -129,7 +129,7 @@ test "FirstOutput.txt: second cycle is no-change (all cached)" {
     try std.testing.expectEqual(@as(usize, 1), no_change_count);
 }
 
-test "ChangeOutput.txt: server+client success triggers should_restart" {
+test "change output > server+client success triggers should_restart" {
     const allocator = std.testing.allocator;
     var state = BuildState.init(allocator);
     state.first_build_done = true;
@@ -155,7 +155,7 @@ test "ChangeOutput.txt: server+client success triggers should_restart" {
     try std.testing.expect(!found_no_change);
 }
 
-test "synthetic: all-cached tree emits no_change, not restart" {
+test "synthetic > all-cached tree emits no_change, not restart" {
     const allocator = std.testing.allocator;
     var state = BuildState.init(allocator);
     state.first_build_done = true;
@@ -189,7 +189,7 @@ test "synthetic: all-cached tree emits no_change, not restart" {
     try std.testing.expect(found_no_change);
 }
 
-test "synthetic: server success only (zx edit rebuilds server)" {
+test "synthetic > server success only (zx edit rebuilds server)" {
     const allocator = std.testing.allocator;
     var state = BuildState.init(allocator);
     state.first_build_done = true;
@@ -216,7 +216,7 @@ test "synthetic: server success only (zx edit rebuilds server)" {
     try std.testing.expect(found_restart);
 }
 
-test "synthetic: client success only (zx edit rebuilds wasm)" {
+test "synthetic > client success only (zx edit rebuilds wasm)" {
     const allocator = std.testing.allocator;
     var state = BuildState.init(allocator);
     state.first_build_done = true;
@@ -247,7 +247,7 @@ test "synthetic: client success only (zx edit rebuilds wasm)" {
     try std.testing.expect(!found_no_change);
 }
 
-test "synthetic: asset-only change emits assets_installed" {
+test "synthetic > asset-only change emits assets_installed" {
     const allocator = std.testing.allocator;
     var state = BuildState.init(allocator);
     state.first_build_done = true;
@@ -355,7 +355,7 @@ test "windows watch output detects build start and restart" {
     try std.testing.expect(change_count >= 1);
 }
 
-test "parseDiagnostic - errors" {
+test "parse > diagnostic errors" {
     const allocator = std.testing.allocator;
     const diag = parseDiagnostic(allocator, ".zig-cache/app/pages/page.zig:95:12: error: expected ',' after field").?;
     defer allocator.free(diag.file);
@@ -365,19 +365,19 @@ test "parseDiagnostic - errors" {
     try std.testing.expectEqual(@as(u32, 12), diag.col);
 }
 
-test "isBuildCommand handles windows zig path and rejects other tools" {
+test "is build cmd handles windows zig path and rejects other tools" {
     try std.testing.expect(isBuildCommandForOs(.windows, "\"C:\\\\Users\\\\x\\\\zig.exe\" build-exe -ODebug"));
     try std.testing.expect(isBuildCommandForOs(.macos, "/Users/x/.asdf/installs/zig/0.17.0/zig build-lib -ODebug"));
     try std.testing.expect(!isBuildCommandForOs(.windows, "install -C foo bar"));
 }
 
-test "parseDurationMs handles common units" {
+test "parse > duration ms handles common units" {
     try std.testing.expectEqual(@as(?u64, 23), parseDurationMs("23ms"));
     try std.testing.expectEqual(@as(?u64, 1500), parseDurationMs("1.5s"));
     try std.testing.expectEqual(@as(?u64, null), parseDurationMs("cached"));
 }
 
-test "parseUserAssetInstall extracts web path" {
+test "parse > user asset install extracts web path" {
     const a = parseUserAssetInstall("install -C /proj/app/public/favicon.ico /proj/zig-out/static/favicon.ico").?;
     try std.testing.expectEqualStrings("favicon.ico", a.web_path);
     try std.testing.expect(parseUserAssetInstall("install -C .zig-cache/o/abc/main.wasm /proj/zig-out/static/assets/_/main.wasm") == null);

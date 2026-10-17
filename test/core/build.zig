@@ -2,7 +2,7 @@ const std = @import("std");
 const Build = @import("zx").Build;
 const AddElementOptions = Build.AddElementOptions;
 
-test "AddElementOptions.Pathname matches" {
+test "add element > pathname matches" {
     const all: AddElementOptions.Pathname = .{};
     try std.testing.expect(all.matches("/"));
     try std.testing.expect(all.matches("/docs"));

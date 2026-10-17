@@ -207,6 +207,24 @@ pub fn shouldGenerateDebugFiles() bool {
     return env_flags.sm_debug;
 }
 
+/// Prints a perf line prefixed with ⏲, dimming ` > ` and ` | ` separators like the test runner.
+pub fn perf(comptime format: []const u8, args: anytype) void {
+    var buf: [1024]u8 = undefined;
+    const line = std.fmt.bufPrint(&buf, format, args) catch format;
+    std.debug.print("\x1b[33m⏲\x1b[0m ", .{});
+    var start: usize = 0;
+    var i: usize = 0;
+    while (i + 3 <= line.len) {
+        const sep = line[i..][0..3];
+        if (std.mem.eql(u8, sep, " > ") or std.mem.eql(u8, sep, " | ")) {
+            std.debug.print("{s} \x1b[90m{c}\x1b[0m ", .{ line[start..i], sep[1] });
+            i += 3;
+            start = i;
+        } else i += 1;
+    }
+    std.debug.print("{s}\n", .{line[start..]});
+}
+
 /// Throughput for perf prints. Formats as MB/s when ≥ 1 MB/s, otherwise KB/s (SI units).
 pub const Throughput = struct {
     bytes: u64,

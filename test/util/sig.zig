@@ -64,7 +64,7 @@ test "double install fails" {
     try std.testing.expectError(error.AlreadyInstalled, sig.install());
 }
 
-test "watchGroup: SIGINT kills supervised process group" {
+test "watch group > SIGINT kills supervised process group" {
     if (comptime !is_posix) return error.SkipZigTest;
 
     if (comptime is_posix) {
@@ -103,7 +103,7 @@ test "watchGroup: SIGINT kills supervised process group" {
     }
 }
 
-test "killProcessGroup terminates pgid without requiring a signal" {
+test "kill group terminates pgid without requiring a signal" {
     if (comptime !is_posix) return error.SkipZigTest;
 
     if (comptime is_posix) {
@@ -132,7 +132,7 @@ test "killProcessGroup terminates pgid without requiring a signal" {
     }
 }
 
-test "raiseDefault restores SIG_DFL then terminates child with SIGINT" {
+test "raise default restores SIG_DFL then terminates child with SIGINT" {
     if (comptime !is_posix) return error.SkipZigTest;
 
     if (comptime is_posix) {
@@ -169,7 +169,7 @@ test "raiseDefault restores SIG_DFL then terminates child with SIGINT" {
     }
 }
 
-test "wakeFd is installed alongside handlers" {
+test "wake fd is installed alongside handlers" {
     if (comptime !is_posix) return error.SkipZigTest;
 
     if (comptime is_posix) {

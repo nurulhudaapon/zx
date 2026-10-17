@@ -257,7 +257,7 @@ test "completion > void tag completes without end tag" {
     try testing.expect(found);
 }
 
-test "hover > custom component does not use HTML element docs" {
+test "hover > custom component does not use html element docs" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -271,7 +271,7 @@ test "hover > custom component does not use HTML element docs" {
     try testing.expect((try html_hover.hoverMarkdown(arena, src, off)) == null);
 }
 
-test "completion > custom component does not suggest HTML attributes" {
+test "completion > custom component does not suggest html attributes" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -294,7 +294,7 @@ test "completion > custom component does not suggest HTML attributes" {
     }
 }
 
-test "hover > lowercase button still shows HTML docs" {
+test "hover > lowercase button still shows html docs" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -439,7 +439,7 @@ test "completion > zig less-than inside expression block stays null" {
 
 const lsp_text = html.text;
 
-test "text > positionToOffset counts utf-16 code units" {
+test "text > pos to offset counts utf-16 code units" {
     // `é` is two bytes but one utf-16 code unit, so the byte offset of the
     // character after "Café" is 5 while its utf-16 column is 4.
     const src = "Café x\nsecond\n";
@@ -458,7 +458,7 @@ test "text > positionToOffset counts utf-16 code units" {
     );
 }
 
-test "text > positionToOffset handles surrogate pairs" {
+test "text > pos to offset handles surrogate pairs" {
     // `🠁` is four bytes and two utf-16 code units.
     const src = "a🠁b\n";
 
@@ -472,7 +472,7 @@ test "text > positionToOffset handles surrogate pairs" {
     );
 }
 
-test "text > positionToOffset clamps to the end of the line" {
+test "text > pos to offset clamps to the end of the line" {
     const src = "ab\ncdef\n";
 
     // A column past the end of line 0 must not spill into line 1.
@@ -486,7 +486,7 @@ test "text > positionToOffset clamps to the end of the line" {
     );
 }
 
-test "text > offsetToPosition counts utf-16 code units" {
+test "text > offset to pos counts utf-16 code units" {
     const src = "Café x\nsecond\n";
 
     const pos = lsp_text.offsetToPosition(src, 5, .@"utf-16");
@@ -506,7 +506,7 @@ test "text > offsetToPosition counts utf-16 code units" {
     try testing.expectEqual(@as(u32, 0), second.character);
 }
 
-test "text > offsetToPosition roundtrips through positionToOffset" {
+test "text > offset to pos roundtrips through pos to offset" {
     const src = "<p>Café ↉ x</p>\n<b>🠁</b>\n";
 
     var offset: usize = 0;
@@ -518,7 +518,7 @@ test "text > offsetToPosition roundtrips through positionToOffset" {
     }
 }
 
-test "text > byteColumnToPosition counts utf-16 code units" {
+test "text > byte col to pos counts utf-16 code units" {
     const src = "a🠁b\nCafé x\n";
 
     const pos = lsp_text.byteColumnToPosition(src, 1, 5, .@"utf-16");
@@ -556,7 +556,7 @@ test "text > diagnostic columns are re-encoded" {
     try testing.expectEqual(tag_col - 1 + 4, end.character);
 }
 
-test "text > applyIncrementalChange edits at the utf-16 position" {
+test "text > incremental change edits at the utf-16 position" {
     const allocator = testing.allocator;
 
     const src = "pub fn Page() zx.Component {\n    return (<p>Café </p>);\n}\n";
@@ -580,7 +580,7 @@ test "text > applyIncrementalChange edits at the utf-16 position" {
     );
 }
 
-test "text > applyIncrementalChange replaces a range" {
+test "text > incremental change replaces a range" {
     const allocator = testing.allocator;
 
     const src = "<p>Café</p>\n";
@@ -599,7 +599,7 @@ test "text > applyIncrementalChange replaces a range" {
     try testing.expectEqualStrings("<p>Tea</p>\n", edited);
 }
 
-test "text > applyIncrementalChange rejects an inverted range" {
+test "text > incremental change rejects an inverted range" {
     const allocator = testing.allocator;
 
     try testing.expectError(error.InvalidRange, lsp_text.applyIncrementalChange(

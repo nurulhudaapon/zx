@@ -317,7 +317,7 @@ test "api > value types: null, blob, boolean round-trip" {
     try std.testing.expect(!row.isNull("flag"));
 }
 
-test "api > Row accessors coerce and default" {
+test "api > row accessors coerce and default" {
     var database = try openSeededDatabase();
     defer database.deinit();
 
@@ -379,7 +379,7 @@ test "api > typed row with optional and bool fields" {
     try std.testing.expectEqual(false, rows[1].flag);
 }
 
-test "api > Value.of comptime conversions" {
+test "api > value.of comptime conversions" {
     try std.testing.expectEqual(Db.Value.null, Db.Value.of(null));
     try std.testing.expectEqual(Db.Value{ .boolean = true }, Db.Value.of(true));
     try std.testing.expectEqual(Db.Value{ .integer = 7 }, Db.Value.of(@as(u8, 7)));
@@ -403,7 +403,7 @@ test "api > Value.of comptime conversions" {
     try std.testing.expectEqual(existing, Db.Value.of(existing));
 }
 
-test "api > explicit Bindings: positional and named slices" {
+test "api > explicit bindings positional and named slices" {
     var database = try openSeededDatabase();
     defer database.deinit();
 
@@ -506,7 +506,7 @@ test "api > iterate abandoned early frees the in-flight row" {
     it.deinit();
 }
 
-test "api > statement toString returns the prepared sql" {
+test "api > statement to string returns the prepared sql" {
     var database = try openTestDatabase();
     defer database.deinit();
 
@@ -613,7 +613,7 @@ fn requireClosedStatement() !void {
     _ = try statement.all(std.testing.allocator, .{});
 }
 
-test "api > failing connection returns Closed" {
+test "api > failing connection returns closed" {
     const database = Db.failing;
 
     try std.testing.expectError(Db.DbError.Closed, database.prepare("SELECT 1"));
@@ -625,7 +625,7 @@ test "api > failing connection returns Closed" {
     try std.testing.expectError(Db.DbError.Closed, database.all(arena.allocator(), "SELECT 1", .{}));
 }
 
-test "api > Db.Sqlite.from recovers the backend" {
+test "api > sqlite.from recovers the backend" {
     var database = try openTestDatabase();
     defer database.deinit();
 
