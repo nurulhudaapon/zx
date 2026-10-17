@@ -88,7 +88,7 @@ fi
 echo "==> Building and publishing ziex to local registry..."
 cd "$SCRIPT_DIR/ziex"
 rm -rf dist
-zig build -p dist -Dversion="$VERSION"
+zig build -p dist -Dfrom-source=true -Dversion="$VERSION"
 cd dist
 publish_idempotent ziex
 

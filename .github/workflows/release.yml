@@ -361,7 +361,7 @@ jobs:
         run: |
           cd pkg/ziex
           rm -rf dist
-          zig build -p dist -Dversion="$VERSION"
+          zig build -p dist -Dfrom-source=true -Dversion="$VERSION"
           cd dist
           rc=0
           out=$(npm publish --access public --provenance --tag "$DIST_TAG" 2>&1) || rc=$?

@@ -8,7 +8,7 @@
         .esbuild = .{ .path = "../pkg/plugin-esbuild" },
         .tailwindcss = .{ .path = "../pkg/plugin-tailwindcss" },
         .ui = .{ .path = "../pkg/ui" },
-        .ziex_jsbindings = .{ .path = "../pkg/ziex" },
+        .ziex_js = .{ .path = "../pkg/ziex" },
         .dusty = .{
             .url = "git+https://github.com/lalinsky/dusty#6f7544f99ec2540e93b0e864d618f8b9f771a414",
             .hash = "dusty-0.3.1-Qdw7RkH1IQBOa3m2yEhRHPW8J-q--UWYwobluQpxqM8q",

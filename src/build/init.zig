@@ -60,20 +60,19 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         break :blk zx_wasm_dep.module("zx");
     } else null;
 
-    const ziex_js_root: LazyPath = if (client.bindings.build != null) blk: {
-        const jsbindings_dep = zx_dep.builder.lazyDependency("ziex_jsbindings", .{
+    const ziex_js_root: LazyPath = blk: {
+        const from_source = client.bindings.build != null;
+        const ziex_js_dep = zx_dep.builder.lazyDependency("ziex_js", .{
             .optimize = optimize,
             .target = target,
+            .@"from-source" = from_source,
             .@"type-decl" = false,
             .@"feature-kv-client" = if (features.kv) |k| k.client != null else false,
             .@"feature-kv-server" = if (features.kv) |k| k.server != null else false,
             .@"feature-sqlite" = if (features.sqlite) |s| s.server != null else false,
             .@"feature-wasm-client" = build_client_wasm,
         }) orelse break :blk b.path(".");
-        break :blk jsbindings_dep.namedWriteFiles("ziex_js").getDirectory();
-    } else blk: {
-        const ziex_js_dep = zx_dep.builder.lazyDependency("ziex_js", .{}) orelse break :blk b.path(".");
-        break :blk ziex_js_dep.path(".");
+        break :blk ziex_js_dep.namedWriteFiles("ziex_js").getDirectory();
     };
 
     var opts: Resolved = .{
@@ -636,7 +635,7 @@ const Resolved = struct {
     features: InitOptions.AppOptions.FeatureOptions = .default,
     client: InitOptions.ClientOptions,
     static_path: ?LazyPath,
-    /// Root of the JS bindings package (npm `ziex_js`, or esbuild output when `bindings.build` is set).
+    /// Root of the JS bindings package (`pkg/ziex` prebuilt or esbuild output when `bindings.build` is set).
     ziex_js_root: LazyPath,
     element_injections: []const AddElementOptions = &.{},
     version: ?[]const u8 = null,

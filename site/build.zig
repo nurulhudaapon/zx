@@ -43,9 +43,10 @@ pub fn build(b: *std.Build) !void {
     const tree_sitter_dep = ziex_dep.builder.dependency("tree_sitter", .{ .optimize = optimize, .target = target });
     const tree_sitter_zx_dep = ziex_dep.builder.dependency("tree_sitter_zx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
     // const tree_sitter_mdzx_dep = ziex_dep.builder.dependency("tree_sitter_mdzx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
-    const ziex_jsbindings_dep = b.dependency("ziex_jsbindings", .{
+    const ziex_js_dep = b.dependency("ziex_js", .{
         .optimize = optimize,
         .target = target,
+        .@"from-source" = true,
         .@"type-decl" = false,
         .@"feature-kv-client" = if (app_features.kv) |k| k.client != null else false,
         .@"feature-kv-server" = if (app_features.kv) |k| k.server != null else false,
@@ -93,7 +94,7 @@ pub fn build(b: *std.Build) !void {
         run_jsz_tar.addDirectoryArg(zx_wasm_dep.path("vendor/jsz"));
         run_jsz_tar.addArg("src");
 
-        const ziex_js_files = ziex_jsbindings_dep.namedWriteFiles("ziex_js");
+        const ziex_js_files = ziex_js_dep.namedWriteFiles("ziex_js");
         const pg_init_js = ziex_js_files.getDirectory().path(b, "wasm/init.js");
 
         const playground_assets = b.addNamedWriteFiles("playground_assets");
@@ -355,7 +356,7 @@ pub fn build(b: *std.Build) !void {
 
         // const install_main_js = b.addInstallFile(site_scripts.dir.path(b, "client.js"), b.fmt("static/assets/main{s}.js", .{id}));
         if (build_client_wasm and app_client.bindings.link) {
-            const ziex_js_files = ziex_jsbindings_dep.namedWriteFiles("ziex_js");
+            const ziex_js_files = ziex_js_dep.namedWriteFiles("ziex_js");
             const init_name = if (is_release) "init.js" else "init.dev.js";
             const init_js = ziex_js_files.getDirectory().path(b, b.fmt("wasm/{s}", .{init_name}));
             const install_main_js = b.addInstallFile(init_js, b.fmt("static/assets/{s}", .{jsbinding_name}));

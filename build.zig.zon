@@ -7,14 +7,7 @@
     .fingerprint = 0x249409a7bd1c7667,
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        // Ziex JS - The JavaScript glue code for csr/wasi/cloudflare/aws-lambda/vercel/react
-        .ziex_js = .{
-            // TODO: publish to github packages and use from there instead
-            .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.1574.tgz",
-            .hash = "ziex_js-0.1.0-dev-v1W0GUZABQBlAoFzVuNHoJJnbLW-x9kCrewBVPRvmEDu",
-            .lazy = true,
-        },
-        .ziex_jsbindings = .{ .path = "pkg/ziex", .lazy = true }, // source of JS Bindings to be built with esbuild
+        .ziex_js = .{ .path = "pkg/ziex", .lazy = true },
         // httpz - HTTP server for Ziex
         .httpz = .{
             .url = "git+https://github.com/ziex-dev/httpz.git#e8272bfd5727aade0dcee3e2aba6c50f57c374b6",

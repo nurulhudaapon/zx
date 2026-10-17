@@ -6,7 +6,8 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
     _ = target;
-    const type_decl = b.option(bool, "type-decl", "Generate type declarations") orelse true;
+    const from_source = b.option(bool, "from-source", "Build JS bindings from TypeScript (esbuild) instead of the prebuilt npm package") orelse false;
+    const type_decl = b.option(bool, "type-decl", "Generate type declarations (from-source only)") orelse true;
     const version = b.option([]const u8, "version", "npm package version to embed") orelse build_zon.version;
     const is_release = optimize != .debug;
 
@@ -17,8 +18,6 @@ pub fn build(b: *std.Build) !void {
     const feat_sqlite = b.option(bool, "feature-sqlite", "Include SQLite/D1 database bindings") orelse true;
     const feat_wasm_client = b.option(bool, "feature-wasm-client", "Include browser wasm init bindings") orelse true;
 
-    const feature_defines = featureDefines(b, feat_kv_client, feat_kv_server, feat_sqlite, feat_wasm_client);
-
     // --- Codegen (manual only; committed outputs live under src/wasm/generated/) --- //
     const tags_gen = addTagsCodegen(b);
     const events_gen = addEventsCodegen(b);
@@ -26,6 +25,45 @@ pub fn build(b: *std.Build) !void {
     tagsgen_step.dependOn(&tags_gen.step);
     const eventsgen_step = b.step("delegatedeventsgen", "Regenerate src/wasm/generated/events.ts from EventType");
     eventsgen_step.dependOn(&events_gen.step);
+
+    const dist_files = b.addNamedWriteFiles("ziex_js");
+
+    if (!from_source) {
+        // --- Prebuilt npm package --- //
+        if (b.lazyDependency("prebuilt", .{})) |prebuilt| {
+            _ = dist_files.addCopyDirectory(prebuilt.path("."), "", .{});
+        }
+    } else {
+        try buildFromSource(b, dist_files, .{
+            .is_release = is_release,
+            .type_decl = type_decl,
+            .version = version,
+            .feat_kv_client = feat_kv_client,
+            .feat_kv_server = feat_kv_server,
+            .feat_sqlite = feat_sqlite,
+            .feat_wasm_client = feat_wasm_client,
+        });
+    }
+
+    b.getInstallStep().dependOn(&b.addInstallDirectory(.{
+        .source_dir = dist_files.getDirectory(),
+        .install_dir = .prefix,
+        .install_subdir = "",
+    }).step);
+}
+
+const FromSourceOptions = struct {
+    is_release: bool,
+    type_decl: bool,
+    version: []const u8,
+    feat_kv_client: bool,
+    feat_kv_server: bool,
+    feat_sqlite: bool,
+    feat_wasm_client: bool,
+};
+
+fn buildFromSource(b: *std.Build, dist_files: *std.Build.Step.WriteFile, opts: FromSourceOptions) !void {
+    const feature_defines = featureDefines(b, opts.feat_kv_client, opts.feat_kv_server, opts.feat_sqlite, opts.feat_wasm_client);
 
     // --- JS bundles (esbuild) --- //
     const packages = esbuild.addBuild(b, .{
@@ -43,9 +81,9 @@ pub fn build(b: *std.Build) !void {
             },
             .format = .esm,
             .platform = .neutral,
-            .minify = is_release,
+            .minify = opts.is_release,
             .define = try mergeDefines(b, &.{
-                .{ .key = "__DEV__", .value = if (is_release) "false" else "true" },
+                .{ .key = "__DEV__", .value = if (opts.is_release) "false" else "true" },
             }, feature_defines),
         },
     });
@@ -75,7 +113,6 @@ pub fn build(b: *std.Build) !void {
             }, feature_defines),
         },
     });
-    const dist_files = b.addNamedWriteFiles("ziex_js");
 
     // --- App init files --- //
     {
@@ -85,7 +122,7 @@ pub fn build(b: *std.Build) !void {
 
     // --- Static package files --- //
     {
-        _ = dist_files.addCopyFile(try makePublishPackageJson(b, version), "package.json");
+        _ = dist_files.addCopyFile(try makePublishPackageJson(b, opts.version), "package.json");
         _ = dist_files.addCopyFile(b.path("../../README.md"), "README.md");
         _ = dist_files.addCopyFile(b.path("bin/ziex"), "bin/ziex");
         _ = dist_files.addCopyFile(makePublishBuildZig(b), "build.zig");
@@ -96,7 +133,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     // --- TypeScript declarations --- //
-    if (type_decl) {
+    if (opts.type_decl) {
         const typescript = @import("typescript");
         const dts = typescript.addBuild(b, .{
             .name = "ziex.d.ts",
@@ -106,12 +143,6 @@ pub fn build(b: *std.Build) !void {
         });
         _ = dist_files.addCopyDirectory(dts.dir.path(b, "pkg/ziex/src"), "", .{});
     }
-
-    b.getInstallStep().dependOn(&b.addInstallDirectory(.{
-        .source_dir = dist_files.getDirectory(),
-        .install_dir = .prefix,
-        .install_subdir = "",
-    }).step);
 }
 
 fn featureDefines(

@@ -39,8 +39,8 @@
   "author": "Nurul Huda (Apon) <me@nurulhudaapon.com>",
   "license": "MIT",
   "scripts": {
-    "build": "zig build -p dist",
-    "publish": "zig build -p dist && cd dist && npm publish"
+    "build": "zig build -p dist -Dfrom-source=true",
+    "publish": "zig build -p dist -Dfrom-source=true && cd dist && npm publish"
   },
   "dependencies": {
     "@ziex/cli": "0.1.0-dev.1252"
