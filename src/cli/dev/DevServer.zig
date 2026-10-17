@@ -489,7 +489,9 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
             handleOpenInEditor(ds, target) catch |err| {
                 log.debug("handleOpenInEditor failed: {s}", .{@errorName(err)});
             };
+            // 204 keeps the browser on the current page when opened via a plain link.
             try req.respond("", .{
+                .status = .no_content,
                 .extra_headers = &(cors_headers ++ [_]http.Header{
                     .{ .name = "Connection", .value = "close" },
                 }),
