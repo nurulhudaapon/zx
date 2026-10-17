@@ -1,4 +1,9 @@
-import { createDocsSnippetFiles, createPlaygroundShareUrl } from "./playground_share";
+import {
+  createDocsSnippetFilesFromEntries,
+  createPlaygroundShareUrl,
+  isPlaygroundOpenable,
+  type SnippetEntry,
+} from "./playground_share";
 
 const GREEN = "#4ade80";
 const GREEN_DIM = "rgba(74, 222, 128, 0.45)";
@@ -103,6 +108,80 @@ function extractCodeFromPanel(panel: HTMLElement | null): string {
   return codeElement.textContent?.trim() || "";
 }
 
+function filenameFromSection(section: string | undefined, fallback: string): string {
+  if (!section) return fallback;
+  const lower = section.toLowerCase();
+  if (lower.includes("layout")) return "layout.zx";
+  if (lower.includes("websocket") || lower.includes("api route") || /(^|:\s*)route\b/.test(lower)) {
+    return "route.zig";
+  }
+  if (lower.endsWith(": page") || lower.includes("routing: page") || lower.includes("dynamic path")) {
+    return "page.zx";
+  }
+  if (lower.includes("client-side")) return "page.zx";
+  return fallback;
+}
+
+function filenameFromTitle(title: string | null | undefined): string {
+  const raw = (title ?? "").trim();
+  if (!raw) return "example.zx";
+  return raw;
+}
+
+function collectHomeSnippetEntries(container: Element): SnippetEntry[] {
+  const title = container.querySelector(".code-example-title")?.textContent?.trim() ?? "";
+
+  if (container.classList.contains("code-example--tabs")) {
+    const panels = Array.from(container.querySelectorAll<HTMLElement>(".code-example-panel"));
+    const labels = Array.from(container.querySelectorAll<HTMLLabelElement>(".code-example-tab-label"));
+    const entries: SnippetEntry[] = [];
+
+    for (let i = 0; i < panels.length; i++) {
+      const panel = panels[i];
+      const code = extractCodeFromPanel(panel);
+      if (!code) continue;
+      const section = panel.dataset.section;
+      const label = labels[i]?.textContent?.trim() ?? "example";
+      const filename = filenameFromSection(section, `${label.toLowerCase().replace(/\s+/g, "-")}.zx`);
+      entries.push({ code, filename });
+    }
+
+    const hasPageFile = entries.some((e) => e.filename === "page.zx");
+    const hasLayoutFile = entries.some((e) => e.filename === "layout.zx");
+    // File-system routing demos ship page + layout together; open both in app mode.
+    if (hasPageFile && hasLayoutFile) {
+      return entries.filter((e) => e.filename === "page.zx" || e.filename === "layout.zx");
+    }
+
+    const visible = getVisibleCodePanel(container);
+    if (!visible) return entries.slice(0, 1);
+    const code = extractCodeFromPanel(visible);
+    if (!code) return [];
+    const section = visible.dataset.section;
+    const idx = panels.indexOf(visible);
+    const label = labels[idx]?.textContent?.trim() ?? "example";
+    return [
+      {
+        code,
+        filename: filenameFromSection(section, `${label.toLowerCase().replace(/\s+/g, "-")}.zx`),
+      },
+    ];
+  }
+
+  if (container.classList.contains("code-preview-example")) {
+    const panel =
+      container.querySelector<HTMLElement>(".code-preview-code .code-example-panel") ||
+      container.querySelector<HTMLElement>("pre code");
+    const code = panel?.textContent?.trim() || "";
+    if (!code) return [];
+    return [{ code, filename: filenameFromTitle(title) || "page.zx" }];
+  }
+
+  const code = container.querySelector("pre code")?.textContent?.trim() || "";
+  if (!code) return [];
+  return [{ code, filename: filenameFromTitle(title) }];
+}
+
 function setupHomeCodeExampleButtons() {
   const buttons = document.querySelectorAll<HTMLButtonElement>(".code-example-open-playground");
   if (buttons.length === 0) return;
@@ -113,18 +192,12 @@ function setupHomeCodeExampleButtons() {
       const container = button.closest(".code-example, .code-preview-example");
       if (!container) return;
 
-      let code = "";
-      if (container.classList.contains("code-example--tabs")) {
-        code = extractCodeFromPanel(getVisibleCodePanel(container));
-      } else if (container.classList.contains("code-preview-example")) {
-        const panel =
-          container.querySelector<HTMLElement>(".code-preview-code .code-example-panel") ||
-          container.querySelector<HTMLElement>("pre code");
-        if (panel) code = panel.textContent?.trim() || "";
-      }
-      if (!code) return;
+      const entries = collectHomeSnippetEntries(container).filter((entry) =>
+        isPlaygroundOpenable(entry.filename, entry.code)
+      );
+      if (entries.length === 0) return;
 
-      const files = createDocsSnippetFiles(code, "example.zx");
+      const files = createDocsSnippetFilesFromEntries(entries);
       const url = await createPlaygroundShareUrl(files, `${window.location.origin}/playground`);
       window.open(url, "_blank", "noopener,noreferrer");
     });

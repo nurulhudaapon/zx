@@ -688,14 +688,23 @@ function loadTemplateFiles(templateId = activeTemplateId) {
 
 function ensureBaselinePlaygroundFiles(filesDecoded: { [filename: string]: string }): { [filename: string]: string } {
     const normalized: { [filename: string]: string } = { ...filesDecoded };
-    const looksLikeApp = Boolean(normalized["app/pages/page.zx"] || normalized["app/main.zig"]);
+    const looksLikeApp = Boolean(
+        normalized["app/pages/page.zx"] ||
+            normalized["app/main.zig"] ||
+            normalized["app/pages/layout.zx"] ||
+            Object.keys(normalized).some((name) => name.startsWith("app/routes/") && name.endsWith("route.zig")),
+    );
 
     if (looksLikeApp) {
         playgroundMode = "app";
         activeTemplateId = defaultTemplateId("app");
-        const fallback = getTemplate(activeTemplateId)!.files;
-        for (const [name, content] of Object.entries(fallback)) {
-            if (!normalized[name]) normalized[name] = content;
+        // Shared snippets often ship a minimal shell (page/layout/route only).
+        // Only fill app/main.zig — do not pull the full default app tree.
+        const appMain =
+            getTemplate("app")?.files["app/main.zig"] ??
+            getTemplate(activeTemplateId)?.files["app/main.zig"];
+        if (appMain && !normalized["app/main.zig"]) {
+            normalized["app/main.zig"] = appMain;
         }
         return normalized;
     }

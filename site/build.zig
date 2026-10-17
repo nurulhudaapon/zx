@@ -252,41 +252,24 @@ pub fn build(b: *std.Build) !void {
         ui_mod.addImport("zx", zx.zx_module);
         zx.addImport("ui", ui_mod);
 
-        const template_path = b.path("../templates/_base/app");
-        // Layout
-        const template_layout_mod = zx.addComponent(.{
-            .root_source_file = template_path.path(b, "pages/layout.zx"),
-        });
-        zx.addImport("tmpl_layout", template_layout_mod);
-        // Home page
-        const template_ui_root_mod = zx.addComponent(.{
-            .root_source_file = template_path.path(b, "pages/page.zx"),
-        });
-        zx.addImport("tmpl_home", template_ui_root_mod);
-
-        // /form page
-        const template_form_root_mod = zx.addComponent(.{
-            .root_source_file = template_path.path(b, "pages/form/page.zx"),
-        });
-        zx.addImport("tmpl_form", template_form_root_mod);
-
-        // /actions
-        const template_actions_root_mod = zx.addComponent(.{
-            .root_source_file = template_path.path(b, "pages/actions/page.zx"),
-        });
-        zx.addImport("tmpl_actions", template_actions_root_mod);
-
-        // /actions/client
-        const template_actions_client_mod = zx.addComponent(.{
-            .root_source_file = template_path.path(b, "pages/actions/client/page.zx"),
-        });
-        zx.addImport("tmpl_actions_client", template_actions_client_mod);
-
-        // /actions/server
-        const template_actions_server_mod = zx.addComponent(.{
-            .root_source_file = template_path.path(b, "pages/actions/server/page.zx"),
-        });
-        zx.addImport("tmpl_actions_server", template_actions_server_mod);
+        // templates/_base pages, mounted under /template
+        const template_path = b.path("../templates/_base/app/pages");
+        const template_pages = [_]struct { []const u8, []const u8 }{
+            .{ "tmpl_layout", "layout.zx" },
+            .{ "tmpl_home", "page.zx" },
+            .{ "tmpl_form", "form/page.zx" },
+            .{ "tmpl_actions", "actions/page.zx" },
+            .{ "tmpl_events", "events/page.zx" },
+            .{ "tmpl_db", "db/page.zx" },
+            .{ "tmpl_kv", "kv/page.zx" },
+        };
+        for (template_pages) |page| {
+            const mod = zx.addComponent(.{ .root_source_file = template_path.path(b, page[1]) });
+            zx.addImport(page[0], mod);
+        }
+        // Template stylesheet, at the /assets/style.css path its layout links to
+        const template_css = b.addInstallFile(b.path("../templates/_base/app/assets/style.css"), "static/assets/style.css");
+        b.default_step.dependOn(&template_css.step);
 
         // /bench — CSR js-framework-benchmark from bench/ziex
         const bench_csr_mod = zx.addComponent(.{

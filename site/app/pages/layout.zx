@@ -29,7 +29,8 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         );
     }
 
-    if (std.mem.startsWith(u8, path, "/r/")) {
+    // /template renders the _base template's own layout and styles as-is.
+    if (std.mem.startsWith(u8, path, "/r/") or std.mem.startsWith(u8, path, "/template")) {
         return (<fragment @allocator={ctx.arena}>{children}</fragment>);
     }
 

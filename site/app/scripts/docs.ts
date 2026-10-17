@@ -1,5 +1,10 @@
 import "../assets/clipboard";
-import { createDocsSnippetFiles, createPlaygroundShareUrl } from "./playground_share";
+import {
+  createDocsSnippetFilesFromEntries,
+  createPlaygroundShareUrl,
+  isPlaygroundOpenable,
+  type SnippetEntry,
+} from "./playground_share";
 // import "./routing";
 
 // Dynamic import to reduce initial bundle size
@@ -99,36 +104,35 @@ function normalizeFileName(raw: string | null): string {
   return compact || "Playground.zx";
 }
 
-function getActiveSandboxSnippet(sandbox: Element): { code: string; filename: string } | null {
-  const checkedRadio = sandbox.querySelector<HTMLInputElement>(".file-radio:checked");
+function getSandboxSnippetEntries(sandbox: Element): SnippetEntry[] {
+  const radios = Array.from(sandbox.querySelectorAll<HTMLInputElement>(".file-radio"));
 
-  if (checkedRadio) {
-    const radios = Array.from(sandbox.querySelectorAll<HTMLInputElement>(".file-radio"));
-    const idx = radios.findIndex((radio) => radio === checkedRadio);
-    if (idx >= 0) {
-      const codeBlocks = Array.from(
-        sandbox.querySelectorAll<HTMLElement>(".sandbox-editor .file-content code")
-      );
-      const labels = Array.from(
-        sandbox.querySelectorAll<HTMLLabelElement>(".sandbox-file-tabs .sandbox-tab")
-      );
+  if (radios.length > 0) {
+    const codeBlocks = Array.from(
+      sandbox.querySelectorAll<HTMLElement>(".sandbox-editor .file-content code")
+    );
+    const labels = Array.from(
+      sandbox.querySelectorAll<HTMLLabelElement>(".sandbox-file-tabs .sandbox-tab")
+    );
 
-      const code = codeBlocks[idx]?.textContent?.trim() ?? "";
-      const filename = normalizeFileName(labels[idx]?.textContent ?? null);
-      if (code) return { code, filename };
+    const entries: SnippetEntry[] = [];
+    for (let i = 0; i < radios.length; i++) {
+      const code = codeBlocks[i]?.textContent?.trim() ?? "";
+      const filename = normalizeFileName(labels[i]?.textContent ?? null);
+      if (code) entries.push({ code, filename });
     }
+    return entries;
   }
 
   const codeNode = sandbox.querySelector<HTMLElement>(".sandbox-code code");
-  if (!codeNode) return null;
+  if (!codeNode) return [];
 
   const code = codeNode.textContent?.trim() ?? "";
-  if (!code) return null;
+  if (!code) return [];
 
   const filenameNode = sandbox.querySelector<HTMLElement>(".sandbox-editor-header .sandbox-tab");
   const filename = normalizeFileName(filenameNode?.textContent ?? null);
-
-  return { code, filename };
+  return [{ code, filename }];
 }
 
 function setupOpenInPlaygroundButtons() {
@@ -136,16 +140,27 @@ function setupOpenInPlaygroundButtons() {
   if (buttons.length === 0) return;
 
   buttons.forEach((button) => {
+    const sandbox = button.closest(".sandbox");
+    if (sandbox) {
+      const entries = getSandboxSnippetEntries(sandbox);
+      const openable = entries.filter((entry) => isPlaygroundOpenable(entry.filename, entry.code));
+      if (openable.length === 0) {
+        button.hidden = true;
+        return;
+      }
+    }
+
     button.addEventListener("click", async (event) => {
       event.preventDefault();
 
-      const sandbox = button.closest(".sandbox");
-      if (!sandbox) return;
+      const targetSandbox = button.closest(".sandbox");
+      if (!targetSandbox) return;
 
-      const snippet = getActiveSandboxSnippet(sandbox);
-      if (!snippet) return;
+      const entries = getSandboxSnippetEntries(targetSandbox);
+      const openable = entries.filter((entry) => isPlaygroundOpenable(entry.filename, entry.code));
+      if (openable.length === 0) return;
 
-      const files = createDocsSnippetFiles(snippet.code, snippet.filename);
+      const files = createDocsSnippetFilesFromEntries(openable);
       const url = await createPlaygroundShareUrl(files, `${window.location.origin}/playground`);
       window.open(url, "_blank", "noopener,noreferrer");
     });

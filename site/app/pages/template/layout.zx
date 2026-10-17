@@ -1,0 +1,12 @@
+/// The template's links are relative, so a <base> resolves them under /template.
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return TemplateLayout(ctx, (
+        <fragment @allocator={ctx.arena}>
+            <base href="/template/" />
+            {children}
+        </fragment>
+    ));
+}
+
+const TemplateLayout = @import("tmpl_layout").Layout;
+const zx = @import("zx");

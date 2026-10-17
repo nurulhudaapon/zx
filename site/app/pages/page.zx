@@ -837,6 +837,11 @@ fn CodeWindow(allocator: zx.Allocator, props: CodeWindowProps) zx.Component {
                     <span></span>
                     <span></span>
                 </div>
+                <div class="code-example-actions">
+                    <button class="code-example-open-playground" data-tooltip="Open in playground" aria-label="Open in playground">
+                        ▶
+                    </button>
+                </div>
                 <div class="code-example-title">{props.title}</div>
             </div>
             <pre><code class="hljs" @escaping={.none}>{highlighted}</code></pre>
@@ -871,13 +876,11 @@ fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) z
                     <span></span>
                     <span></span>
                 </div>
-                {if (false) (
-                    <div class="code-example-actions">
-                        <button class="code-example-open-playground" data-code-section={props.section} data-code-source="preview" data-tooltip="Open in playground" aria-label="Open in playground">
-                            ▶
-                        </button>
-                    </div>
-                )}
+                <div class="code-example-actions">
+                    <button class="code-example-open-playground" data-code-section={props.section} data-code-source="preview" data-tooltip="Open in playground" aria-label="Open in playground">
+                        ▶
+                    </button>
+                </div>
                 <div class="code-example-title">{props.title}</div>
             </div>
             <div class="code-preview-body">

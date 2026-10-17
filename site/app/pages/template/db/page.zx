@@ -1,0 +1,2 @@
+pub const Page = @import("tmpl_db").Page;
+pub const options = @import("tmpl_db").options;

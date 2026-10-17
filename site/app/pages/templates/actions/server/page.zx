@@ -1,1 +1,0 @@
-pub const Page = @import("tmpl_actions_server").Page;
