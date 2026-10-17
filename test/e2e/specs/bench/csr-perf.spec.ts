@@ -1,140 +1,146 @@
 import { test, expect, type Page } from '@playwright/test';
+import { csrBenchPath, isCsrBenchServer } from '../../helpers/env';
 
 /**
  * Stable CSR DOM timings (median of a few in-page samples).
  *
- *   cd bench/ziex && zig build serve
- *   CSR_BENCH=1 BASE_URL=http://localhost:3000 \
- *     npx playwright test specs/bench/csr-perf.spec.ts --workers=1 --retries=0
+ * Always runs:
+ *   - default (site e2e): `/bench`
+ *   - `CSR_BENCH=1` (dedicated `bench/ziex`): `/`
+ *
+ *   CSR_BENCH=1 npx playwright test specs/bench/csr-perf.spec.ts --workers=1 --retries=0
  *
  * Env:
+ *   CSR_BENCH         use dedicated bench server + `/` (else site `/bench`)
  *   CSR_BENCH_ITERS   measured samples (default 3)
  *   CSR_BENCH_WARMUP  discarded warmups (default 1)
  *   CSR_BENCH_FULL=1  also run per-op 10k tests (slower)
  */
-if (process.env.CSR_BENCH) {
-  const ITERS = Math.max(1, Number(process.env.CSR_BENCH_ITERS ?? 3));
-  const WARMUP = Math.max(0, Number(process.env.CSR_BENCH_WARMUP ?? 1));
-  const FULL = !!process.env.CSR_BENCH_FULL;
+const ITERS = Math.max(1, Number(process.env.CSR_BENCH_ITERS ?? 3));
+const WARMUP = Math.max(0, Number(process.env.CSR_BENCH_WARMUP ?? 1));
+const FULL = !!process.env.CSR_BENCH_FULL;
 
-  test.use({ video: 'off', screenshot: 'off', trace: 'off' });
+test.use({ video: 'off', screenshot: 'off', trace: 'off' });
 
-  test.describe('CSR performance (stable)', () => {
-    test.describe.configure({ mode: 'serial', retries: 0, timeout: 300_000 });
+test.describe('CSR performance (stable)', () => {
+  test.describe.configure({ mode: 'serial', retries: 0, timeout: 300_000 });
 
-    test.beforeEach(async ({ page }) => {
-      await page.goto('/js-framework-benchmark/csr', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: /Ziex Client-Side keyed/i })).toBeVisible({
-        timeout: 30_000,
-      });
-      await settle(page);
+  test.beforeEach(async ({ page }) => {
+    await page.goto(csrBenchPath, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /Ziex Client-Side keyed/i })).toBeVisible({
+      timeout: 30_000,
     });
-
-    test('stress: 10k → update → append → swap → clear', async ({ page }) => {
-      const samples: PipelineSample[] = [];
-
-      for (let i = 0; i < WARMUP + ITERS; i++) {
-        await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
-        await settle(page);
-
-        const create = await timedInPage(page, '#runlots', { rows: 10_000 }, 60_000);
-        const update = await timedInPage(page, '#update', { labelIncludes: '!!!' }, 60_000);
-        const append = await timedInPage(page, '#add', { rows: 11_000 }, 60_000);
-        const swap = await timedInPage(page, '#swaprows', { swapRowIdChanged: true }, 60_000);
-        const clear = await timedInPage(page, '#clear', { rows: 0 }, 60_000);
-        const total = create + update + append + swap + clear;
-
-        if (i < WARMUP) continue;
-        samples.push({ create, update, append, swap, clear, total });
-      }
-
-      console.log(`--- stress pipeline (${ITERS} samples, ${WARMUP} warmup) ---`);
-      logStats('  create 10k', summarize(samples.map((s) => s.create)));
-      logStats('  update 10k', summarize(samples.map((s) => s.update)));
-      logStats('  append 1k', summarize(samples.map((s) => s.append)));
-      logStats('  swap', summarize(samples.map((s) => s.swap)));
-      logStats('  clear', summarize(samples.map((s) => s.clear)));
-      const totalStats = summarize(samples.map((s) => s.total));
-      logStats('csr stress pipeline', totalStats);
-      expect(totalStats.median).toBeLessThan(12_000);
-    });
-
-    if (FULL) {
-      test('create 10,000 rows', async ({ page }) => {
-        const stats = await measureOp(page, {
-          warmup: WARMUP,
-          iters: ITERS,
-          prepare: async () => {
-            await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
-            await settle(page);
-          },
-          run: () => timedInPage(page, '#runlots', { rows: 10_000 }, 60_000),
-        });
-        logStats('csr create 10k', stats);
-        expect(stats.median).toBeLessThan(5_000);
-      });
-
-      test('update every 10th row (10k)', async ({ page }) => {
-        const stats = await measureOp(page, {
-          warmup: WARMUP,
-          iters: ITERS,
-          prepare: async () => {
-            await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
-            await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
-            await settle(page);
-          },
-          run: () => timedInPage(page, '#update', { labelIncludes: '!!!' }, 60_000),
-        });
-        logStats('csr update 10k', stats);
-        expect(stats.median).toBeLessThan(2_000);
-      });
-
-      test('append 1,000 onto 10,000', async ({ page }) => {
-        const stats = await measureOp(page, {
-          warmup: WARMUP,
-          iters: ITERS,
-          prepare: async () => {
-            await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
-            await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
-            await settle(page);
-          },
-          run: () => timedInPage(page, '#add', { rows: 11_000 }, 60_000),
-        });
-        logStats('csr append 1k→10k', stats);
-        expect(stats.median).toBeLessThan(1_000);
-      });
-
-      test('swap rows (10k)', async ({ page }) => {
-        const stats = await measureOp(page, {
-          warmup: WARMUP,
-          iters: ITERS,
-          prepare: async () => {
-            await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
-            await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
-            await settle(page);
-          },
-          run: () => timedInPage(page, '#swaprows', { swapRowIdChanged: true }, 60_000),
-        });
-        logStats('csr swap 10k', stats);
-        expect(stats.median).toBeLessThan(2_000);
-      });
-
-      test('clear rows (10k)', async ({ page }) => {
-        const stats = await measureOp(page, {
-          warmup: WARMUP,
-          iters: ITERS,
-          prepare: async () => {
-            await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
-            await settle(page);
-          },
-          run: () => timedInPage(page, '#clear', { rows: 0 }, 60_000),
-        });
-        logStats('csr clear 10k', stats);
-        expect(stats.median).toBeLessThan(2_000);
-      });
-    }
+    await settle(page);
   });
-}
+
+  test(`stress: 10k → update → append → swap → clear (${isCsrBenchServer ? '/' : '/bench'})`, async ({
+    page,
+  }) => {
+    const samples: PipelineSample[] = [];
+
+    for (let i = 0; i < WARMUP + ITERS; i++) {
+      await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
+      await settle(page);
+
+      const create = await timedInPage(page, '#runlots', { rows: 10_000 }, 60_000);
+      const update = await timedInPage(page, '#update', { labelIncludes: '!!!' }, 60_000);
+      const append = await timedInPage(page, '#add', { rows: 11_000 }, 60_000);
+      const swap = await timedInPage(page, '#swaprows', { swapRowIdChanged: true }, 60_000);
+      const clear = await timedInPage(page, '#clear', { rows: 0 }, 60_000);
+      const total = create + update + append + swap + clear;
+
+      if (i < WARMUP) continue;
+      samples.push({ create, update, append, swap, clear, total });
+    }
+
+    const totalStats = summarize(samples.map((s) => s.total));
+    logBenchTable(`CSR stress pipeline @ ${csrBenchPath} (${ITERS} samples, ${WARMUP} warmup)`, {
+      'create 10k': summarize(samples.map((s) => s.create)),
+      'update 10k': summarize(samples.map((s) => s.update)),
+      'append 1k': summarize(samples.map((s) => s.append)),
+      swap: summarize(samples.map((s) => s.swap)),
+      clear: summarize(samples.map((s) => s.clear)),
+      TOTAL: totalStats,
+    });
+    expect(totalStats.median).toBeLessThan(12_000);
+  });
+
+  if (FULL) {
+    test('create 10,000 rows', async ({ page }) => {
+      const stats = await measureOp(page, {
+        warmup: WARMUP,
+        iters: ITERS,
+        prepare: async () => {
+          await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
+          await settle(page);
+        },
+        run: () => timedInPage(page, '#runlots', { rows: 10_000 }, 60_000),
+      });
+      logBenchTable(`CSR create 10k @ ${csrBenchPath}`, { 'create 10k': stats });
+      expect(stats.median).toBeLessThan(5_000);
+    });
+
+    test('update every 10th row (10k)', async ({ page }) => {
+      const stats = await measureOp(page, {
+        warmup: WARMUP,
+        iters: ITERS,
+        prepare: async () => {
+          await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
+          await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
+          await settle(page);
+        },
+        run: () => timedInPage(page, '#update', { labelIncludes: '!!!' }, 60_000),
+      });
+      logBenchTable(`CSR update 10k @ ${csrBenchPath}`, { 'update 10k': stats });
+      expect(stats.median).toBeLessThan(2_000);
+    });
+
+    test('append 1,000 onto 10,000', async ({ page }) => {
+      const stats = await measureOp(page, {
+        warmup: WARMUP,
+        iters: ITERS,
+        prepare: async () => {
+          await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
+          await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
+          await settle(page);
+        },
+        run: () => timedInPage(page, '#add', { rows: 11_000 }, 60_000),
+      });
+      logBenchTable(`CSR append 1k→10k @ ${csrBenchPath}`, { 'append 1k': stats });
+      expect(stats.median).toBeLessThan(1_000);
+    });
+
+    test('swap rows (10k)', async ({ page }) => {
+      const stats = await measureOp(page, {
+        warmup: WARMUP,
+        iters: ITERS,
+        prepare: async () => {
+          await clickUntil(page, '#clear', () => inPageRowCount(page, 0));
+          await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
+          await settle(page);
+        },
+        run: () => timedInPage(page, '#swaprows', { swapRowIdChanged: true }, 60_000),
+      });
+      logBenchTable(`CSR swap 10k @ ${csrBenchPath}`, { swap: stats });
+      expect(stats.median).toBeLessThan(2_000);
+    });
+
+    test('clear rows (10k)', async ({ page }) => {
+      const stats = await measureOp(page, {
+        warmup: WARMUP,
+        iters: ITERS,
+        prepare: async () => {
+          await clickUntil(page, '#runlots', () => inPageRowCount(page, 10_000), 60_000);
+          await settle(page);
+        },
+        run: () => timedInPage(page, '#clear', { rows: 0 }, 60_000),
+      });
+      logBenchTable(`CSR clear 10k @ ${csrBenchPath}`, { clear: stats });
+      expect(stats.median).toBeLessThan(2_000);
+    });
+  }
+});
+
 
 type ReadySpec = {
   rows?: number;
@@ -264,10 +270,22 @@ function summarize(samples: number[]): Stats {
   };
 }
 
-function logStats(label: string, stats: Stats): void {
-  const fmt = (n: number) => n.toFixed(1);
-  const list = stats.samples.map(fmt).join(', ');
-  console.log(
-    `${label}: median=${fmt(stats.median)}ms min=${fmt(stats.min)} max=${fmt(stats.max)} mean=${fmt(stats.mean)}  [${list}]`,
+function logBenchTable(title: string, rows: Record<string, Stats>): void {
+  const ms = (n: number) => Number(n.toFixed(1));
+  console.log(`\n${title}`);
+  console.table(
+    Object.fromEntries(
+      Object.entries(rows).map(([op, s]) => [
+        op,
+        {
+          median: ms(s.median),
+          min: ms(s.min),
+          max: ms(s.max),
+          mean: ms(s.mean),
+          samples: s.samples.map(ms).join(', '),
+        },
+      ]),
+    ),
   );
 }
+

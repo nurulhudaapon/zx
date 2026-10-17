@@ -1,0 +1,9 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <fragment @allocator={ctx.arena}>
+            {children}
+        </fragment>
+    );
+}
+
+const zx = @import("zx");

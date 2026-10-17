@@ -287,6 +287,12 @@ pub fn build(b: *std.Build) !void {
             .root_source_file = template_path.path(b, "pages/actions/server/page.zx"),
         });
         zx.addImport("tmpl_actions_server", template_actions_server_mod);
+
+        // /bench — CSR js-framework-benchmark from bench/ziex
+        const bench_csr_mod = zx.addComponent(.{
+            .root_source_file = b.path("../bench/ziex/app/pages/js-framework-benchmark/csr/page.zx"),
+        });
+        zx.addImport("bench_csr", bench_csr_mod);
     }
 
     if (true) {

@@ -24,3 +24,9 @@ export function templateUrl(path = '/'): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return isTemplateServer ? normalized : `/templates${normalized}`;
 }
+
+/** Dedicated `bench/ziex` CSR server (`CSR_BENCH=1`) vs site embed under `/bench`. */
+export const isCsrBenchServer = !!process.env.CSR_BENCH;
+
+/** Path for the CSR js-framework-benchmark page in the current e2e mode. */
+export const csrBenchPath = isCsrBenchServer ? '/' : '/bench';

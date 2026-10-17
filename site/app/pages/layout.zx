@@ -13,12 +13,13 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const templates_preload = std.mem.eql(u8, path, "/playground") or std.mem.startsWith(u8, path, "/playground/");
 
     if (std.mem.eql(u8, path, "/overview") or
-        std.mem.eql(u8, path, "/time"))
+        std.mem.eql(u8, path, "/time") or
+        std.mem.eql(u8, path, "/bench"))
     {
         return (
             <html lang="en" @allocator={ctx.arena}>
                 <head>
-                    <title>{page_title}</title>
+                    <title>{if (std.mem.eql(u8, path, "/bench")) "Ziex Client-Side keyed" else page_title}</title>
                     <meta name="description" content={page_description} />
                 </head>
                 <body>
@@ -110,6 +111,8 @@ fn getCss(ctx: zx.LayoutContext) []const u8 {
     else if (std.mem.eql(u8, req_path, "/overview"))
         ""
     else if (std.mem.eql(u8, req_path, "/time"))
+        ""
+    else if (std.mem.eql(u8, req_path, "/bench"))
         ""
     else
         @embedFile("../assets/docs.css");

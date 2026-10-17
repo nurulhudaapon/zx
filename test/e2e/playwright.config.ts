@@ -73,7 +73,10 @@ export default defineConfig({
     webServer: {
       command: process.env.TEMPLATE_TESTS
         ? 'cd templates/_base && zig build dev'
-        : 'cd site && zig build dev',
+        : process.env.CSR_BENCH
+          ? 'cd bench/ziex && zig build dev'
+          : 'cd site && zig build dev',
+
       cwd: '../../',
       url: 'http://localhost:3000',
       // Locally, reuse a server you already started. In CI always start fresh.
