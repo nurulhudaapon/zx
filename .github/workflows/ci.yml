@@ -48,9 +48,7 @@ jobs:
         cache-size-limit: 0
           
     - name: Build project
-      # run: zig build -Dlsp=true
-      # TODO: build with lsp when zls is included back
-      run: zig build
+      run: zig build -Dlsp=true
       
     - name: Verify executable
       run: |
