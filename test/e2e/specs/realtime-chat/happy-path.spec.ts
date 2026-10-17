@@ -6,7 +6,6 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Realtime Chat Example', () => {
   test('Join and Send Message', async ({ page }) => {
-    return;
     // 1. Navigate to /examples/realtime
     await page.goto('/examples/realtime');
     // expect: Chat UI loads with name input and join button.
