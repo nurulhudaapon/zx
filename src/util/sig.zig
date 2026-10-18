@@ -271,14 +271,39 @@ pub fn waitPidExit(pid: posix.pid_t, timeout_ms: u64) bool {
             else => !isAlive(pid),
         };
     }
-    if (!isAlive(pid)) return true;
+    if (hasExited(pid)) return true;
     var waited: u64 = 0;
-    while (waited < timeout_ms) : (waited += 20) {
-        sleepMs(20);
-        if (!isAlive(pid)) return true;
+    while (waited < timeout_ms) : (waited += 5) {
+        sleepMs(5);
+        if (hasExited(pid)) return true;
     }
-    return !isAlive(pid);
+    return hasExited(pid);
 }
+
+fn hasExited(pid: posix.pid_t) bool {
+    return childExited(pid) orelse !isAlive(pid);
+}
+
+fn childExited(pid: posix.pid_t) ?bool {
+    var info: [128]u8 align(8) = @splat(0);
+    if (comptime native_os == .linux) {
+        const linux = std.os.linux;
+        const flags = linux.W.EXITED | linux.W.NOHANG | linux.W.NOWAIT;
+        const rc = linux.waitid(.PID, pid, @ptrCast(&info), flags, null);
+        if (linux.errno(rc) != .SUCCESS) return null;
+    } else if (comptime native_os.isDarwin()) {
+        const P_PID = 1;
+        const WNOHANG = 0x1;
+        const WEXITED = 0x4;
+        const WNOWAIT = 0x20;
+        if (waitid(P_PID, @intCast(pid), &info, WEXITED | WNOHANG | WNOWAIT) != 0) return null;
+    } else return null;
+    return std.mem.readInt(i32, info[0..4], native_endian) != 0;
+}
+
+const native_endian = builtin.cpu.arch.endian();
+
+extern "c" fn waitid(idtype: c_uint, id: c_uint, infop: *anyopaque, options: c_int) c_int;
 
 /// Deadline-based sleep safe on the notifier thread (EINTR-tolerant).
 pub fn sleepMs(ms: u64) void {
