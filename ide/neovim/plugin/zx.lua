@@ -129,6 +129,27 @@ local function custom_diagnostic_handler(err, result, ctx, config)
   vim.lsp.diagnostic.on_publish_diagnostics(err, result, ctx, config)
 end
 
+-- Command for the zx language server. Prefers an installed `zx lsp`; otherwise
+-- builds and runs it from the project with `zig build zx -Dziex-lsp=true -- lsp`.
+-- `root_dir` is the project directory (nearest build.zig) when known.
+local function lsp_cmd(root_dir)
+  if vim.g.zx_lsp_cmd then
+    return vim.g.zx_lsp_cmd
+  end
+  if vim.fn.executable("zx") == 1 then
+    return { "zx", "lsp" }
+  end
+  if vim.fn.executable("zig") == 1 then
+    local cmd = { "zig", "build" }
+    if root_dir then
+      vim.list_extend(cmd, { "--build-file", root_dir .. "/build.zig" })
+    end
+    vim.list_extend(cmd, { "-Dziex-lsp=true", "--release=fast", "zx", "--", "lsp" })
+    return cmd
+  end
+  return nil
+end
+
 -- Set up zls LSP for .zx files only (doesn't interfere with .zig files)
 local function setup_zls()
   if zls_setup_done then
@@ -140,7 +161,8 @@ local function setup_zls()
     return false
   end
 
-  if vim.fn.executable("zls") == 0 then
+  local cmd = lsp_cmd()
+  if not cmd then
     return false
   end
 
@@ -150,9 +172,9 @@ local function setup_zls()
   if not configs.zls_zx then
     configs.zls_zx = {
       default_config = {
-        cmd = { "zls" },
+        cmd = cmd,
         filetypes = { "zx" },
-        root_dir = lspconfig.util.root_pattern("build.zig", "zls.json", ".git"),
+        root_dir = lspconfig.util.root_pattern("build.zig", ".git"),
         single_file_support = true,
       },
     }
@@ -160,9 +182,20 @@ local function setup_zls()
   
   -- Setup LSP with custom handlers
   lspconfig.zls_zx.setup({
+    cmd = cmd,
     filetypes = { "zx" },
-    root_dir = lspconfig.util.root_pattern("build.zig", "zls.json", ".git"),
+    -- ZLS options (inlay hints, zig_exe_path, ...) are read from the `zls` section.
+    settings = { zls = vim.g.zx_zls_settings or {} },
+    -- Nearest build.zig, so a Ziex subproject inside a monorepo is its own root.
+    root_dir = function(fname)
+      return lspconfig.util.root_pattern("build.zig")(fname) or lspconfig.util.root_pattern(".git")(fname)
+    end,
     single_file_support = true,
+    -- Resolve the command per project so the `zig build` fallback targets the
+    -- right build.zig.
+    on_new_config = function(new_config, root_dir)
+      new_config.cmd = lsp_cmd(root_dir) or new_config.cmd
+    end,
     on_attach = function(client, bufnr)
       -- Enable inlay hints if supported
       if vim.lsp.inlay_hint and client.server_capabilities and client.server_capabilities.inlayHintProvider then
@@ -275,8 +308,8 @@ vim.api.nvim_create_autocmd("FileType", {
     -- Ensure LSP is set up
     if not zls_setup_done then
       local success = setup_zls()
-      if not success and vim.fn.executable("zls") == 0 then
-        vim.notify("ZX: zls not found. Install zig to get LSP support.", vim.log.levels.WARN)
+      if not success and not lsp_cmd() then
+        vim.notify("ZX: neither zx nor zig found. Install zx or zig to get LSP support.", vim.log.levels.WARN)
       end
     end
     

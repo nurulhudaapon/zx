@@ -19,3 +19,30 @@ return {
 }
 ```
 
+
+## Language server
+
+The plugin runs `zx lsp`, or `zig build zx -Dziex-lsp=true -- lsp` from the
+nearest `build.zig` when the `zx` CLI is not installed. Set ZLS options in the
+lazy.nvim `init` function:
+
+```lua
+init = function()
+    vim.g.zx_zls_settings = { inlay_hints_show_builtin = true }
+    -- vim.g.zx_lsp_cmd = { "/path/to/zx", "lsp" } -- optional override
+end,
+```
+
+Without the plugin's LSP setup, pass options as `settings.zls`:
+
+```lua
+vim.lsp.config("zxls", {
+    cmd = { "zx", "lsp" },
+    filetypes = { "zx" },
+    root_markers = { "build.zig", ".git" },
+    settings = { zls = { inlay_hints_show_builtin = true } },
+})
+vim.lsp.enable("zxls")
+```
+
+See the [editor guide](../README.md) for the ZX defaults.

@@ -1,5 +1,3 @@
-//! Active ZLS backing implementation. Only imported when `build_options.enable_zls`.
-
 const std = @import("std");
 const builtin = @import("builtin");
 const zls = @import("zls");
@@ -222,10 +220,19 @@ fn setFrontendConfig(
     global_cache_path: ?[]const u8,
     modules: []const zls.Config.Module,
 ) error{OutOfMemory}!void {
+    // `.frontend` has the lowest priority: editor settings (`initializationOptions`
+    // or the `zls` section of `workspace/configuration`) override these defaults.
     try config_manager.setConfiguration(.frontend, &.{
         .import_extensions = &.{"zx"},
         .modules = modules,
         .global_cache_path = global_cache_path,
+        // Inlay defaults tuned for zx: hints inside markup are filtered out by the
+        // handler, and the remaining Zig is mostly page/handler glue where
+        // builtin (`@import`, `@errorName`) and `.{ .field = ... }` hints are noise.
+        .inlay_hints_show_builtin = false,
+        .inlay_hints_show_struct_literal_field_type = false,
+        .inlay_hints_hide_redundant_param_names = true,
+        .inlay_hints_hide_redundant_param_names_last_token = true,
     });
 }
 

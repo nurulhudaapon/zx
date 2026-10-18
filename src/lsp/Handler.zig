@@ -306,10 +306,10 @@ fn storeAndDiagnose(handler: *Handler, uri: []const u8, source: []const u8) void
     const source_z = handler.allocator.dupeSentinel(u8, source, 0) catch return;
     defer handler.allocator.free(source_z);
 
-    var result = lang.Ast.parse(handler.allocator, source_z, .{}) catch return;
+    var result = lang.Ast.parse(handler.allocator, source_z, .{ .map = .inlined }) catch return;
     defer result.deinit(handler.allocator);
 
-    handler.publishZxDiagnostics(uri, source, result.diagnostics) catch {};
+    handler.publishZxDiagnostics(uri, source, &result) catch {};
 
     const zx_block_ranges = handler.collectZxBlockRanges(source) catch (handler.allocator.alloc(ByteRange, 0) catch return);
 
@@ -401,27 +401,66 @@ fn filterInlayHintsForZxBlocks(
     return try filtered.toOwnedSlice(arena);
 }
 
-fn publishZxDiagnostics(handler: *Handler, uri: []const u8, source: []const u8, diag_list: lang.Ast.check.DiagnosticList) !void {
+/// Run AstGen on the transpiled Zig (as `zig ast-check` / ZLS would) and map
+/// its errors (unused locals, redeclarations, ...) back to `.zx` positions.
+/// ZLS only sees raw `.zx` text it cannot parse, so it can't report these itself.
+fn collectAstCheckDiagnostics(arena: std.mem.Allocator, result: *const lang.Ast.ParseResult) ![]const lang.Ast.check.Diagnostic {
+    if (result.diagnostics.hasErrors() or result.zig_ast.errors.len != 0) return &.{};
+    const map = result.sourcemap orelse return &.{};
+
+    const tree = result.zig_ast;
+    const zir = try std.zig.AstGen.generate(arena, tree);
+    if (!zir.hasCompileErrors()) return &.{};
+
+    var wip: std.zig.ErrorBundle.Wip = try .init(arena);
+    try wip.addZirErrorMessages(zir, tree, tree.source, "");
+    const bundle = try wip.toOwnedBundle("");
+
+    var diags = std.ArrayList(lang.Ast.check.Diagnostic).empty;
+    for (bundle.getMessages()) |msg_index| {
+        const msg = bundle.getErrorMessage(msg_index);
+        if (msg.src_loc == .none) continue;
+        const loc = bundle.getSourceLocation(msg.src_loc);
+
+        const start = map.generatedToSource(@intCast(loc.line), @intCast(loc.column)) orelse continue;
+        if (start.source_line < 0 or start.source_column < 0) continue;
+
+        const end_loc = std.zig.findLineColumn(tree.source, loc.span_end);
+        var end_line: u32 = @intCast(start.source_line);
+        var end_column: u32 = @intCast(start.source_column);
+        if (map.generatedToSource(@intCast(end_loc.line), @intCast(end_loc.column))) |end| {
+            if (end.source_line > start.source_line or
+                (end.source_line == start.source_line and end.source_column > start.source_column))
+            {
+                end_line = @intCast(end.source_line);
+                end_column = @intCast(end.source_column);
+            }
+        }
+
+        try diags.append(arena, .{
+            .message = bundle.nullTerminatedString(msg.msg),
+            .start_line = @intCast(start.source_line),
+            .start_column = @intCast(start.source_column),
+            .end_line = end_line,
+            .end_column = end_column,
+            .severity = .err,
+        });
+    }
+    return diags.items;
+}
+
+fn publishZxDiagnostics(handler: *Handler, uri: []const u8, source: []const u8, result: *const lang.Ast.ParseResult) !void {
     var aa = std.heap.ArenaAllocator.init(handler.allocator);
     defer aa.deinit();
     const arena = aa.allocator();
 
+    const zx_diags = result.diagnostics.items;
+    const zig_diags = collectAstCheckDiagnostics(arena, result) catch &.{};
+
     const encoding = handler.offset_encoding;
-    const lsp_diags = try arena.alloc(lsp.types.flat.Diagnostic, diag_list.items.len);
-    for (diag_list.items, 0..) |d, i| {
-        lsp_diags[i] = .{
-            .range = .{
-                .start = text.byteColumnToPosition(source, d.start_line, d.start_column, encoding),
-                .end = text.byteColumnToPosition(source, d.end_line, d.end_column, encoding),
-            },
-            .severity = switch (d.severity) {
-                .err => .Error,
-                .warning => .Warning,
-            },
-            .source = "zx",
-            .message = .{ .string = d.message },
-        };
-    }
+    const lsp_diags = try arena.alloc(lsp.types.flat.Diagnostic, zx_diags.len + zig_diags.len);
+    for (zx_diags, 0..) |d, i| lsp_diags[i] = toLspDiagnostic(source, d, "zx", encoding);
+    for (zig_diags, zx_diags.len..) |d, i| lsp_diags[i] = toLspDiagnostic(source, d, "zig", encoding);
 
     handler.transport.writeNotification(
         handler.io,
@@ -432,6 +471,26 @@ fn publishZxDiagnostics(handler: *Handler, uri: []const u8, source: []const u8, 
         .{ .emit_null_optional_fields = false },
     ) catch |err| {
         std.log.err("Failed to write publishDiagnostics: {}", .{err});
+    };
+}
+
+fn toLspDiagnostic(
+    source: []const u8,
+    d: lang.Ast.check.Diagnostic,
+    diag_source: []const u8,
+    encoding: lsp.offsets.Encoding,
+) lsp.types.flat.Diagnostic {
+    return .{
+        .range = .{
+            .start = text.byteColumnToPosition(source, d.start_line, d.start_column, encoding),
+            .end = text.byteColumnToPosition(source, d.end_line, d.end_column, encoding),
+        },
+        .severity = switch (d.severity) {
+            .err => .Error,
+            .warning => .Warning,
+        },
+        .source = diag_source,
+        .message = .{ .string = d.message },
     };
 }
 

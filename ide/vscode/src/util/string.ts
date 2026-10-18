@@ -64,11 +64,11 @@ export function activateMultilineStringDecorator(
   // -- Commands -- //
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "zx.toggleMultilineStringLiteral",
+      "ziex.toggleMultilineStringLiteral",
       toggleMultilineStringLiteral,
     ),
     vscode.commands.registerCommand(
-      "zx.multilineSmartBackspace",
+      "ziex.multilineSmartBackspace",
       multilineSmartBackspace,
     ),
   );
@@ -76,7 +76,7 @@ export function activateMultilineStringDecorator(
   // -- Copy command - strip \\ prefixes when copying from multiline string -- //
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "zx.copyFromMultilineString",
+      "ziex.copyFromMultilineString",
       copyFromMultilineString,
     ),
   );
@@ -84,7 +84,7 @@ export function activateMultilineStringDecorator(
   // -- Paste command - auto-prefix pasted text with \\ -- //
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "zx.pasteInMultilineString",
+      "ziex.pasteInMultilineString",
       pasteInMultilineString,
     ),
   );

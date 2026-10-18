@@ -19,8 +19,7 @@ the markup halves of a ZX file, plus LSP support through `zx lsp`.
 
   If you hit this, use an Emacs built against a current `libtree-sitter`.
 - A C compiler, for building the grammar.
-- The `zx` CLI on `PATH` for LSP support. Inside a Ziex project the same
-  server is reachable as `zig build zx -- lsp`, so the CLI is optional.
+- The `zx` CLI or `zig` on `PATH` for LSP support.
 
 ## Installation
 
@@ -67,30 +66,31 @@ in `zx-ts-mode-grammar-source` if you would rather build from a local checkout:
 
 ## LSP
 
-`zx-ts-mode` registers itself with Eglot, so `M-x eglot` in a `.zx` buffer
-starts `zx lsp`:
+`zx-ts-mode` registers itself with Eglot. It runs `zx lsp`, or
+`zig build zx -Dziex-lsp=true -- lsp` from the nearest `build.zig` when the
+`zx` CLI is not installed. Set `zx-ts-mode-lsp-command` to force a command.
 
 ```elisp
 (add-hook 'zx-ts-mode-hook #'eglot-ensure)
 ```
 
-Change the command with `zx-ts-mode-lsp-command`, for example to use the
-project's own build instead of an installed CLI:
+ZLS options go in the `zls` section of `eglot-workspace-configuration` (use
+`:json-false` for `false`):
 
 ```elisp
-(setq zx-ts-mode-lsp-command '("zig" "build" "zx" "--" "lsp"))
+(setq-default eglot-workspace-configuration
+              '(:zls (:inlay_hints_show_builtin t)))
 ```
 
-The server handles ZX-aware completion, hover and formatting itself and
-forwards everything else to ZLS, so no diagnostic filtering is needed on the
-Emacs side.
+Turn on `eglot-inlay-hints-mode` to see inlay hints. See the
+[editor guide](../README.md) for the ZX defaults.
 
 ## Customization
 
 | Variable                     | Default        | Description                                |
 | ---------------------------- | -------------- | ------------------------------------------ |
 | `zx-ts-mode-indent-offset`   | `4`            | Spaces per indentation step.               |
-| `zx-ts-mode-lsp-command`     | `("zx" "lsp")` | Command Eglot uses to start the server.    |
+| `zx-ts-mode-lsp-command`     | `nil` (auto)   | Command Eglot uses to start the server.    |
 | `zx-ts-mode-grammar-source`  | see above      | Recipe used by `zx-ts-mode-install-grammar`. |
 
 Three faces are defined for the markup so it can be told apart from the Zig

@@ -26,8 +26,8 @@
   "activationEvents": [
     "onLanguage:zx",
     "onLanguage:zig",
-    "onCommand:zx.pasteInMultilineString",
-    "onCommand:zx.copyFromMultilineString"
+    "onCommand:ziex.pasteInMultilineString",
+    "onCommand:ziex.copyFromMultilineString"
   ],
   "main": "./out/extension",
   "contributes": {
@@ -41,45 +41,135 @@
       }
     },
     "configuration": {
+      "title": "Ziex",
       "type": "object",
       "properties": {
-        "zx.format.enableZigExpression": {
+        "ziex.format.enableZigExpression": {
           "type": "boolean",
           "default": true,
           "description": "Enable autoformatting of Zig expressions (and HTML inside those expressions) that are embedded inside HTML blocks. Default is true. Use the command 'Ziex: Toggle embedded Zig expression formatting' from the Command Palette to toggle this setting."
+        },
+        "ziex.lsp.enableSnippets": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enable snippet completions. Falls back to `zig.zls.enableSnippets` when not set."
+        },
+        "ziex.lsp.enableArgumentPlaceholders": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enable function argument placeholder completions. Falls back to `zig.zls.enableArgumentPlaceholders` when not set."
+        },
+        "ziex.lsp.completionLabelDetails": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the function signature in completion results. Falls back to `zig.zls.completionLabelDetails` when not set."
+        },
+        "ziex.lsp.semanticTokens": {
+          "type": "string",
+          "enum": [
+            "none",
+            "partial",
+            "full"
+          ],
+          "default": "full",
+          "markdownDescription": "Level of semantic tokens. `partial` only includes information that requires semantic analysis. Falls back to `zig.zls.semanticTokens` when not set."
+        },
+        "ziex.lsp.inlayHintsShowVariableTypeHints": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show inlay hints for variable types. Falls back to `zig.zls.inlayHintsShowVariableTypeHints` when not set."
+        },
+        "ziex.lsp.inlayHintsShowStructLiteralFieldType": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show inlay hints for fields in struct and union literals. Off by default for ZX. Falls back to `zig.zls.inlayHintsShowStructLiteralFieldType` when not set."
+        },
+        "ziex.lsp.inlayHintsShowParameterName": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show inlay hints for parameter names. Falls back to `zig.zls.inlayHintsShowParameterName` when not set."
+        },
+        "ziex.lsp.inlayHintsShowBuiltin": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show inlay hints for builtin functions. Off by default for ZX. Falls back to `zig.zls.inlayHintsShowBuiltin` when not set."
+        },
+        "ziex.lsp.inlayHintsExcludeSingleArgument": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Hide parameter name hints for single-argument calls. Falls back to `zig.zls.inlayHintsExcludeSingleArgument` when not set."
+        },
+        "ziex.lsp.inlayHintsHideRedundantParamNames": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Hide parameter name hints when the argument is the same identifier (`foo: foo`). On by default for ZX. Falls back to `zig.zls.inlayHintsHideRedundantParamNames` when not set."
+        },
+        "ziex.lsp.inlayHintsHideRedundantParamNamesLastToken": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Hide parameter name hints when the argument ends with the same identifier (`foo: bar.foo`, `foo: &foo`). On by default for ZX. Falls back to `zig.zls.inlayHintsHideRedundantParamNamesLastToken` when not set."
+        },
+        "ziex.lsp.builtinPath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "Override the path to the `builtin` module. Resolved automatically when unset. Falls back to `zig.zls.builtinPath` when not set."
+        },
+        "ziex.lsp.zigLibPath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "Override the Zig library path. Resolved from the Zig executable when unset. Falls back to `zig.libPath` when not set."
+        },
+        "ziex.lsp.globalCachePath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "Directory used as the ZLS cache. Falls back to `zig.zls.globalCachePath` when not set."
+        },
+        "ziex.lsp.additionalOptions": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Extra [ZLS options](https://github.com/zigtools/zls/blob/master/src/Config.zig) passed as is, using ZLS names (`snake_case`). Settings above take precedence. Options set in `zig.zls.additionalOptions` are used as a fallback."
         }
       }
     },
     "commands": [
       {
-        "command": "zx.toggleZigExpressionFormatting",
+        "command": "ziex.toggleZigExpressionFormatting",
         "title": "ZX: Toggle embedded Zig expression formatting"
       },
       {
-        "command": "zx.toggleMultilineStringLiteral",
+        "command": "ziex.toggleMultilineStringLiteral",
         "title": "ZX: Toggle multiline string literal"
       }
     ],
     "keybindings": [
       {
-        "command": "zx.toggleMultilineStringLiteral",
+        "command": "ziex.toggleMultilineStringLiteral",
         "key": "alt+m",
         "mac": "alt+m",
         "when": "editorTextFocus && editorLangId =~ /^(zx|zig)$/"
       },
       {
-        "command": "zx.multilineSmartBackspace",
+        "command": "ziex.multilineSmartBackspace",
         "key": "backspace",
         "when": "editorTextFocus && !editorHasSelection && editorLangId =~ /^(zx|zig)$/"
       },
       {
-        "command": "zx.copyFromMultilineString",
+        "command": "ziex.copyFromMultilineString",
         "key": "ctrl+c",
         "mac": "cmd+c",
         "when": "editorTextFocus && editorHasSelection && editorLangId =~ /^(zx|zig)$/"
       },
       {
-        "command": "zx.pasteInMultilineString",
+        "command": "ziex.pasteInMultilineString",
         "key": "ctrl+v",
         "mac": "cmd+v",
         "when": "editorTextFocus && editorLangId =~ /^(zx|zig)$/"

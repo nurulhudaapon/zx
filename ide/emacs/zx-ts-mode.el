@@ -45,9 +45,13 @@
   :type 'integer
   :safe #'integerp)
 
-(defcustom zx-ts-mode-lsp-command '("zx" "lsp")
-  "Command that starts the ZX language server for Eglot."
-  :type '(repeat string))
+(defcustom zx-ts-mode-lsp-command nil
+  "Command that starts the ZX language server for Eglot.
+When nil, use `zx lsp' if `zx' is on `exec-path', and otherwise build
+and run the server from the project with
+`zig build zx -Dziex-lsp=true -- lsp', using the nearest build.zig."
+  :type '(choice (const :tag "Automatic" nil)
+                 (repeat :tag "Command" string)))
 
 ;;; Faces
 
@@ -326,7 +330,15 @@ does not; its title is a `string' or `identifier' child."
   "Return the ZX language server command for Eglot.
 Reads `zx-ts-mode-lsp-command' on every connection, so customizing it
 takes effect without reloading."
-  zx-ts-mode-lsp-command)
+  (or zx-ts-mode-lsp-command
+      (if (executable-find "zx")
+          '("zx" "lsp")
+        (let ((root (and buffer-file-name
+                         (locate-dominating-file buffer-file-name "build.zig"))))
+          (append '("zig" "build")
+                  (when root
+                    (list "--build-file" (expand-file-name "build.zig" root)))
+                  '("-Dziex-lsp=true" "--release=fast" "zx" "--" "lsp"))))))
 
 (with-eval-after-load 'eglot
   (when (boundp 'eglot-server-programs)

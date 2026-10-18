@@ -439,6 +439,7 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
                     <p><strong>Features:</strong> Tree-sitter syntax highlighting, indentation, imenu, and LSP support via Eglot.</p>
                 </div>
             </div>
+            <p>All editors run the same language server, <code>zx lsp</code>. See the <a href=`{zx.info.repository}/tree/main/ide#language-server` target="_blank" rel="noopener noreferrer">language server guide</a> for how it starts and how to configure it.</p>
 
             <h3 id="devtools">Browser DevTools</h3>
             <p>Install the <a href="https://chromewebstore.google.com/detail/ziex-devtools/efnedneccooengjfmahlnmicgkalnopj" target="_blank" rel="noopener noreferrer">Ziex DevTools</a> Chrome extension to inspect and debug ZX applications from Chrome DevTools.</p>
