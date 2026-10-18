@@ -106,29 +106,25 @@ fn nextEvent(self: *Cli) !?Event {
 
     var reader = &(self.stderr_reader orelse return null).interface;
     while (true) {
+        if (self.state.takePending()) |event| return event;
+
         self.line_writer.clearRetainingCapacity();
-        _ = reader.streamDelimiter(&self.line_writer.writer, '\n') catch {
-            if (self.state.flushPending()) |event| return event;
-            return null;
-        };
-        _ = reader.takeByte() catch {
-            if (self.state.flushPending()) |event| return event;
-            return null;
-        };
+        _ = reader.streamDelimiter(&self.line_writer.writer, '\n') catch return self.state.flushPending();
+        _ = reader.takeByte() catch return self.state.flushPending();
 
         const line = cleanLineInPlace(self.line_writer.written());
         if (try self.state.processLine(line)) |event| return event;
     }
 }
 
-fn cleanLineInPlace(raw: []u8) []u8 {
-    var line = raw;
-    if (line.len > 0 and line[line.len - 1] == '\r') line = line[0 .. line.len - 1];
+fn cleanLineInPlace(raw: []u8) []const u8 {
+    // Strip ANSI first: escape codes can precede the `info(verbose):` prefix.
+    var line = std.mem.trim(u8, stripAnsiInPlace(raw), " \t\r");
     const verbose_prefix = "info(verbose): ";
-    if (std.mem.startsWith(u8, line, verbose_prefix)) {
-        line = line[verbose_prefix.len..];
+    if (std.mem.indexOf(u8, line, verbose_prefix)) |idx| {
+        line = std.mem.trim(u8, line[idx + verbose_prefix.len ..], " \t");
     }
-    return stripAnsiInPlace(line);
+    return line;
 }
 
 fn freeEvent(allocator: std.mem.Allocator, event: *Event) void {
@@ -155,6 +151,11 @@ pub const BuildState = struct {
     user_assets_changed: bool,
     pending_asset_paths: std.ArrayList([]const u8),
     skip_next_build_cmd: bool,
+    /// `change_detected` was already emitted for the current cycle.
+    cycle_announced: bool,
+    verbose_steps_seen: u32,
+    /// Second event produced by a line that already returned one.
+    pending_event: ?Event,
 
     pub fn init(allocator: std.mem.Allocator) BuildState {
         return .{
@@ -171,42 +172,44 @@ pub const BuildState = struct {
             .user_assets_changed = false,
             .pending_asset_paths = std.ArrayList([]const u8).empty,
             .skip_next_build_cmd = false,
+            .cycle_announced = false,
+            .verbose_steps_seen = 0,
+            .pending_event = null,
         };
     }
 
     pub fn deinit(self: *BuildState) void {
+        if (self.pending_event) |*event| freeEvent(self.allocator, event);
         freeDiagnostics(self.allocator, &self.diagnostics);
         self.diagnostics.deinit(self.allocator);
         self.clearPendingAssets();
         self.pending_asset_paths.deinit(self.allocator);
     }
 
+    pub fn takePending(self: *BuildState) ?Event {
+        const event = self.pending_event;
+        self.pending_event = null;
+        return event;
+    }
+
     /// Process a single line of stderr output. Returns an event if one is
     /// triggered by this specific line.
     pub fn processLine(self: *BuildState, line: []const u8) !?Event {
-        log.debug("stderr: {s}", .{line});
-
         if (std.mem.startsWith(u8, line, "error: the following command failed")) {
             const event = self.flushPendingErrors();
             self.skip_next_build_cmd = true;
             return event;
         }
 
-        // `zig build-exe/lib/obj` line: a fresh cycle is starting. Anything
-        // accumulated belongs to the previous cycle.
-        if (isBuildCommandForOs(self.os_tag, line)) {
-            if (self.skip_next_build_cmd) {
-                self.skip_next_build_cmd = false;
-                return null;
+        if (isCycleStartLine(self.os_tag, line)) {
+            // Windows `--watch` may start the next cycle without a blank line after the summary tree.
+            const finalized = if (self.in_summary_tree) self.finalizeCycle() else null;
+            const started = self.handleCycleStart(line);
+            if (finalized) |event| {
+                if (started) |next| self.pending_event = next;
+                return event;
             }
-
-            const event = self.resetForNewCycle();
-            if (self.first_build_done) {
-                if (event != null) return event;
-                log.debug("change_detected", .{});
-                return .change_detected;
-            }
-            return event;
+            return started;
         }
         self.skip_next_build_cmd = false;
 
@@ -257,12 +260,58 @@ pub const BuildState = struct {
         return null;
     }
 
+    fn handleCycleStart(self: *BuildState, line: []const u8) ?Event {
+        const is_build_cmd = isBuildCommandForOs(self.os_tag, line);
+        if (is_build_cmd and self.skip_next_build_cmd) {
+            self.skip_next_build_cmd = false;
+            return null;
+        }
+        self.skip_next_build_cmd = false;
+
+        // `transpile` / `translate-c` lines can precede the first `build-exe` line.
+        if (!is_build_cmd) {
+            if (!self.first_build_done) return null;
+            if (self.cycle_announced) {
+                self.verbose_steps_seen += 1;
+                return self.stepProgress(parseVerboseStepLabel(line) orelse return null);
+            }
+        }
+
+        const flushed = self.resetForNewCycle();
+        if (!self.first_build_done) return flushed;
+        self.verbose_steps_seen += 1;
+
+        if (!self.cycle_announced) {
+            self.cycle_announced = true;
+            log.debug("change_detected", .{});
+            if (flushed) |event| {
+                self.pending_event = .change_detected;
+                return event;
+            }
+            if (!is_build_cmd) {
+                if (parseVerboseStepLabel(line)) |step| self.pending_event = self.stepProgress(step);
+            }
+            return .change_detected;
+        }
+        return flushed orelse self.stepProgress(parseVerboseStepLabel(line));
+    }
+
+    fn stepProgress(self: *const BuildState, step: ?[]const u8) Event {
+        return .{ .step_progress = .{
+            .step = step,
+            .completed = self.verbose_steps_seen,
+            .total = @max(self.verbose_steps_seen, 1),
+        } };
+    }
+
     pub fn flushPending(self: *BuildState) ?Event {
         return self.flushPendingErrors();
     }
 
     fn finalizeCycle(self: *BuildState) ?Event {
         self.in_summary_tree = false;
+        self.cycle_announced = false;
+        self.verbose_steps_seen = 0;
 
         if (self.pending_has_errors and self.diagnostics.items.len > 0) {
             return self.flushPendingErrors();
@@ -581,25 +630,72 @@ pub fn isBuildCommandLine(line: []const u8) bool {
 }
 
 pub fn isBuildCommandForOs(os_tag: std.Target.Os.Tag, line: []const u8) bool {
-    const trimmed = std.mem.trim(u8, line, " \t");
-    if (trimmed.len == 0) return false;
+    const cmd = parseCommand(os_tag, line) orelse return false;
+    const zig_exe = if (os_tag == .windows) "zig.exe" else "zig";
+    if (!std.mem.eql(u8, cmd.exe_name, zig_exe)) return false;
 
-    const exe, const rest = nextCommandToken(trimmed) orelse return false;
-    const subcommand, _ = nextCommandToken(rest) orelse return false;
+    return std.mem.eql(u8, cmd.subcommand, "build-exe") or
+        std.mem.eql(u8, cmd.subcommand, "build-lib") or
+        std.mem.eql(u8, cmd.subcommand, "build-obj");
+}
 
-    const exe_name = switch (os_tag) {
-        .windows => commandBasenameWindows(exe),
-        else => std.fs.path.basename(exe),
+/// Lines that mark the start of a new `--watch` rebuild cycle.
+fn isCycleStartLine(os_tag: std.Target.Os.Tag, line: []const u8) bool {
+    if (isBuildCommandForOs(os_tag, line)) return true;
+    const cmd = parseCommand(os_tag, line) orelse return false;
+
+    if (std.mem.eql(u8, cmd.subcommand, "transpile")) {
+        return std.mem.eql(u8, cmd.exe_name, "zx.exe") or std.mem.eql(u8, cmd.exe_name, "zx");
+    }
+    if (std.mem.eql(u8, cmd.subcommand, "translate-c")) {
+        return std.mem.eql(u8, cmd.exe_name, "zig.exe") or std.mem.eql(u8, cmd.exe_name, "zig");
+    }
+    return false;
+}
+
+fn parseCommand(os_tag: std.Target.Os.Tag, line: []const u8) ?struct { exe_name: []const u8, subcommand: []const u8 } {
+    const cmd = stripLeadingEnvAssignments(std.mem.trim(u8, line, " \t"));
+    const exe, const rest = nextCommandToken(cmd) orelse return null;
+    const subcommand, _ = nextCommandToken(rest) orelse return null;
+    return .{
+        .exe_name = if (os_tag == .windows) commandBasenameWindows(exe) else std.fs.path.basename(exe),
+        .subcommand = subcommand,
     };
-    const expected_exe_name = switch (os_tag) {
-        .windows => "zig.exe",
-        else => "zig",
-    };
-    if (!std.mem.eql(u8, exe_name, expected_exe_name)) return false;
+}
 
-    return std.mem.eql(u8, subcommand, "build-exe") or
-        std.mem.eql(u8, subcommand, "build-lib") or
-        std.mem.eql(u8, subcommand, "build-obj");
+/// Run steps may be printed as `KEY=VAL KEY=VAL "exe" args…`.
+fn stripLeadingEnvAssignments(line: []const u8) []const u8 {
+    var rest = std.mem.trimStart(u8, line, " \t");
+    while (rest.len > 0 and rest[0] != '"' and rest[0] != '\'') {
+        const eq = std.mem.indexOfScalar(u8, rest, '=') orelse break;
+        const key = rest[0..eq];
+        if (key.len == 0 or std.mem.indexOfAny(u8, key, " \t/\\") != null) break;
+
+        var after = rest[eq + 1 ..];
+        if (after.len > 0 and (after[0] == '"' or after[0] == '\'')) {
+            const quote = after[0];
+            const end = std.mem.indexOfScalarPos(u8, after, 1, quote) orelse break;
+            rest = std.mem.trimStart(u8, after[end + 1 ..], " \t");
+        } else {
+            const sp = std.mem.indexOfAny(u8, after, " \t") orelse return "";
+            rest = std.mem.trimStart(u8, after[sp..], " \t");
+        }
+    }
+    return rest;
+}
+
+/// Best-effort label from a verbose command line for status display.
+fn parseVerboseStepLabel(line: []const u8) ?[]const u8 {
+    const name_marker = " --name ";
+    if (std.mem.indexOf(u8, line, name_marker)) |idx| {
+        const rest = line[idx + name_marker.len ..];
+        const end = std.mem.indexOfAny(u8, rest, " \t\"") orelse rest.len;
+        if (end == 0) return null;
+        return rest[0..end];
+    }
+    if (std.mem.indexOf(u8, line, " transpile ")) |_| return "transpile";
+    if (std.mem.indexOf(u8, line, " translate-c ")) |_| return "translate-c";
+    return null;
 }
 
 fn nextCommandToken(input: []const u8) ?struct { []const u8, []const u8 } {

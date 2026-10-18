@@ -355,6 +355,41 @@ test "windows watch output detects build start and restart" {
     try std.testing.expect(change_count >= 1);
 }
 
+test "summary tree without blank line still emits change_detected" {
+    const allocator = std.testing.allocator;
+    var state = BuildState.init(allocator);
+    state.os_tag = .windows;
+    state.first_build_done = true;
+    defer state.deinit();
+
+    var events = std.ArrayList(Event).empty;
+    defer freeEvents(allocator, &events);
+
+    const input =
+        \\Build Summary: 2/2 steps succeeded
+        \\+- install server app success
+        \\"C:\\zig\\zig.exe" build-exe -ODebug --name app
+        \\Build Summary: 2/2 steps succeeded
+        \\+- install server app success
+        \\
+        \\
+    ;
+    try feedLines(&state, input, &events);
+    while (state.takePending()) |event| {
+        try events.append(allocator, event);
+    }
+
+    var saw_change = false;
+    var saw_restart = false;
+    for (events.items) |e| switch (e) {
+        .change_detected => saw_change = true,
+        .should_restart => saw_restart = true,
+        else => {},
+    };
+    try std.testing.expect(saw_change);
+    try std.testing.expect(saw_restart);
+}
+
 test "parse > diagnostic errors" {
     const allocator = std.testing.allocator;
     const diag = parseDiagnostic(allocator, ".zig-cache/app/pages/page.zig:95:12: error: expected ',' after field").?;
@@ -369,6 +404,33 @@ test "is build cmd handles windows zig path and rejects other tools" {
     try std.testing.expect(isBuildCommandForOs(.windows, "\"C:\\\\Users\\\\x\\\\zig.exe\" build-exe -ODebug"));
     try std.testing.expect(isBuildCommandForOs(.macos, "/Users/x/.asdf/installs/zig/0.17.0/zig build-lib -ODebug"));
     try std.testing.expect(!isBuildCommandForOs(.windows, "install -C foo bar"));
+    try std.testing.expect(isBuildCommandForOs(
+        .windows,
+        "ZIEX_INNER_PORT=1 ZIEX_OUTER_PORT=2 \"C:\\\\zig\\\\zig.exe\" build-exe -ODebug --name app",
+    ));
+}
+
+test "verbose env-prefixed transpile announces rebuild" {
+    const allocator = std.testing.allocator;
+    var state = BuildState.init(allocator);
+    state.os_tag = .windows;
+    state.first_build_done = true;
+    defer state.deinit();
+
+    var events = std.ArrayList(Event).empty;
+    defer freeEvents(allocator, &events);
+
+    const line =
+        \\ZIEX_INNER_PORT=49822 ZIEX_OUTER_PORT=3000 ".\.zig-cache\o\abc\zx.exe" transpile ".\app" --outdir ".\.zig-cache\tnsn"
+    ;
+    if (try state.processLine(line)) |event| {
+        try events.append(allocator, event);
+    }
+    while (state.takePending()) |event| {
+        try events.append(allocator, event);
+    }
+    try std.testing.expect(events.items.len >= 1);
+    try std.testing.expect(events.items[0] == .change_detected);
 }
 
 test "parse > duration ms handles common units" {

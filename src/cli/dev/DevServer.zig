@@ -438,7 +438,8 @@ fn handleConnection(ds: *DevServer, stream: std.Io.net.Stream) void {
                     return log.err("failed to respond web socket", .{});
                 };
                 serveWebSocket(ds, &web_socket, stream) catch |err| {
-                    log.debug("failed to serve websocket: {s}", .{@errorName(err)});
+                    // Windows reports client disconnects as error.Unexpected.
+                    log.debug("websocket closed: {s}", .{@errorName(err)});
                     return;
                 };
                 return;
