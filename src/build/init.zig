@@ -175,13 +175,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     );
     // --- Static Directory Setup --- //
     {
-        // Install public directory into static (only if the directory exists)
-        // TODO: LazyPath.getPath(b) alternative for zig 0.17, using relative path for now
-        const public_path = b.fmt("{f}", .{opts.site_path.path(b, "public")});
+        b.dependOnDirectoryContents(opts.site_path);
 
-        if (std.Io.Dir.cwd().access(b.graph.io, public_path, .{})) |_| {
+        const public_dir = opts.site_path.path(b, "public");
+        if (b.root.access(b.graph.io, public_dir.src_path.sub_path, .{})) |_| {
             const install_static = b.addInstallDirectory(.{
-                .source_dir = opts.site_path.path(b, "public"),
+                .source_dir = public_dir,
                 .install_dir = .prefix,
                 .install_subdir = "static",
             });
@@ -189,12 +188,10 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             exe.step.dependOn(&install_static.step);
         } else |_| {}
 
-        // Also install the generated assets into static/assets (only if the directory exists)
-        // TODO: LazyPath.getPath(b) alternative for zig 0.17, using relative path for now
-        const assets_path = b.fmt("{f}", .{opts.site_path.path(b, "assets")});
-        if (std.Io.Dir.cwd().access(b.graph.io, assets_path, .{})) |_| {
+        const assets_dir = opts.site_path.path(b, "assets");
+        if (b.root.access(b.graph.io, assets_dir.src_path.sub_path, .{})) |_| {
             const install_assets = b.addInstallDirectory(.{
-                .source_dir = opts.site_path.path(b, "assets"),
+                .source_dir = assets_dir,
                 .install_dir = .prefix,
                 .install_subdir = "static/assets",
             });
