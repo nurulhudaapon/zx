@@ -33,8 +33,12 @@ fn untrackChildGroup(child: *const std.process.Child) void {
 }
 
 fn killRunnerHard(r: *std.process.Child, io: std.Io) void {
+    // Child.kill() SIGTERMs then waits without a timeout; SIGKILL first so a stuck app can't hang us.
     if (comptime builtin.os.tag != .windows) {
-        if (r.id) |pid| std.posix.kill(pid, sig.force_kill) catch {};
+        if (r.id) |pid| {
+            sig.killProcessGroup(pid, sig.force_kill);
+            _ = sig.waitPidExit(pid, 1000);
+        }
     }
     r.kill(io);
 }
@@ -53,23 +57,20 @@ fn stopRunnerGraceful(r: *std.process.Child, io: std.Io, inner_port: u16, timeou
         return;
     }
 
-    if (r.id) |pid| {
-        if (comptime builtin.os.tag == .windows) {
-            sig.killProcessGroup(pid, sig.force_kill);
-        } else {
-            sig.killProcessGroup(pid, std.posix.SIG.TERM);
-        }
+    const pid = r.id.?;
+    if (comptime builtin.os.tag == .windows) {
+        sig.killProcessGroup(pid, sig.force_kill);
+    } else {
+        sig.killProcessGroup(pid, std.posix.SIG.TERM);
     }
     wakeLocalhostIo(io, inner_port);
 
-    if (r.id) |pid| {
-        if (sig.waitPidExit(pid, timeout_ms)) {
-            _ = r.wait(io) catch {};
-            return;
-        }
+    if (!sig.waitPidExit(pid, timeout_ms)) {
+        killRunnerHard(r, io);
+        return;
     }
 
-    killRunnerHard(r, io);
+    _ = r.wait(io) catch killRunnerHard(r, io);
 }
 
 fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
@@ -197,25 +198,43 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var runnable_path_owned: ?[]const u8 = null;
 
     // Release the user-facing port first, then stop child processes.
+    // On Ctrl+C, hard-kill and skip joins so exit never blocks; the process exit reaps detached threads.
     defer {
         if (sig.interrupted()) {
             std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
+            sig.killWatches(sig.force_kill);
+            if (runner) |*r| {
+                untrackChildGroup(r);
+                killRunnerHard(r, io);
+                runner = null;
+            }
+            if (runner_output) |*o| {
+                o.deinitOptions(.{ .join = false });
+                runner_output = null;
+            }
+            untrackChildGroup(builder.child());
+            if (builder.child().id) |pid| {
+                sig.killProcessGroup(pid, sig.force_kill);
+                _ = sig.waitPidExit(pid, 500);
+            }
+            builder.kill(io);
+            dev_server.deinitOptions(.{ .join_serve_thread = false });
+        } else {
+            dev_server.deinit();
+            if (runner) |*r| {
+                untrackChildGroup(r);
+                stopRunnerGraceful(r, io, inner_port, 3000);
+                runner = null;
+            }
+            if (runner_output) |*o| {
+                o.wait();
+                o.deinit();
+                runner_output = null;
+            }
+            untrackChildGroup(builder.child());
+            builder.deinit(io);
         }
-        dev_server.deinit();
         dev_server_active = false;
-
-        if (runner) |*r| {
-            untrackChildGroup(r);
-            stopRunnerGraceful(r, io, inner_port, 3000);
-            runner = null;
-        }
-        if (runner_output) |*o| {
-            o.wait();
-            o.deinit();
-            runner_output = null;
-        }
-        untrackChildGroup(builder.child());
-        builder.deinit(io);
         if (runnable_path_owned) |p| allocator.free(p);
         if (runner_temp) |*t| t.deinit(io, allocator);
         if (program_path) |p| allocator.free(p);
@@ -231,6 +250,8 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     defer if (last_error_formatted) |prev| allocator.free(prev);
     var build_label: []const u8 = "Building";
     const status = ctx.spinner;
+    // Echo rebuilds can request a restart even when the exe is byte-identical.
+    var last_exe_fingerprint: ?u64 = null;
 
     try startStatus(status, use_spinner, "{s}{s}Building...{s}", .{ Colors.cyan, Colors.bold, Colors.reset });
 
@@ -351,6 +372,26 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 last_was_no_change = false;
                 log.debug("Processing startup/restart request...", .{});
 
+                if (program_path == null) {
+                    program_path = util.resolveExePath(io, allocator, install_prefix, binpath) catch |err| {
+                        log.debug("Error finding ZX executable: {any}", .{err});
+                        continue;
+                    };
+                }
+
+                const exe_fp = exeContentFingerprint(io, program_path.?);
+                const orphan = !is_first_run and !rebuilding_shown;
+                const unchanged = !is_first_run and exe_fp != null and last_exe_fingerprint == exe_fp;
+                if (orphan or unchanged) {
+                    log.debug("skipping duplicate restart (orphan={} unchanged={})", .{ orphan, unchanged });
+                    if (rebuilding_shown) status.stop();
+                    rebuilding_shown = false;
+                    rebuild_timer = null;
+                    _ = dev_server.waitUntilInnerReady(1000);
+                    dev_server.notify(.{ .type = .reload });
+                    continue;
+                }
+
                 const wall_build_ms: u64 = if (rebuild_timer) |t| @intCast(t.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds()) else build_duration_ms;
                 rebuild_timer = null;
 
@@ -383,13 +424,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                     runner_output = null;
                 }
                 _ = waitUntilPortFree(io, inner_port, 2000);
-
-                if (program_path == null) {
-                    program_path = util.resolveExePath(io, allocator, install_prefix, binpath) catch |err| {
-                        log.debug("Error finding ZX executable: {any}", .{err});
-                        continue;
-                    };
-                }
 
                 if (runnable_path_owned) |p| {
                     allocator.free(p);
@@ -458,12 +492,31 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 _ = dev_server.waitUntilInnerReady(5000);
                 dev_server.notify(.{ .type = .reload });
 
+                last_exe_fingerprint = exe_fp orelse exeContentFingerprint(io, program_path.?);
                 rebuilding_shown = false;
             },
         }
     }
 
     fatal_sig.* = sig.received();
+}
+
+/// Hashes the whole file; partial hashing misses small edits in the middle of large binaries.
+fn exeContentFingerprint(io: std.Io, path: []const u8) ?u64 {
+    var file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return null;
+    defer file.close(io);
+
+    var hasher = std.hash.Wyhash.init(0);
+    var buf: [64 * 1024]u8 = undefined;
+    var offset: u64 = 0;
+    while (true) {
+        const n = file.readPositional(io, &.{&buf}, offset) catch return null;
+        if (n == 0) break;
+        hasher.update(buf[0..n]);
+        offset += n;
+        if (n < buf.len) break;
+    }
+    return hasher.final();
 }
 
 /// The status line is always drawn by the spinner so it stays pinned below
