@@ -135,6 +135,12 @@ pub fn stop(self: *Spinner) void {
     }
 }
 
+pub fn clear(self: *Spinner) void {
+    if (!self.is_spinning.load(.monotonic)) return;
+    self.stop();
+    self.writer.print("\r\x1b[2K", .{}) catch {};
+}
+
 pub fn updateStyle(self: *Spinner, options: SpinnerOptions) void {
     const io = std.Io.Threaded.global_single_threaded.io();
     self.mutex.lockUncancelable(io);

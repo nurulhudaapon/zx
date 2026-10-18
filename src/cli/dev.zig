@@ -9,6 +9,7 @@ const Diagnostics = @import("dev/Diagnostics.zig");
 const DevServer = @import("dev/DevServer.zig");
 const Highlight = @import("dev/Highlight.zig");
 const RunnerOutput = @import("dev/RunnerOutput.zig");
+const Process = @import("dev/Process.zig");
 const sig = @import("../util/sig.zig");
 const cli_args = @import("root.zig");
 const constants = @import("../runtime/core/constants.zig");
@@ -18,60 +19,117 @@ const Colors = tui.Colors;
 const log = std.log.scoped(.cli);
 pub const command = cli_args.dev;
 
-fn ownProcessGroup() ?std.posix.pid_t {
-    return if (comptime builtin.os.tag == .windows) null else 0;
-}
+/// Child process trees that must not outlive `zx dev`. The app is stopped by
+/// closing its stdin (works on every OS) so it can exit cleanly and report leaks.
+const children = struct {
+    /// Held while spawning so a signal can't land between spawn and record.
+    var mutex: std.Io.Mutex = .init;
+    var builder: ?std.process.Child.Id = null;
+    var runner: ?std.process.Child.Id = null;
+    var runner_done: ?*const std.atomic.Value(bool) = null;
+    var runner_stdin: ?std.Io.File = null;
+    var io: std.Io = undefined;
+    var inner_port: u16 = 0;
+    /// Lock-free copies for `forceKill`, which runs in signal context.
+    var force_groups: [2]std.atomic.Value(i32) = .{ .init(0), .init(0) };
 
-fn trackChildGroup(child: *const std.process.Child) void {
-    if (comptime builtin.os.tag == .windows) return;
-    if (child.id) |pid| sig.watchGroup(pid);
-}
+    const lock_io = std.Io.Threaded.global_single_threaded.io();
 
-fn untrackChildGroup(child: *const std.process.Child) void {
-    if (comptime builtin.os.tag == .windows) return;
-    if (child.id) |pid| sig.unwatchGroup(pid);
-}
-
-fn killRunnerHard(r: *std.process.Child, io: std.Io) void {
-    // Child.kill() SIGTERMs then waits without a timeout; SIGKILL first so a stuck app can't hang us.
-    if (comptime builtin.os.tag != .windows) {
-        if (r.id) |pid| {
-            sig.killProcessGroup(pid, sig.force_kill);
-            _ = sig.waitPidExit(pid, 1000);
+    fn onSignal(signal: std.posix.SIG) void {
+        mutex.lockUncancelable(lock_io);
+        std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
+        if (runner) |id| {
+            closeRunnerStdin();
+            _ = awaitRunnerOutput(2000);
+            Process.killTree(id);
         }
+        if (builder) |id| Process.killTree(id);
+        // `zig build` is still waiting on us; Ctrl+C isn't a failed step.
+        if (Process.terminal.held()) {
+            Process.terminal.release();
+            sig.exitWith(0);
+        }
+        sig.exit(signal);
     }
-    r.kill(io);
-}
 
-fn wakeLocalhostIo(io: std.Io, port: u16) void {
-    if (std.Io.net.IpAddress.parse("127.0.0.1", port)) |addr| {
-        if (addr.connect(io, .{ .mode = .stream })) |s| {
-            s.close(io);
+    /// Windows children share our console and get the Ctrl+C themselves.
+    fn forceKill() void {
+        if (comptime builtin.os.tag == .windows) return;
+        for (&force_groups) |*g| {
+            const pgid = g.load(.acquire);
+            if (pgid > 0) _ = std.posix.system.kill(-pgid, .KILL);
+        }
+        Process.terminal.release();
+    }
+
+    fn mirror() void {
+        if (comptime builtin.os.tag == .windows) return;
+        force_groups[0].store(builder orelse 0, .release);
+        force_groups[1].store(runner orelse 0, .release);
+    }
+
+    /// Call with `mutex` held.
+    fn closeRunnerStdin() void {
+        if (runner_stdin) |f| f.close(io);
+        runner_stdin = null;
+    }
+
+    /// The app's stop doesn't interrupt a blocked accept(); a connection does.
+    fn wakeRunner() void {
+        if (std.Io.net.IpAddress.parse("127.0.0.1", inner_port)) |addr| {
+            if (addr.connect(io, .{ .mode = .stream })) |s| s.close(io) else |_| {}
         } else |_| {}
-    } else |_| {}
-}
-
-fn stopRunnerGraceful(r: *std.process.Child, io: std.Io, inner_port: u16, timeout_ms: u64) void {
-    if (r.id == null) {
-        r.kill(io);
-        return;
     }
 
-    const pid = r.id.?;
-    if (comptime builtin.os.tag == .windows) {
-        sig.killProcessGroup(pid, sig.force_kill);
-    } else {
-        sig.killProcessGroup(pid, std.posix.SIG.TERM);
-    }
-    wakeLocalhostIo(io, inner_port);
-
-    if (!sig.waitPidExit(pid, timeout_ms)) {
-        killRunnerHard(r, io);
-        return;
+    fn setBuilder(id: ?std.process.Child.Id) void {
+        mutex.lockUncancelable(lock_io);
+        defer mutex.unlock(lock_io);
+        builder = id;
+        mirror();
     }
 
-    _ = r.wait(io) catch killRunnerHard(r, io);
-}
+    fn spawnRunner(options: std.process.SpawnOptions) !std.process.Child {
+        mutex.lockUncancelable(lock_io);
+        defer mutex.unlock(lock_io);
+        var child = try std.process.spawn(io, options);
+        runner = child.id;
+        runner_stdin = child.stdin;
+        child.stdin = null;
+        mirror();
+        return child;
+    }
+
+    fn watchRunnerOutput(output: *const RunnerOutput) void {
+        mutex.lockUncancelable(lock_io);
+        defer mutex.unlock(lock_io);
+        runner_done = output.doneFlag();
+    }
+
+    /// Reaping before the output drains closes the pipes under the reader.
+    fn awaitRunnerOutput(timeout_ms: u32) bool {
+        const done = runner_done orelse return true;
+        var waited: u32 = 0;
+        while (!done.load(.acquire)) : (waited += 10) {
+            if (waited >= timeout_ms) return false;
+            if (waited % 200 == 0) wakeRunner();
+            io.sleep(.fromMilliseconds(10), .awake) catch return false;
+        }
+        return true;
+    }
+
+    fn stopRunner(child: *std.process.Child) void {
+        if (child.id == null) return;
+        mutex.lockUncancelable(lock_io);
+        closeRunnerStdin();
+        mutex.unlock(lock_io);
+        Process.waitOrKill(child, io, if (awaitRunnerOutput(3000)) 1000 else 0);
+        mutex.lockUncancelable(lock_io);
+        defer mutex.unlock(lock_io);
+        runner = null;
+        runner_done = null;
+        mirror();
+    }
+};
 
 fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
     const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return false;
@@ -89,22 +147,17 @@ fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
 }
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
-    var fatal_sig: ?std.posix.SIG = null;
-    defer if (fatal_sig) |s| sig.raiseDefault(s);
-    try runSupervised(ctx, args, &fatal_sig);
-}
-
-fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG) !void {
     const app = ctx.app;
     const io = app.io;
     const env_map = app.environ_map;
     var runner: ?std.process.Child = null;
 
-    try sig.install();
-    // Exit from the signal handler so we never race with `zig build` dying first
-    // (shell prompt + orphan zx stuck in cleanup — intermittent double Ctrl+C).
-    sig.setExitOnInterrupt(true);
+    children.io = io;
+    try sig.install(children.onSignal);
+    sig.setForceHandler(children.forceKill);
     defer sig.uninstall();
+    Process.terminal.take();
+    defer Process.terminal.release();
 
     const allocator = ctx.allocator;
     const binpath = args.binpath;
@@ -167,6 +220,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         return;
     }
     dev_server.inner_port = inner_port;
+    children.inner_port = inner_port;
 
     const inner_port_str = try std.fmt.allocPrint(allocator, "{d}", .{inner_port});
     defer allocator.free(inner_port_str);
@@ -174,6 +228,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     defer allocator.free(outer_port_str);
 
     try env_map.put("ZIEX_INNER_PORT", inner_port_str);
+    try env_map.put("ZIEX_STOP_ON_EOF", "1");
     try env_map.put("ZIEX_OUTER_PORT", outer_port_str);
 
     if (env_map.get("ZIEX_ROOT_DIR") == null) try env_map.put("ZIEX_ROOT_DIR", install_prefix);
@@ -190,10 +245,9 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         .allocator = allocator,
         .argv = build_args_array.items,
         .environ_map = env_map,
-        .pgid = ownProcessGroup(),
     });
     var builder = builder_impl.builder();
-    trackChildGroup(builder.child());
+    children.setBuilder(builder.child().id);
 
     var runner_output: ?RunnerOutput = null;
     var program_path: ?[]const u8 = null;
@@ -201,42 +255,13 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var runnable_path_owned: ?[]const u8 = null;
 
     // Release the user-facing port first, then stop child processes.
-    // On Ctrl+C: SIGKILL children and exit_group immediately. Any wait/join here
-    // races with `zig build` dying first (shell prompt + orphan zx) and causes
-    // the intermittent "need Ctrl+C twice" hang.
     defer {
-        if (sig.interrupted()) {
-            std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
-            sig.killWatches(sig.force_kill);
-            if (runner) |*r| {
-                untrackChildGroup(r);
-                if (comptime builtin.os.tag != .windows) {
-                    if (r.id) |pid| sig.killProcessGroup(pid, sig.force_kill);
-                }
-                runner = null;
-            }
-            untrackChildGroup(builder.child());
-            if (comptime builtin.os.tag != .windows) {
-                if (builder.child().id) |pid| sig.killProcessGroup(pid, sig.force_kill);
-            }
-            fatal_sig.* = sig.received() orelse .INT;
-            sig.raiseDefault(fatal_sig.*.?);
-        } else {
-            dev_server.deinit();
-            if (runner) |*r| {
-                untrackChildGroup(r);
-                stopRunnerGraceful(r, io, inner_port, 3000);
-                runner = null;
-            }
-            if (runner_output) |*o| {
-                o.wait();
-                o.deinit();
-                runner_output = null;
-            }
-            untrackChildGroup(builder.child());
-            builder.deinit(io);
-        }
+        dev_server.deinit();
         dev_server_active = false;
+        if (runner) |*r| children.stopRunner(r);
+        if (runner_output) |*o| o.deinit();
+        builder.deinit(io);
+        children.setBuilder(null);
         if (runnable_path_owned) |p| allocator.free(p);
         if (runner_temp) |*t| t.deinit(io, allocator);
         if (program_path) |p| allocator.free(p);
@@ -247,7 +272,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var rebuilding_shown = true;
     var rebuild_output_epoch: usize = 0;
     var is_first_run = true;
-    var last_was_no_change = false;
     var last_error_formatted: ?[]const u8 = null;
     defer if (last_error_formatted) |prev| allocator.free(prev);
     var build_label: []const u8 = "Building";
@@ -260,13 +284,10 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     const NO_CHANGE_DEBOUNCE_MS = 200;
 
     while (true) {
-        if (sig.interrupted()) break;
-
         const event = (try builder.next(io)) orelse break;
         switch (event) {
             .change_detected => change: {
                 if (rebuilding_shown) break :change;
-                last_was_no_change = false;
                 if (last_error_formatted) |prev| {
                     allocator.free(prev);
                     last_error_formatted = null;
@@ -284,7 +305,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 try status.updateMessage("{s}", .{formatBuildStatus(&status_buf, build_label, progress)});
             },
             .errors => |result_val| {
-                last_was_no_change = false;
                 var build_result = result_val;
                 defer build_result.deinit();
 
@@ -325,7 +345,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 rebuilding_shown = false;
             },
             .resolved => {
-                last_was_no_change = false;
                 if (status.isSpinning()) {
                     try status.succeed("{s}{s}All build errors have been resolved!{s}", .{ Colors.green, Colors.bold, Colors.reset });
                 } else {
@@ -337,41 +356,33 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
             },
             .build_complete_no_change => {
                 std.Io.sleep(io, .fromMilliseconds(NO_CHANGE_DEBOUNCE_MS), .awake) catch {};
-                if (rebuilding_shown) try status.succeed("{s}No changes{s}", .{ Colors.dim, Colors.reset });
+                if (rebuilding_shown) status.clear();
                 log.debug("cached watch cycle completed without output changes", .{});
                 dev_server.notify(.{ .type = .clear });
                 rebuild_timer = null;
                 rebuilding_shown = false;
-                last_was_no_change = true;
             },
             .assets_installed => |result_val| {
                 var result = result_val;
                 defer result.deinit();
 
-                status.stop();
+                status.clear();
 
-                const no_output_since = if (runner_output) |*output|
-                    output.outputEpoch() == rebuild_output_epoch
-                else
-                    true;
-                const prefix: []const u8 = if (last_was_no_change and no_output_since) "\x1b[1A\r" else "\r";
                 if (result.files.len == 1) {
-                    try ctx.writer.print("{s}{s}✓ {s}Asset updated{s} {s}{s}{s}\x1b[K\n", .{
-                        prefix, Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files[0], Colors.reset,
+                    try ctx.writer.print("\r{s}✓ {s}Asset updated{s} {s}{s}{s}\x1b[K\n", .{
+                        Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files[0], Colors.reset,
                     });
                 } else {
-                    try ctx.writer.print("{s}{s}✓ {s}Assets updated{s} {s}({d} files){s}\x1b[K\n", .{
-                        prefix, Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files.len, Colors.reset,
+                    try ctx.writer.print("\r{s}✓ {s}Assets updated{s} {s}({d} files){s}\x1b[K\n", .{
+                        Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files.len, Colors.reset,
                     });
                 }
 
                 dev_server.notify(.{ .type = .asset_update, .files = result.files });
                 rebuild_timer = null;
                 rebuilding_shown = false;
-                last_was_no_change = true;
             },
             .should_restart => |build_duration_ms| {
-                last_was_no_change = false;
                 log.debug("Processing startup/restart request...", .{});
 
                 // The CLI backend can finish a rebuild without announcing it first.
@@ -395,7 +406,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 const unchanged = !is_first_run and exe_fp != null and last_exe_fingerprint == exe_fp;
                 if (orphan or unchanged) {
                     log.debug("skipping duplicate restart (orphan={} unchanged={})", .{ orphan, unchanged });
-                    if (rebuilding_shown) status.stop();
+                    if (rebuilding_shown) status.clear();
                     rebuilding_shown = false;
                     rebuild_timer = null;
                     _ = dev_server.waitUntilInnerReady(1000);
@@ -420,18 +431,13 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
 
                 var start_time = std.Io.Timestamp.now(io, .awake);
 
-                // Graceful SIGTERM so DebugAllocator can print leaks on
-                // restart; SIGKILL only if stop hangs past the timeout.
                 if (runner) |*r| {
-                    untrackChildGroup(r);
-                    stopRunnerGraceful(r, io, inner_port, 3000);
+                    children.stopRunner(r);
                     runner = null;
                 }
                 var final_output_epoch = rebuild_output_epoch;
                 if (runner_output) |*o| {
-                    o.wait();
-                    final_output_epoch = o.outputEpoch();
-                    o.deinit();
+                    final_output_epoch = o.finish();
                     runner_output = null;
                 }
                 _ = waitUntilPortFree(io, inner_port, 2000);
@@ -445,7 +451,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                     runner_temp = null;
                 }
 
-                const runnable_path = if (comptime builtin.os.tag == .windows) blk: {
+                const runnable_path = blk: {
                     runner_temp = try util.TempDir.init(io, allocator);
                     errdefer {
                         runner_temp.?.deinit(io, allocator);
@@ -454,7 +460,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                     const path = try util.getRunnablePath(io, allocator, program_path.?, runner_temp.?);
                     runnable_path_owned = path;
                     break :blk path;
-                } else program_path.?;
+                };
 
                 if (clear_on_restart) {
                     try ctx.writer.print("\x1b[2J\x1b[H", .{});
@@ -464,35 +470,35 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 defer runner_args.deinit(allocator);
                 try runner_args.appendSlice(allocator, &.{runnable_path});
 
-                runner = try std.process.spawn(io, .{
+                runner = try children.spawnRunner(.{
                     .argv = runner_args.items,
                     .environ_map = env_map,
+                    .stdin = .pipe,
                     .stderr = .pipe,
                     .stdout = .pipe,
-                    .pgid = ownProcessGroup(),
+                    .pgid = Process.own_group,
                 });
-                trackChildGroup(&runner.?);
 
-                runner_output = try RunnerOutput.init(io, allocator, &runner.?, status);
+                runner_output = try RunnerOutput.init(io, allocator, &runner.?, status, transpile_dir);
+                children.watchRunnerOutput(&runner_output.?);
 
                 const restart_time_ms: u64 = @intCast(start_time.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds());
 
-                if (rebuilding_shown and (!is_first_run or report_initial_build_time)) {
-                    const total_ms = wall_build_ms + restart_time_ms;
-                    const total_s: f64 = @as(f64, @floatFromInt(total_ms)) / 1000.0;
-                    const action = if (is_first_run) "Built" else "Restarted";
+                const total_ms = wall_build_ms + restart_time_ms;
+                const total_s: f64 = @as(f64, @floatFromInt(total_ms)) / 1000.0;
+                if (rebuilding_shown and is_first_run and report_initial_build_time) {
+                    try status.succeed("{s}{s}Built {s}({d:.2}s){s}", .{ Colors.green, Colors.bold, Colors.gray, total_s, Colors.reset });
+                }
+                status.clear();
+
+                if (!is_first_run) {
                     const printed_since_gap = if (separated_epoch) |epoch|
                         final_output_epoch != epoch
                     else
                         final_output_epoch != rebuild_output_epoch;
-                    if (printed_since_gap) status.writeAbove(io, std.Io.File.stdout(), "\n");
-                    try status.succeed("{s}{s}{s} {s}({d:.2}s){s}", .{ Colors.green, Colors.bold, action, Colors.gray, total_s, Colors.reset });
-                }
-                status.stop();
-
-                if (!is_first_run) {
+                    if (printed_since_gap) try ctx.writer.print("\n", .{});
                     try ctx.writer.print("\n", .{});
-                    printApplicationLogsBanner();
+                    printAppLogsBanner(if (rebuilding_shown) total_s else null);
                 } else if (report_initial_build_time) {
                     try ctx.writer.print("\n", .{});
                 }
@@ -508,8 +514,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
             },
         }
     }
-
-    fatal_sig.* = sig.received();
 }
 
 /// Hashes the whole file; partial hashing misses small edits in the middle of large binaries.
@@ -569,8 +573,10 @@ fn printFirstLine(output: *RunnerOutput) void {
     }
 }
 
-fn printApplicationLogsBanner() void {
-    std.debug.print("{s}╭─{s}[{s}Application Logs{s}]\n", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
+fn printAppLogsBanner(restart_s: ?f64) void {
+    std.debug.print("{s}╭─{s}[{s}App Logs{s}]", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
+    if (restart_s) |s| std.debug.print(" {s}↻ {d:.2}s{s}", .{ Colors.gray, s, Colors.reset });
+    std.debug.print("\n", .{});
 }
 
 fn notifyBuildError(

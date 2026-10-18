@@ -13,6 +13,8 @@ vtable: *const VTable,
 
 pub const Bsp = @import("Builder/bsp.zig");
 pub const Cli = @import("Builder/cli.zig");
+pub const Process = @import("Process.zig");
+pub const LeakReport = @import("LeakReport.zig");
 
 /// Backend used by `zx dev` unless overridden.
 /// Windows uses CLI `--watch`: BSP's watch never wakes there (https://codeberg.org/ziglang/zig/issues/37236).
@@ -20,7 +22,6 @@ pub const default = if (builtin.os.tag == .windows) Cli else Bsp;
 
 pub const VTable = struct {
     deinit: *const fn (userdata: ?*anyopaque, io: std.Io) void,
-    kill: *const fn (userdata: ?*anyopaque, io: std.Io) void,
     /// Block until the next event. `null` means the builder process closed.
     next: *const fn (userdata: ?*anyopaque, io: std.Io) anyerror!?Event,
     child: *const fn (userdata: ?*anyopaque) *std.process.Child,
@@ -88,15 +89,10 @@ pub const InitOptions = struct {
     /// Base `zig build …` argv (without `--watch` / `--listen`).
     argv: []const []const u8,
     environ_map: ?*std.process.Environ.Map = null,
-    pgid: ?std.posix.pid_t = null,
 };
 
 pub fn deinit(self: Builder, io: std.Io) void {
     self.vtable.deinit(self.userdata, io);
-}
-
-pub fn kill(self: Builder, io: std.Io) void {
-    self.vtable.kill(self.userdata, io);
 }
 
 pub fn next(self: Builder, io: std.Io) !?Event {

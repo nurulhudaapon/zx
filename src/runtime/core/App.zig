@@ -152,12 +152,22 @@ fn clearDefaultFactory(self: *App) void {
 pub fn armSignal(instance: *anyopaque, on_stop: *const fn (ctx: *anyopaque) void) void {
     stop_ctx = instance;
     stop_fn = on_stop;
-    sig.install() catch {};
-    sig.addListener(onSignal);
+    stopping.store(false, .release);
+    sig.install(onSignal) catch {};
+    if (stop_on_eof) if (std.Thread.spawn(.{}, stopOnStdinEof, .{})) |t| t.detach() else |_| {};
+}
+
+/// `zx dev` closes our stdin to stop us: unlike signals, that works on Windows.
+fn stopOnStdinEof() void {
+    // Not `io()`: that is torn down in `release` while this thread may still block.
+    const stdin_io = std.Io.Threaded.global_single_threaded.io();
+    var buf: [256]u8 = undefined;
+    while (true) _ = std.Io.File.stdin().readStreaming(stdin_io, &.{&buf}) catch break;
+    onSignal(.TERM);
 }
 
 pub fn disarmSignal() void {
-    sig.removeListener(onSignal);
+    sig.uninstall();
     stop_ctx = null;
     stop_fn = null;
 }
@@ -174,14 +184,19 @@ pub fn release(alloc: std.mem.Allocator) void {
 
 pub fn assertNoLeaks() void {
     if (comptime builtin.os.tag == .wasi or builtin.os.tag == .freestanding) return;
-    if (builtin.optimize == .debug)
-        std.debug.assert(debug_allocator.deinit() == .ok);
+    if (builtin.optimize != .debug) return;
+    const leaked = debug_allocator.deinit() == .leak;
+    // `zx dev` shows the leak report; a panic trace would bury it.
+    if (mode != .dev) std.debug.assert(!leaked);
 }
 
+var stop_on_eof = false;
+var stopping: std.atomic.Value(bool) = .init(false);
 var stop_ctx: ?*anyopaque = null;
 var stop_fn: ?*const fn (ctx: *anyopaque) void = null;
 
-fn onSignal() void {
+fn onSignal(_: std.posix.SIG) void {
+    if (stopping.swap(true, .acq_rel)) return;
     if (stop_fn) |f| if (stop_ctx) |ctx| {
         if (App.mode != .dev and App.mode != .@"export") std.debug.print("\nShutting down...\n", .{});
         f(ctx);
@@ -240,6 +255,10 @@ fn resolveOptions(alloc: std.mem.Allocator, inita: zx.Init, config: Config) !Con
     const datadir_env = envVar(alloc, inita, "ZIEX_DATA_DIR");
     const staticdir_env = envVar(alloc, inita, "ZIEX_STATIC_DIR");
     const port_env = envVar(alloc, inita, "PORT");
+    if (envVar(alloc, inita, "ZIEX_STOP_ON_EOF")) |s| {
+        alloc.free(s);
+        stop_on_eof = true;
+    }
 
     defer if (rootdir_env) |s| alloc.free(s);
     defer if (datadir_env) |s| alloc.free(s);

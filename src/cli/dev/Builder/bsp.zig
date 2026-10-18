@@ -9,6 +9,7 @@ const Client = std.zig.Client;
 const Server = std.zig.Server;
 
 const Builder = @import("../Builder.zig");
+const Process = @import("../Process.zig");
 const log = std.log.scoped(.builder_bsp);
 
 const Event = Builder.Event;
@@ -92,9 +93,9 @@ pub fn init(self: *Bsp, io: Io, options: InitOptions) !void {
         .stdin = .pipe,
         .stdout = .pipe,
         .stderr = .pipe,
-        .pgid = options.pgid,
+        .pgid = Process.own_group,
     });
-    errdefer child_process.kill(io);
+    errdefer Process.stop(&child_process, io, 1000);
 
     self.* = .{
         .allocator = options.allocator,
@@ -126,7 +127,6 @@ pub fn builder(self: *Bsp) Builder {
         .userdata = self,
         .vtable = &.{
             .deinit = &vtableDeinit,
-            .kill = &vtableKill,
             .next = &vtableNext,
             .child = &vtableChild,
         },
@@ -136,11 +136,6 @@ pub fn builder(self: *Bsp) Builder {
 fn vtableDeinit(userdata: ?*anyopaque, io: Io) void {
     const self: *Bsp = @ptrCast(@alignCast(userdata));
     self.deinit(io);
-}
-
-fn vtableKill(userdata: ?*anyopaque, io: Io) void {
-    const self: *Bsp = @ptrCast(@alignCast(userdata));
-    self.child_process.kill(io);
 }
 
 fn vtableChild(userdata: ?*anyopaque) *std.process.Child {
@@ -154,42 +149,18 @@ fn vtableNext(userdata: ?*anyopaque, io: Io) anyerror!?Event {
 }
 
 pub fn deinit(self: *Bsp, io: Io) void {
-    if (self.child_process.id) |pid| {
-        if (!self.closed) {
-            self.client.serveBodylessMessage(.exit) catch {};
-            self.stdin_writer.interface.flush() catch {};
-        }
-        // zig build may ignore `exit` after an interrupted compile.
-        if (!waitPidGone(pid, 2000)) {
-            self.child_process.kill(io);
-            _ = waitPidGone(pid, 1000);
-        }
-        if (self.child_process.id != null) {
-            _ = self.child_process.wait(io) catch {
-                if (self.child_process.id != null) self.child_process.kill(io);
-            };
-        }
+    if (self.child_process.id != null and !self.closed) {
+        self.client.serveBodylessMessage(.exit) catch {};
+        self.stdin_writer.interface.flush() catch {};
     }
+    // zig build may ignore `exit` after an interrupted compile.
+    Process.waitOrKill(&self.child_process, io, 2000);
     for (self.pending.items) |*event| freeEvent(event);
     self.pending.deinit(self.allocator);
     self.step_scratch.deinit(self.allocator);
     self.cycle.deinit(self.allocator);
     self.multi_reader.deinit();
     self.conf_arena.deinit();
-}
-
-/// Local copy of sig.waitPidExit: the `builder` test module can't import `zx` module files.
-fn waitPidGone(pid: std.posix.pid_t, timeout_ms: u64) bool {
-    if (comptime @import("builtin").os.tag == .windows) return true;
-
-    var waited: u64 = 0;
-    while (true) : (waited += 20) {
-        const rc = std.posix.system.kill(pid, @fromBackingInt(@as(u8, 0)));
-        if (std.posix.errno(rc) == .SRCH) return true;
-        if (waited >= timeout_ms) return false;
-        var req: std.posix.timespec = .{ .sec = 0, .nsec = 20 * std.time.ns_per_ms };
-        _ = std.posix.system.nanosleep(&req, null);
-    }
 }
 
 fn handshakeAndWatch(self: *Bsp, io: Io) !void {

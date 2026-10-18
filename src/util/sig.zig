@@ -1,563 +1,153 @@
+// SIGINT/SIGTERM (POSIX) and console Ctrl+C/Break/Close (Windows). The first
+// signal runs the handler on an ordinary thread; a second one force-exits.
+
 const std = @import("std");
 const builtin = @import("builtin");
 const posix = std.posix;
 const windows = std.os.windows;
 
 const native_os = builtin.os.tag;
+const is_windows = native_os == .windows;
 const is_posix = switch (native_os) {
     .linux, .driverkit, .ios, .maccatalyst, .macos, .tvos, .visionos, .watchos, .freebsd, .netbsd, .dragonfly, .openbsd, .serenity, .illumos => true,
     else => false,
 };
-const is_windows = native_os == .windows;
 
-pub const max_watches = 16;
-pub const max_listeners = 8;
-
-/// Forceful terminate: `SIG.KILL` on POSIX, `SIG.TERM` on Windows (no KILL).
-pub const force_kill: posix.SIG = if (@hasField(posix.SIG, "KILL")) .KILL else .TERM;
-
-const win_true: windows.BOOL = .TRUE;
-const win_false: windows.BOOL = .FALSE;
-
-/// Watched target: `+pid` | `-pgid` | `0` empty. POSIX-only encoding.
-const WatchSlot = std.atomic.Value(i32);
-
-var installed: std.atomic.Value(bool) = .init(false);
-var interrupted_flag: std.atomic.Value(bool) = .init(false);
-var received_signo: std.atomic.Value(u8) = .init(0);
-/// When set, SIGINT/SIGTERM kill watches and exit the process from the handler
-/// (no joins). Used by `zx dev` so a single Ctrl+C cannot orphan a hung cleanup
-/// behind `zig build` exiting first.
-var exit_on_interrupt: std.atomic.Value(bool) = .init(false);
-
-var wake_r: if (is_posix) posix.fd_t else void = if (is_posix) -1 else {};
-var wake_w: if (is_posix) posix.fd_t else void = if (is_posix) -1 else {};
-var notifier: ?std.Thread = null;
-var notifier_stop: std.atomic.Value(bool) = .init(false);
-
-var watches: [max_watches]WatchSlot = @splat(.init(0));
-
-const Listener = *const fn () void;
-var listeners_mu: std.atomic.Mutex = .unlocked;
-var listeners: [max_listeners]?Listener = @splat(null);
-
-var prev_int: if (is_posix) ?posix.Sigaction else void = if (is_posix) null else {};
-var prev_term: if (is_posix) ?posix.Sigaction else void = if (is_posix) null else {};
+pub const Handler = *const fn (signal: posix.SIG) void;
 
 pub const InstallError = error{
     AlreadyInstalled,
-    SystemFdQuotaExceeded,
-    ProcessFdQuotaExceeded,
     Unexpected,
 } || std.Thread.SpawnError;
 
-pub fn setExitOnInterrupt(enabled: bool) void {
-    exit_on_interrupt.store(enabled, .release);
-}
+var handler: ?Handler = null;
+var on_force: ?*const fn () void = null;
+var received: std.atomic.Value(bool) = .init(false);
 
-pub fn install() InstallError!void {
-    if (installed.swap(true, .acq_rel)) return error.AlreadyInstalled;
+var wake_r: posix.fd_t = -1;
+var wake_w: posix.fd_t = -1;
+var dispatcher: ?std.Thread = null;
+var prev_int: posix.Sigaction = undefined;
+var prev_term: posix.Sigaction = undefined;
 
-    interrupted_flag.store(false, .release);
-    received_signo.store(0, .release);
-    exit_on_interrupt.store(false, .release);
-    notifier_stop.store(false, .release);
-    clearWatches();
+pub fn install(on_signal: Handler) InstallError!void {
+    if (handler != null) return error.AlreadyInstalled;
+    handler = on_signal;
+    errdefer handler = null;
+    received.store(false, .release);
 
     if (comptime is_windows) {
-        if (SetConsoleCtrlHandler(windowsCtrlHandler, win_true) == win_false) {
-            installed.store(false, .release);
-            return error.Unexpected;
-        }
-        return;
-    }
+        if (SetConsoleCtrlHandler(onConsoleCtrl, .TRUE) == .FALSE) return error.Unexpected;
+    } else if (comptime is_posix) {
+        const fds = try createPipe();
+        wake_r = fds[0];
+        wake_w = fds[1];
+        errdefer closePipe();
+        dispatcher = try std.Thread.spawn(.{}, dispatch, .{});
 
-    if (comptime is_posix) {
-        const pipe = createWakePipe() catch |err| {
-            installed.store(false, .release);
-            return err;
-        };
-        wake_r = pipe[0];
-        wake_w = pipe[1];
-        errdefer {
-            closeFd(wake_r);
-            closeFd(wake_w);
-            wake_r = -1;
-            wake_w = -1;
-            installed.store(false, .release);
-        }
-
-        var old_int: posix.Sigaction = undefined;
-        var old_term: posix.Sigaction = undefined;
-        const act = posix.Sigaction{
-            .handler = .{ .handler = posixSignalHandler },
+        const act: posix.Sigaction = .{
+            .handler = .{ .handler = onPosixSignal },
             .mask = posix.sigemptyset(),
             .flags = posix.SA.RESTART,
         };
-        posix.sigaction(posix.SIG.INT, &act, &old_int);
-        posix.sigaction(posix.SIG.TERM, &act, &old_term);
-        prev_int = old_int;
-        prev_term = old_term;
-
-        notifier = std.Thread.spawn(.{}, notifierMain, .{}) catch |err| {
-            closeFd(wake_r);
-            closeFd(wake_w);
-            wake_r = -1;
-            wake_w = -1;
-            installed.store(false, .release);
-            return err;
-        };
+        posix.sigaction(.INT, &act, &prev_int);
+        posix.sigaction(.TERM, &act, &prev_term);
     }
 }
 
+/// Runs before a forced exit; on POSIX in signal context (async-signal-safe only).
+pub fn setForceHandler(f: ?*const fn () void) void {
+    on_force = f;
+}
+
+/// Must not be called from the handler itself.
 pub fn uninstall() void {
-    if (!installed.swap(false, .acq_rel)) return;
+    if (handler == null) return;
 
     if (comptime is_windows) {
-        _ = SetConsoleCtrlHandler(windowsCtrlHandler, win_false);
+        _ = SetConsoleCtrlHandler(onConsoleCtrl, .FALSE);
     } else if (comptime is_posix) {
-        if (prev_int) |old| posix.sigaction(posix.SIG.INT, &old, null);
-        if (prev_term) |old| posix.sigaction(posix.SIG.TERM, &old, null);
-        prev_int = null;
-        prev_term = null;
-
-        notifier_stop.store(true, .release);
-        if (wake_w >= 0) {
-            closeFd(wake_w);
-            wake_w = -1;
-        }
-        if (notifier) |t| {
-            t.join();
-            notifier = null;
-        }
-        if (wake_r >= 0) {
-            closeFd(wake_r);
-            wake_r = -1;
-        }
+        posix.sigaction(.INT, &prev_int, null);
+        posix.sigaction(.TERM, &prev_term, null);
+        _ = posix.system.close(wake_w);
+        wake_w = -1;
+        if (dispatcher) |t| t.join();
+        dispatcher = null;
+        closePipe();
     }
 
-    clearListeners();
-    clearWatches();
-    interrupted_flag.store(false, .release);
-    received_signo.store(0, .release);
-    exit_on_interrupt.store(false, .release);
+    handler = null;
+    on_force = null;
 }
 
-pub fn interrupted() bool {
-    return interrupted_flag.load(.acquire);
+pub fn exit(signal: posix.SIG) noreturn {
+    exitWith(128 +% @as(u8, @intCast(@backingInt(signal))));
 }
 
-pub fn received() ?posix.SIG {
-    const n = received_signo.load(.acquire);
-    if (n == 0) return null;
-    return @fromBackingInt(@intCast(n));
-}
-
-pub fn takeSignal() ?posix.SIG {
-    if (!interrupted_flag.swap(false, .acq_rel)) {
-        _ = received_signo.swap(0, .acq_rel);
-        return null;
-    }
-    const n = received_signo.swap(0, .acq_rel);
-    if (n == 0) return null;
-    return @fromBackingInt(@intCast(n));
-}
-
-pub fn wakeFd() ?posix.fd_t {
-    if (comptime is_posix) {
-        if (wake_r < 0) return null;
-        return wake_r;
-    }
-    return null;
-}
-
-pub fn drain() void {
-    if (comptime is_posix) {
-        if (wake_r < 0) return;
-        var buf: [64]u8 = undefined;
-        while (true) {
-            const rc = posix.system.read(wake_r, &buf, buf.len);
-            switch (posix.errno(rc)) {
-                .SUCCESS => {
-                    if (rc == 0) return;
-                    continue;
-                },
-                else => return,
-            }
-        }
-    }
-}
-
-pub fn watchPid(pid: posix.pid_t) void {
-    if (comptime is_posix) {
-        if (pid <= 0) return;
-        addWatch(@intCast(pid));
-    }
-}
-
-/// Spawn with `.pgid = 0` so `child.id` is the group leader.
-pub fn watchGroup(pgid: posix.pid_t) void {
-    if (comptime is_posix) {
-        if (pgid <= 0) return;
-        addWatch(-@as(i32, @intCast(pgid)));
-    }
-}
-
-pub fn unwatchPid(pid: posix.pid_t) void {
-    if (comptime is_posix) {
-        if (pid <= 0) return;
-        removeWatch(@intCast(pid));
-    }
-}
-
-pub fn unwatchGroup(pgid: posix.pid_t) void {
-    if (comptime is_posix) {
-        if (pgid <= 0) return;
-        removeWatch(-@as(i32, @intCast(pgid)));
-    }
-}
-
-pub fn clearWatches() void {
-    for (&watches) |*slot| slot.store(0, .release);
-}
-
-pub fn killWatches(signal: posix.SIG) void {
-    if (comptime is_posix) {
-        for (&watches) |*slot| {
-            const encoded = slot.load(.acquire);
-            if (encoded == 0) continue;
-            rawKill(@intCast(encoded), signal);
-        }
-    }
-}
-
-pub fn killProcessGroup(pgid: posix.pid_t, signal: posix.SIG) void {
-    if (comptime is_windows) {
-        // No process groups; `pgid` is the process HANDLE from Child.id.
-        windowsTerminate(pgid);
-    } else if (comptime is_posix) {
-        if (pgid <= 0) return;
-        rawKill(-pgid, signal);
-    }
-}
-
-pub fn killPid(pid: posix.pid_t, signal: posix.SIG) void {
-    if (comptime is_windows) {
-        windowsTerminate(pid);
-    } else if (comptime is_posix) {
-        if (pid <= 0) return;
-        rawKill(pid, signal);
-    }
-}
-
-pub fn isAlive(pid: posix.pid_t) bool {
-    if (comptime is_windows) {
-        const timeout: windows.LARGE_INTEGER = -1; // 100ns units; -1 = 100ns
-        return switch (windows.ntdll.NtWaitForSingleObject(pid, .FALSE, &timeout)) {
-            windows.NTSTATUS.WAIT_0 => false,
-            .TIMEOUT => true,
-            else => true,
-        };
-    } else if (comptime is_posix) {
-        if (pid <= 0) return false;
-        const rc = posix.system.kill(pid, @fromBackingInt(@intCast(0)));
-        return switch (posix.errno(rc)) {
-            .SUCCESS, .PERM => true,
-            .SRCH => false,
-            else => true,
-        };
-    }
-    return false;
-}
-
-pub fn waitPidExit(pid: posix.pid_t, timeout_ms: u64) bool {
-    if (comptime is_windows) {
-        if (timeout_ms == 0) return !isAlive(pid);
-        // NtWaitForSingleObject timeout is relative, in 100ns units, negative = relative.
-        const hundred_ns: i64 = -@as(i64, @intCast(timeout_ms)) *% 10_000;
-        const timeout: windows.LARGE_INTEGER = hundred_ns;
-        return switch (windows.ntdll.NtWaitForSingleObject(pid, .FALSE, &timeout)) {
-            windows.NTSTATUS.WAIT_0 => true,
-            else => !isAlive(pid),
-        };
-    }
-    if (hasExited(pid)) return true;
-    var waited: u64 = 0;
-    while (waited < timeout_ms) : (waited += 5) {
-        sleepMs(5);
-        if (hasExited(pid)) return true;
-    }
-    return hasExited(pid);
-}
-
-fn hasExited(pid: posix.pid_t) bool {
-    return childExited(pid) orelse !isAlive(pid);
-}
-
-fn childExited(pid: posix.pid_t) ?bool {
-    var info: [128]u8 align(8) = @splat(0);
+/// Async-signal-safe; skips atexit hooks and other threads.
+pub fn exitWith(code: u8) noreturn {
     if (comptime native_os == .linux) {
-        const linux = std.os.linux;
-        const flags = linux.W.EXITED | linux.W.NOHANG | linux.W.NOWAIT;
-        const rc = linux.waitid(.PID, pid, @ptrCast(&info), flags, null);
-        if (linux.errno(rc) != .SUCCESS) return null;
-    } else if (comptime native_os.isDarwin()) {
-        const P_PID = 1;
-        const WNOHANG = 0x1;
-        const WEXITED = 0x4;
-        const WNOWAIT = 0x20;
-        if (waitid(P_PID, @intCast(pid), &info, WEXITED | WNOHANG | WNOWAIT) != 0) return null;
-    } else return null;
-    // WNOHANG succeeds with si_pid == 0 when nothing is waitable.
-    const si_pid_offset = if (native_os == .linux and @sizeOf(usize) == 8) 16 else 12;
-    return std.mem.readInt(i32, info[si_pid_offset..][0..4], native_endian) != 0;
-}
-
-const native_endian = builtin.cpu.arch.endian();
-
-extern "c" fn waitid(idtype: c_uint, id: c_uint, infop: *anyopaque, options: c_int) c_int;
-
-/// Deadline-based sleep safe on the notifier thread (EINTR-tolerant).
-pub fn sleepMs(ms: u64) void {
-    if (ms == 0) return;
-    if (comptime is_windows) {
-        std.Thread.sleep(ms *% std.time.ns_per_ms);
+        std.os.linux.exit_group(code);
     } else if (comptime is_posix) {
-        const start_ms = monoMs();
-        while (true) {
-            const elapsed = monoMs() -% start_ms;
-            if (elapsed >= ms) return;
-            const left = ms - elapsed;
-            var req = posix.timespec{
-                .sec = @intCast(left / 1000),
-                .nsec = @intCast((left % 1000) * std.time.ns_per_ms),
-            };
-            const rc = posix.system.nanosleep(&req, null);
-            switch (posix.errno(rc)) {
-                .SUCCESS => return,
-                .INTR => continue,
-                else => return,
-            }
-        }
-    }
-}
-
-pub fn addListener(listener: Listener) void {
-    lockListeners();
-    defer unlockListeners();
-    for (&listeners) |*slot| {
-        if (slot.* == null) {
-            slot.* = listener;
-            return;
-        }
-    }
-}
-
-pub fn removeListener(listener: Listener) void {
-    lockListeners();
-    defer unlockListeners();
-    for (&listeners) |*slot| {
-        if (slot.*) |existing| {
-            if (existing == listener) {
-                slot.* = null;
-                return;
-            }
-        }
-    }
-}
-
-/// Exit the whole process with status `128 + signo`. Prefer over `std.process.exit`
-/// from the notifier thread (avoids joining other threads).
-pub fn raiseDefault(signal: posix.SIG) noreturn {
-    const code: u8 = 128 +% @as(u8, @intCast(@backingInt(signal)));
-
-    if (comptime is_windows) {
+        std.c._exit(code);
+    } else {
         std.process.exit(code);
-    } else if (comptime native_os == .linux) {
-        std.os.linux.exit_group(@as(i32, @intCast(code)));
-    } else if (comptime is_posix) {
-        const act = posix.Sigaction{
-            .handler = .{ .handler = posix.SIG.DFL },
-            .mask = posix.sigemptyset(),
-            .flags = posix.SA.RESETHAND,
-        };
-        posix.sigaction(signal, &act, null);
-        rawKill(posix.system.getpid(), signal);
-        std.c._exit(@intCast(code));
-    } else {
-        std.process.abort();
     }
 }
 
-fn monoMs() u64 {
-    if (comptime native_os == .linux) {
-        var ts: std.os.linux.timespec = undefined;
-        _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
-        return @as(u64, @intCast(ts.sec)) *% 1000 +% @as(u64, @intCast(@divTrunc(ts.nsec, std.time.ns_per_ms)));
-    }
-    return 0;
+fn forceExit(signal: posix.SIG) noreturn {
+    if (on_force) |f| f();
+    exit(signal);
 }
 
-fn addWatch(encoded: i32) void {
-    for (&watches) |*slot| {
-        if (slot.cmpxchgStrong(0, encoded, .acq_rel, .acquire) == null) return;
-    }
+fn onPosixSignal(signal: posix.SIG) callconv(.c) void {
+    if (received.swap(true, .acq_rel)) forceExit(signal);
+    const byte: [1]u8 = .{@intCast(@backingInt(signal))};
+    _ = posix.system.write(wake_w, &byte, 1);
 }
 
-fn removeWatch(encoded: i32) void {
-    for (&watches) |*slot| {
-        _ = slot.cmpxchgStrong(encoded, 0, .acq_rel, .acquire);
-    }
-}
-
-fn rawKill(pid: posix.pid_t, signal: posix.SIG) void {
-    if (comptime is_posix) {
-        _ = posix.system.kill(pid, signal);
-    }
-}
-
-fn windowsTerminate(handle: windows.HANDLE) void {
-    if (comptime !is_windows) return;
-    _ = windows.ntdll.RtlReportSilentProcessExit(handle, @fromBackingInt(1));
-    switch (windows.ntdll.NtTerminateProcess(handle, @fromBackingInt(1))) {
-        .SUCCESS, .PROCESS_IS_TERMINATING => {},
-        else => {},
-    }
-}
-
-fn wake() void {
-    if (comptime is_posix) {
-        if (wake_w < 0) return;
-        var byte: [1]u8 = .{1};
-        _ = posix.system.write(wake_w, &byte, 1);
-    }
-}
-
-fn recordAndDispatch(signo: u8) void {
-    received_signo.store(signo, .release);
-    interrupted_flag.store(true, .release);
-    // SIGKILL so blocked waits (builder.next, runner) unblock immediately; TERM can hang.
-    killWatches(force_kill);
-    if (exit_on_interrupt.load(.acquire)) {
-        // Async-signal-safe exit: skip notifier joins and any main-thread cleanup.
-        // write(2) + exit_group/_exit are safe; std.debug.print is not.
-        if (comptime is_posix) {
-            const msg = "\nStopping dev server...\n";
-            _ = posix.system.write(2, msg.ptr, msg.len);
-        }
-        const code: u8 = 128 +% signo;
-        if (comptime native_os == .linux) {
-            std.os.linux.exit_group(@as(i32, @intCast(code)));
-        } else if (comptime is_posix) {
-            std.c._exit(@intCast(code));
-        } else {
-            std.process.exit(code);
-        }
-    }
-    if (comptime is_windows) {
-        notifyListeners();
-    } else {
-        wake();
-    }
-}
-
-fn posixSignalHandler(signo: posix.SIG) callconv(.c) void {
-    recordAndDispatch(@intCast(@backingInt(signo)));
-}
-
-fn notifierMain() void {
-    if (comptime is_posix) {
-        var buf: [16]u8 = undefined;
-        while (!notifier_stop.load(.acquire)) {
-            const rc = posix.system.read(wake_r, &buf, buf.len);
-            switch (posix.errno(rc)) {
-                .SUCCESS => {
-                    if (rc == 0) return;
-                    notifyListeners();
-                },
-                .INTR, .AGAIN => continue,
-                else => return,
-            }
+fn dispatch() void {
+    var byte: [1]u8 = undefined;
+    while (true) {
+        const rc = posix.system.read(wake_r, &byte, 1);
+        switch (posix.errno(rc)) {
+            .SUCCESS => {
+                if (rc == 0) return;
+                handler.?(@fromBackingInt(byte[0]));
+            },
+            .INTR => continue,
+            else => return,
         }
     }
 }
 
-fn clearListeners() void {
-    lockListeners();
-    defer unlockListeners();
-    @memset(&listeners, null);
-}
-
-fn notifyListeners() void {
-    var copy: [max_listeners]?Listener = undefined;
-    {
-        lockListeners();
-        defer unlockListeners();
-        copy = listeners;
-    }
-    for (copy) |slot| {
-        if (slot) |listener| listener();
+fn onConsoleCtrl(ctrl_type: windows.DWORD) callconv(.winapi) windows.BOOL {
+    switch (ctrl_type) {
+        0, 1, 2 => { // CTRL_C, CTRL_BREAK, CTRL_CLOSE
+            if (received.swap(true, .acq_rel)) forceExit(.INT);
+            handler.?(.INT);
+            return .TRUE;
+        },
+        else => return .FALSE,
     }
 }
 
-fn lockListeners() void {
-    while (!listeners_mu.tryLock()) std.atomic.spinLoopHint();
-}
-
-fn unlockListeners() void {
-    listeners_mu.unlock();
-}
-
-fn createWakePipe() InstallError![2]posix.fd_t {
-    if (comptime is_posix) {
-        const flags: posix.O = .{ .CLOEXEC = true };
-        var fds: [2]posix.fd_t = undefined;
-
-        if (@TypeOf(posix.system.pipe2) != void) {
-            switch (posix.errno(posix.system.pipe2(&fds, flags))) {
-                .SUCCESS => {},
-                .NFILE => return error.SystemFdQuotaExceeded,
-                .MFILE => return error.ProcessFdQuotaExceeded,
-                else => return error.Unexpected,
-            }
-        } else {
-            switch (posix.errno(posix.system.pipe(&fds))) {
-                .SUCCESS => {},
-                .NFILE => return error.SystemFdQuotaExceeded,
-                .MFILE => return error.ProcessFdQuotaExceeded,
-                else => return error.Unexpected,
-            }
-            errdefer {
-                closeFd(fds[0]);
-                closeFd(fds[1]);
-            }
-            for (fds) |fd| {
-                switch (posix.errno(posix.system.fcntl(fd, posix.F.SETFD, @as(u32, posix.FD_CLOEXEC)))) {
-                    .SUCCESS => {},
-                    else => return error.Unexpected,
-                }
-            }
-        }
+fn createPipe() InstallError![2]posix.fd_t {
+    var fds: [2]posix.fd_t = undefined;
+    if (@TypeOf(posix.system.pipe2) != void) {
+        if (posix.errno(posix.system.pipe2(&fds, .{ .CLOEXEC = true })) != .SUCCESS) return error.Unexpected;
         return fds;
     }
-    return error.Unexpected;
+    if (posix.errno(posix.system.pipe(&fds)) != .SUCCESS) return error.Unexpected;
+    for (fds) |fd| _ = posix.system.fcntl(fd, posix.F.SETFD, @as(u32, posix.FD_CLOEXEC));
+    return fds;
 }
 
-fn closeFd(fd: posix.fd_t) void {
-    if (comptime is_posix) {
-        if (fd < 0) return;
-        _ = posix.system.close(fd);
-    }
-}
-
-fn windowsCtrlHandler(ctrl_type: windows.DWORD) callconv(.winapi) windows.BOOL {
-    switch (ctrl_type) {
-        0, 1, 2 => {
-            recordAndDispatch(@backingInt(posix.SIG.INT));
-            return win_true;
-        },
-        else => return win_false,
-    }
+fn closePipe() void {
+    if (wake_r >= 0) _ = posix.system.close(wake_r);
+    if (wake_w >= 0) _ = posix.system.close(wake_w);
+    wake_r = -1;
+    wake_w = -1;
 }
 
 extern "kernel32" fn SetConsoleCtrlHandler(

@@ -141,19 +141,99 @@ test "init → build" {
     }
 }
 
-test "dev" {
+test "dev > lifecycle" {
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    const io = std.testing.io;
 
     killPort("3000") catch {};
 
-    try test_cmd_blocking(.{
-        .args = &.{"dev"},
-        .expected_stderr_strings = &.{
-            "- v" ++ zx.info.version,
-            "http://localhost:",
-        },
-        .timeout_ms = 180_000,
-    });
+    const test_dir_abs = try getTestDirPath();
+    defer allocator.free(test_dir_abs);
+    const page_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "app", "pages", "page.zx" });
+    defer allocator.free(page_path);
+    const original = try std.Io.Dir.cwd().readFileAlloc(io, page_path, allocator, .limited(1024 * 1024));
+    defer allocator.free(original);
+    defer writePage(page_path, original, &.{}) catch {};
+
+    const anchor = "Build full-stack web apps with Zig.";
+    try std.testing.expect(std.mem.indexOf(u8, original, anchor) != null);
+
+    var dev = try DevSession.start(io, test_dir_abs);
+    defer dev.deinit();
+
+    const port = try dev.waitForPort(0, 180_000);
+    try dev.expectPage(port, anchor, 30_000);
+    try std.testing.expect(std.mem.indexOf(u8, dev.snapshot(), "- v" ++ zx.info.version) != null);
+
+    var mark = dev.len();
+    try writePage(page_path, original, &.{.{ anchor, "zx-dev-change-1" }});
+    try dev.waitFor("App Logs", mark, 180_000);
+    try dev.expectPage(port, "zx-dev-change-1", 30_000);
+
+    mark = dev.len();
+    try writePage(page_path, original, &.{.{ anchor, "{zx_dev_undeclared_identifier}" }});
+    try dev.waitFor("Error building", mark, 180_000);
+    try dev.expectPage(port, "zx-dev-change-1", 10_000);
+    mark = dev.len();
+    try writePage(page_path, original, &.{.{ anchor, "zx-dev-change-2" }});
+    try dev.waitFor("App Logs", mark, 180_000);
+    try dev.expectPage(port, "zx-dev-change-2", 30_000);
+
+    try dev.shutDown(port, .{});
+}
+
+test "dev > leaks" {
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    const io = std.testing.io;
+
+    killPort("3000") catch {};
+
+    const test_dir_abs = try getTestDirPath();
+    defer allocator.free(test_dir_abs);
+    const page_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "app", "pages", "page.zx" });
+    defer allocator.free(page_path);
+    const original = try std.Io.Dir.cwd().readFileAlloc(io, page_path, allocator, .limited(1024 * 1024));
+    defer allocator.free(original);
+    defer writePage(page_path, original, &.{}) catch {};
+
+    const anchor = "Build full-stack web apps with Zig.";
+    const body_start = "    const query = ctx.request.queries;\n";
+    const leak = body_start ++ "    _ = zx.allocator.alloc(u8, 16) catch {};\n";
+    try std.testing.expect(std.mem.indexOf(u8, original, body_start) != null);
+    try writePage(page_path, original, &.{ .{ body_start, leak }, .{ anchor, "zx-dev-leak-0" } });
+
+    var dev = try DevSession.start(io, test_dir_abs);
+    defer dev.deinit();
+
+    const port = try dev.waitForPort(0, 180_000);
+    try dev.expectPage(port, "zx-dev-leak-0", 30_000);
+
+    var mark = dev.len();
+    try writePage(page_path, original, &.{ .{ body_start, leak }, .{ anchor, "zx-dev-leak-1" } });
+    try dev.waitFor("App Logs", mark, 180_000);
+    try dev.expectPage(port, "zx-dev-leak-1", 30_000);
+    try dev.expectLeakSummary(mark);
+
+    mark = dev.len();
+    try dev.shutDown(port, .{});
+    if (comptime builtin.os.tag != .windows) try dev.expectLeakSummary(mark);
+}
+
+test "dev > double ctrl+c" {
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    const io = std.testing.io;
+
+    killPort("3000") catch {};
+
+    const test_dir_abs = try getTestDirPath();
+    defer allocator.free(test_dir_abs);
+
+    var dev = try DevSession.start(io, test_dir_abs);
+    defer dev.deinit();
+    const port = try dev.waitForPort(0, 180_000);
+    try dev.expectPage(port, "Build full-stack web apps with Zig.", 30_000);
+
+    try dev.shutDown(port, .{ .double_ctrl_c = true });
 }
 
 test "export" {
@@ -413,120 +493,6 @@ fn test_cmd(options: TestCmdOptions) !void {
     }
 }
 
-const TestCmdBlockingOptions = struct {
-    args: []const []const u8,
-    expected_stderr_strings: []const []const u8 = &.{},
-    timeout_ms: u64 = 30_000,
-    debug: bool = false,
-};
-
-const StreamResult = union(enum) {
-    matched,
-    ended,
-    failed,
-    timed_out,
-};
-
-fn test_cmd_blocking(options: TestCmdBlockingOptions) !void {
-    const io = std.testing.io;
-
-    const zx_bin_abs = try getZxPath();
-    const test_dir_abs = try getTestDirPath();
-    defer allocator.free(zx_bin_abs);
-    defer allocator.free(test_dir_abs);
-
-    var args = std.ArrayList([]const u8).empty;
-    defer args.deinit(allocator);
-    try args.appendSlice(allocator, &.{zx_bin_abs});
-    try args.appendSlice(allocator, options.args);
-
-    var child = try std.process.spawn(io, .{
-        .argv = args.items,
-        .cwd = .{ .path = test_dir_abs },
-        .stdin = .ignore,
-        .stdout = .ignore,
-        .stderr = .pipe,
-    });
-    defer killChildTree(&child, io);
-
-    const Reader = struct {
-        fn run(
-            r_io: std.Io,
-            stderr: std.Io.File,
-            expected: []const []const u8,
-            debug: bool,
-        ) StreamResult {
-            var acc = std.ArrayList(u8).empty;
-            defer acc.deinit(allocator);
-
-            var chunk: [4096]u8 = undefined;
-            while (true) {
-                const n = stderr.readStreaming(r_io, &.{&chunk}) catch |err| switch (err) {
-                    error.EndOfStream => return .ended,
-                    else => return .failed,
-                };
-                if (n == 0) continue;
-                acc.appendSlice(allocator, chunk[0..n]) catch return .failed;
-                if (debug) std.debug.print("{s}", .{chunk[0..n]});
-
-                var all_found = true;
-                for (expected) |needle| {
-                    if (std.mem.indexOf(u8, acc.items, needle) == null) {
-                        all_found = false;
-                        break;
-                    }
-                }
-                if (all_found) return .matched;
-            }
-        }
-    };
-
-    const Timer = struct {
-        fn run(t_io: std.Io, ms: u64) StreamResult {
-            t_io.sleep(.fromMilliseconds(@intCast(ms)), .awake) catch {};
-            return .timed_out;
-        }
-    };
-
-    const Selector = std.Io.Select(union(enum) {
-        reader: StreamResult,
-        timer: StreamResult,
-    });
-    var buffer: [2]Selector.Union = undefined;
-    var selector = Selector.init(io, &buffer);
-
-    selector.async(.reader, Reader.run, .{ io, child.stderr.?, options.expected_stderr_strings, options.debug });
-    selector.async(.timer, Timer.run, .{ io, options.timeout_ms });
-
-    const winner = try selector.await();
-    // Cancel and drain the loser before returning so its resources are freed.
-    while (selector.cancel()) |_| {}
-
-    const result: StreamResult = switch (winner) {
-        .reader => |r| r,
-        .timer => |t| t,
-    };
-
-    switch (result) {
-        .matched => {},
-        .ended => {
-            std.debug.print("\n`{s}` stderr ended before all expected strings appeared\n", .{options.args[0]});
-            return error.TestExpectedEqual;
-        },
-        .failed => {
-            std.debug.print("\nFailed reading stderr from `{s}`\n", .{options.args[0]});
-            return error.TestExpectedEqual;
-        },
-        .timed_out => {
-            std.debug.print(
-                "\n`{s}` timed out after {d}ms before all expected strings appeared\n",
-                .{ options.args[0], options.timeout_ms },
-            );
-            return error.TestExpectedEqual;
-        },
-    }
-}
-
 const local_zon_str =
     \\.{
     \\    .name = .ziex_app,
@@ -607,6 +573,275 @@ fn killChildTree(child: *std.process.Child, io: std.Io) void {
         }
     }
     child.kill(io);
+}
+
+const DevSession = struct {
+    io: std.Io,
+    child: std.process.Child,
+    readers: [2]std.Thread,
+    mutex: std.Io.Mutex = .init,
+    log: std.ArrayList(u8) = .empty,
+
+    fn start(io: std.Io, cwd: []const u8) !*DevSession {
+        const zx_bin_abs = try getZxPath();
+        defer allocator.free(zx_bin_abs);
+
+        // As under `zig build dev` in a terminal.
+        var env = try std.testing.environ.createMap(allocator);
+        defer env.deinit();
+        try env.put("CLICOLOR_FORCE", "1");
+
+        const self = try allocator.create(DevSession);
+        errdefer allocator.destroy(self);
+        self.* = .{
+            .io = io,
+            .child = try std.process.spawn(io, .{
+                .argv = &.{ zx_bin_abs, "dev" },
+                .cwd = .{ .path = cwd },
+                .environ_map = &env,
+                .stdin = .ignore,
+                .stdout = .pipe,
+                .stderr = .pipe,
+            }),
+            .readers = undefined,
+        };
+        self.readers = .{
+            try std.Thread.spawn(.{}, collect, .{ self, self.child.stdout.? }),
+            try std.Thread.spawn(.{}, collect, .{ self, self.child.stderr.? }),
+        };
+        return self;
+    }
+
+    fn deinit(self: *DevSession) void {
+        if (self.child.id != null) killChildTree(&self.child, self.io);
+        for (self.readers) |t| t.join();
+        self.log.deinit(allocator);
+        allocator.destroy(self);
+    }
+
+    fn pid(self: *DevSession) std.posix.pid_t {
+        return self.child.id.?;
+    }
+
+    fn collect(self: *DevSession, file: std.Io.File) void {
+        var chunk: [4096]u8 = undefined;
+        while (true) {
+            const n = file.readStreaming(self.io, &.{&chunk}) catch return;
+            self.mutex.lockUncancelable(self.io);
+            defer self.mutex.unlock(self.io);
+            self.log.appendSlice(allocator, chunk[0..n]) catch return;
+        }
+    }
+
+    fn len(self: *DevSession) usize {
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        return self.log.items.len;
+    }
+
+    fn snapshot(self: *DevSession) []const u8 {
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        return self.log.items;
+    }
+
+    fn find(self: *DevSession, needle: []const u8, since: usize) ?usize {
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        const i = std.mem.indexOfPos(u8, self.log.items, since, needle) orelse return null;
+        return i + needle.len;
+    }
+
+    fn waitFor(self: *DevSession, needle: []const u8, since: usize, timeout_ms: u64) !void {
+        _ = try self.waitForEnd(needle, since, timeout_ms);
+    }
+
+    fn waitForEnd(self: *DevSession, needle: []const u8, since: usize, timeout_ms: u64) !usize {
+        const deadline = deadlineIn(timeout_ms);
+        while (true) {
+            if (self.find(needle, since)) |end| return end;
+            if (pastDeadline(deadline)) return self.fail("timed out waiting for log line", needle);
+            sleepMs(100);
+        }
+    }
+
+    fn waitForPort(self: *DevSession, since: usize, timeout_ms: u64) !u16 {
+        const start_digits = try self.waitForEnd("http://localhost:", since, timeout_ms);
+        const deadline = deadlineIn(5_000);
+        while (true) {
+            {
+                self.mutex.lockUncancelable(self.io);
+                defer self.mutex.unlock(self.io);
+                const rest = self.log.items[start_digits..];
+                var end: usize = 0;
+                while (end < rest.len and std.ascii.isDigit(rest[end])) end += 1;
+                if (end > 0 and end < rest.len) return std.fmt.parseInt(u16, rest[0..end], 10);
+            }
+            if (pastDeadline(deadline)) return self.fail("could not parse port", "http://localhost:");
+            sleepMs(50);
+        }
+    }
+
+    fn expectPage(self: *DevSession, port: u16, needle: []const u8, timeout_ms: u64) !void {
+        const deadline = deadlineIn(timeout_ms);
+        while (true) {
+            if (httpGet(port)) |body| {
+                defer allocator.free(body);
+                if (std.mem.indexOf(u8, body, needle) != null) return;
+            } else |_| {}
+            if (pastDeadline(deadline)) return self.fail("page never contained", needle);
+            sleepMs(250);
+        }
+    }
+
+    /// Windows: std can't give zx its own console group, so Ctrl+C can't target it.
+    fn shutDown(self: *DevSession, port: u16, opts: struct { double_ctrl_c: bool = false }) !void {
+        if (comptime builtin.os.tag == .windows) return;
+
+        const tree = try descendantPids(self.pid());
+        defer allocator.free(tree);
+        if (tree.len < 2) return self.fail("expected zig build and the app under zx", "");
+
+        if (opts.double_ctrl_c) try std.posix.kill(self.pid(), .INT);
+        const term = try self.interrupt();
+        if (!std.meta.eql(term, std.process.Child.Term{ .exited = 130 })) return self.fail("unexpected exit", "130");
+        if (!opts.double_ctrl_c and self.find("Stopping dev server...", 0) == null) return self.fail("missing shutdown message", "Stopping dev server...");
+
+        try expectAllGone(tree, 3_000);
+        if (canConnect(port)) return self.fail("port still open after shutdown", "");
+    }
+
+    fn interrupt(self: *DevSession) !std.process.Child.Term {
+        const Watchdog = struct {
+            fn run(io: std.Io, id: std.process.Child.Id, fired: *std.atomic.Value(bool)) void {
+                io.sleep(.fromMilliseconds(3_000), .awake) catch return;
+                _ = std.posix.system.kill(id, .INT);
+                io.sleep(.fromMilliseconds(5_000), .awake) catch return;
+                fired.store(true, .release);
+                _ = std.posix.system.kill(id, .KILL);
+            }
+        };
+        try std.posix.kill(self.pid(), .INT);
+        var fired: std.atomic.Value(bool) = .init(false);
+        var watchdog = try self.io.concurrent(Watchdog.run, .{ self.io, self.pid(), &fired });
+        const term = try self.child.wait(self.io);
+        watchdog.cancel(self.io);
+        if (fired.load(.acquire)) return self.fail("zx did not exit after two Ctrl+C", "");
+        return term;
+    }
+
+    fn expectLeakSummary(self: *DevSession, since: usize) !void {
+        if (self.find("memory leak", since) == null) return self.fail("missing leak summary", "memory leak");
+        if (self.find("error(DebugAllocator)", since) != null) return self.fail("raw leak trace leaked through", "error(DebugAllocator)");
+        if (self.find("no stack trace", since) != null) return self.fail("leak without stack trace", "no stack trace");
+        for ([_][]const u8{ "memory leak in `Page`", "page.zx:" }) |needle| {
+            if (self.find(needle, since) == null) return self.fail("missing leak location", needle);
+        }
+    }
+
+    fn fail(self: *DevSession, what: []const u8, needle: []const u8) error{TestUnexpectedResult} {
+        std.debug.print("\nzx dev: {s} '{s}'\n---- zx dev output ----\n{s}\n-----------------------\n", .{ what, needle, self.snapshot() });
+        return error.TestUnexpectedResult;
+    }
+};
+
+fn writePage(path: []const u8, original: []const u8, edits: []const [2][]const u8) !void {
+    var content = try allocator.dupe(u8, original);
+    defer allocator.free(content);
+    for (edits) |e| {
+        const next = try std.mem.replaceOwned(u8, allocator, content, e[0], e[1]);
+        allocator.free(content);
+        content = next;
+    }
+    try std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = path, .data = content });
+}
+
+fn httpGet(port: u16) ![]u8 {
+    const io = std.testing.io;
+    const addr = try std.Io.net.IpAddress.parse("127.0.0.1", port);
+    const stream = try addr.connect(io, .{ .mode = .stream });
+    defer stream.close(io);
+
+    var write_buf: [256]u8 = undefined;
+    var w = stream.writer(io, &write_buf);
+    try w.interface.writeAll("GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    try w.interface.flush();
+
+    var read_buf: [4096]u8 = undefined;
+    var r = stream.reader(io, &read_buf);
+    return r.interface.allocRemaining(allocator, .limited(4 * 1024 * 1024));
+}
+
+fn canConnect(port: u16) bool {
+    const io = std.testing.io;
+    const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return false;
+    const stream = addr.connect(io, .{ .mode = .stream }) catch return false;
+    stream.close(io);
+    return true;
+}
+
+fn descendantPids(root: std.posix.pid_t) ![]std.posix.pid_t {
+    const result = try std.process.run(allocator, std.testing.io, .{
+        .argv = &.{ "ps", "-A", "-o", "pid=", "-o", "ppid=" },
+        .stdout_limit = .limited(4 * 1024 * 1024),
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    const Pair = struct { pid: std.posix.pid_t, ppid: std.posix.pid_t };
+    var pairs = std.ArrayList(Pair).empty;
+    defer pairs.deinit(allocator);
+    var lines = std.mem.tokenizeScalar(u8, result.stdout, '\n');
+    while (lines.next()) |line| {
+        var cols = std.mem.tokenizeAny(u8, line, " \t");
+        const p = std.fmt.parseInt(std.posix.pid_t, cols.next() orelse continue, 10) catch continue;
+        const pp = std.fmt.parseInt(std.posix.pid_t, cols.next() orelse continue, 10) catch continue;
+        try pairs.append(allocator, .{ .pid = p, .ppid = pp });
+    }
+
+    var found = std.ArrayList(std.posix.pid_t).empty;
+    errdefer found.deinit(allocator);
+    try found.append(allocator, root);
+    var i: usize = 0;
+    while (i < found.items.len) : (i += 1) {
+        for (pairs.items) |pair| {
+            if (pair.ppid == found.items[i]) try found.append(allocator, pair.pid);
+        }
+    }
+    _ = found.orderedRemove(0);
+    return found.toOwnedSlice(allocator);
+}
+
+fn expectAllGone(pids: []const std.posix.pid_t, timeout_ms: u64) !void {
+    const deadline = deadlineIn(timeout_ms);
+    while (true) {
+        var alive: usize = 0;
+        for (pids) |p| {
+            if (std.posix.errno(std.posix.system.kill(p, @fromBackingInt(0))) != .SRCH) alive += 1;
+        }
+        if (alive == 0) return;
+        if (pastDeadline(deadline)) {
+            for (pids) |p| {
+                if (std.posix.errno(std.posix.system.kill(p, @fromBackingInt(0))) == .SRCH) continue;
+                std.debug.print("\nzx dev: pid {d} survived shutdown\n", .{p});
+                _ = std.posix.system.kill(p, .KILL);
+            }
+            return error.TestUnexpectedResult;
+        }
+        sleepMs(50);
+    }
+}
+
+fn deadlineIn(ms: u64) std.Io.Timestamp {
+    return std.Io.Timestamp.now(std.testing.io, .awake).addDuration(.fromMilliseconds(@intCast(ms)));
+}
+
+fn pastDeadline(deadline: std.Io.Timestamp) bool {
+    return std.Io.Timestamp.now(std.testing.io, .awake).nanoseconds >= deadline.nanoseconds;
+}
+
+fn sleepMs(ms: u64) void {
+    std.Io.sleep(std.testing.io, .fromMilliseconds(@intCast(ms)), .awake) catch {};
 }
 
 fn killPort(port: []const u8) !void {

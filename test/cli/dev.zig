@@ -444,3 +444,155 @@ test "parse > user asset install extracts web path" {
     try std.testing.expectEqualStrings("favicon.ico", a.web_path);
     try std.testing.expect(parseUserAssetInstall("install -C .zig-cache/o/abc/main.wasm /proj/zig-out/static/assets/_/main.wasm") == null);
 }
+
+const Process = builder.Process;
+
+fn spawnSleeper(io: std.Io) !std.process.Child {
+    return std.process.spawn(io, .{
+        .argv = &.{ "sh", "-c", "sleep 60; true" },
+        .pgid = Process.own_group,
+        .stdout = .ignore,
+        .stderr = .ignore,
+    });
+}
+
+fn expectGroupGone(pgid: std.posix.pid_t) !void {
+    var waited: u32 = 0;
+    while (waited < 1000) : (waited += 10) {
+        if (std.posix.errno(std.posix.system.kill(-pgid, @fromBackingInt(0))) == .SRCH) return;
+        std.Io.sleep(std.testing.io, .fromMilliseconds(10), .awake) catch {};
+    }
+    return error.TestUnexpectedResult;
+}
+
+test "process > stop" {
+    if (comptime builtin.os.tag == .windows) return error.SkipZigTest;
+    const io = std.testing.io;
+
+    var child = try spawnSleeper(io);
+    const pgid = child.id.?;
+    Process.stop(&child, io, 2000);
+
+    try std.testing.expect(child.id == null);
+    try expectGroupGone(pgid);
+}
+
+test "process > waitOrKill escalates" {
+    if (comptime builtin.os.tag == .windows) return error.SkipZigTest;
+    const io = std.testing.io;
+
+    var child = try std.process.spawn(io, .{
+        .argv = &.{ "sh", "-c", "trap '' TERM; sleep 60; true" },
+        .pgid = Process.own_group,
+        .stdout = .ignore,
+        .stderr = .ignore,
+    });
+    const pgid = child.id.?;
+    std.Io.sleep(io, .fromMilliseconds(100), .awake) catch {};
+
+    const start = std.Io.Timestamp.now(io, .awake);
+    Process.stop(&child, io, 200);
+    const elapsed = start.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds();
+
+    try std.testing.expect(child.id == null);
+    try std.testing.expect(elapsed >= 150 and elapsed < 2000);
+    try expectGroupGone(pgid);
+}
+
+test "process > killTree" {
+    if (comptime builtin.os.tag == .windows) return error.SkipZigTest;
+    const io = std.testing.io;
+
+    var child = try spawnSleeper(io);
+    const pgid = child.id.?;
+    Process.killTree(pgid);
+    const term = try child.wait(io);
+
+    try std.testing.expectEqual(std.process.Child.Term{ .signal = .KILL }, term);
+    try expectGroupGone(pgid);
+}
+
+const LeakReport = builder.LeakReport;
+
+const leak_sample =
+    \\error(DebugAllocator): memory address 0x10a4803f0 leaked: 
+    \\.zig-cache/ziex/tnsn/pages/page.zig:19:27: 0x104fa170b in Page (ziex_app)
+    \\    _ = zx.allocator.alloc(u8, 16) catch {};
+    \\                          ^
+    \\/proj/../../src/runtime/server/Server.zig:580:82: 0x104fa3b7b in wrapper (ziex_app)
+    \\                    if (R == Component) return pageFn(ctx) else return try pageFn(ctx);
+    \\                                                                                 ^
+    \\???:?:?: 0x195c91cff in __pthread_exit (/usr/lib/system/libsystem_pthread.dylib)
+    \\???:?:?: 0x195c8cceb in _pthread_cond_broadcast (/usr/lib/system/libsystem_pthread.dylib)
+    \\error(DebugAllocator): memory address 0x10a480400 leaked: 
+    \\C:\proj\app\main.zig:7:5: 0x1400 in main (ziex_app.exe)
+    \\
+    \\info: after the report
+;
+
+test "leak report > parse" {
+    var report = LeakReport.init(std.testing.allocator);
+    defer report.deinit();
+
+    var passed = std.ArrayList([]const u8).empty;
+    defer passed.deinit(std.testing.allocator);
+    var lines = std.mem.splitScalar(u8, leak_sample, '\n');
+    while (lines.next()) |line| {
+        if (try report.feed(line) == .pass) try passed.append(std.testing.allocator, line);
+    }
+
+    try std.testing.expectEqual(@as(usize, 1), passed.items.len);
+    try std.testing.expectEqualStrings("info: after the report", passed.items[0]);
+    try std.testing.expectEqual(@as(usize, 2), report.leaks.items.len);
+
+    const first = report.leaks.items[0].frames.items;
+    try std.testing.expectEqual(@as(usize, 4), first.len);
+    try std.testing.expectEqualStrings(".zig-cache/ziex/tnsn/pages/page.zig", first[0].file);
+    try std.testing.expectEqual(@as(u32, 19), first[0].line);
+    try std.testing.expectEqual(@as(u32, 27), first[0].col);
+    try std.testing.expectEqualStrings("Page", first[0].function);
+    try std.testing.expectEqualStrings("", first[2].file);
+    try std.testing.expectEqual(@as(u32, 0), first[2].line);
+
+    const second = report.leaks.items[1].frames.items;
+    try std.testing.expectEqualStrings("C:\\proj\\app\\main.zig", second[0].file);
+    try std.testing.expectEqual(@as(u32, 7), second[0].line);
+}
+
+test "leak report > passthrough" {
+    var report = LeakReport.init(std.testing.allocator);
+    defer report.deinit();
+    try std.testing.expectEqual(LeakReport.Feed.pass, try report.feed("info: GET / 200"));
+    try std.testing.expectEqual(LeakReport.Feed.pass, try report.feed("src/x.zig:1:2: 0x10 in foo (app)"));
+    try std.testing.expectEqual(@as(usize, 0), report.leaks.items.len);
+}
+
+test "leak report > ansi" {
+    var report = LeakReport.init(std.testing.allocator);
+    defer report.deinit();
+
+    const colored = [_][]const u8{
+        "\x1b[31m\x1b[1merror\x1b[0m\x1b[2m\x1b[1m(DebugAllocator): \x1b[0mmemory address 0x109620180 leaked: ",
+        "\x1b[1m/proj/src/x.zig:353:43\x1b[0m: \x1b[2m0x1046ae68b in attrs__func_1608 (ziex_app)\x1b[0m",
+        "            const result = allocator.alloc(Element.Attribute, count) catch @panic(\"OOM\");",
+        "\x1b[32m                                          ^\x1b[0m",
+    };
+    for (colored) |line| try std.testing.expectEqual(LeakReport.Feed.consumed, try report.feed(line));
+
+    const frame = report.leaks.items[0].frames.items[0];
+    try std.testing.expectEqualStrings("/proj/src/x.zig", frame.file);
+    try std.testing.expectEqual(@as(u32, 353), frame.line);
+    try std.testing.expectEqualStrings("attrs__func_1608", frame.function);
+}
+
+test "leak report > no stack trace" {
+    var report = LeakReport.init(std.testing.allocator);
+    defer report.deinit();
+
+    try std.testing.expectEqual(LeakReport.Feed.consumed, try report.feed("error(DebugAllocator): memory address 0x7f0000001000 leaked: "));
+    try std.testing.expectEqual(LeakReport.Feed.consumed, try report.feed("error(DebugAllocator): memory address 0x7f0000002000 leaked: "));
+    try std.testing.expectEqual(LeakReport.Feed.pass, try report.feed("info: next"));
+
+    try std.testing.expectEqual(@as(usize, 2), report.leaks.items.len);
+    try std.testing.expectEqual(@as(usize, 0), report.leaks.items[0].frames.items.len);
+}

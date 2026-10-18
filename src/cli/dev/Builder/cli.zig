@@ -19,6 +19,7 @@ const Cli = @This();
 const std = @import("std");
 const builtin = @import("builtin");
 const Builder = @import("../Builder.zig");
+const Process = @import("../Process.zig");
 const log = std.log.scoped(.builder_cli);
 
 const Event = Builder.Event;
@@ -46,7 +47,7 @@ pub fn init(self: *Cli, io: std.Io, options: InitOptions) !void {
         .environ_map = options.environ_map,
         .stderr = .pipe,
         .stdout = .ignore,
-        .pgid = options.pgid,
+        .pgid = Process.own_group,
     });
 
     self.* = .{
@@ -63,7 +64,6 @@ pub fn builder(self: *Cli) Builder {
         .userdata = self,
         .vtable = &.{
             .deinit = &vtableDeinit,
-            .kill = &vtableKill,
             .next = &vtableNext,
             .child = &vtableChild,
         },
@@ -73,11 +73,6 @@ pub fn builder(self: *Cli) Builder {
 fn vtableDeinit(userdata: ?*anyopaque, io: std.Io) void {
     const self: *Cli = @ptrCast(@alignCast(userdata));
     self.deinit(io);
-}
-
-fn vtableKill(userdata: ?*anyopaque, io: std.Io) void {
-    const self: *Cli = @ptrCast(@alignCast(userdata));
-    self.child_process.kill(io);
 }
 
 fn vtableChild(userdata: ?*anyopaque) *std.process.Child {
@@ -92,7 +87,7 @@ fn vtableNext(userdata: ?*anyopaque, io: std.Io) anyerror!?Event {
 }
 
 pub fn deinit(self: *Cli, io: std.Io) void {
-    if (self.child_process.id != null) self.child_process.kill(io);
+    Process.stop(&self.child_process, io, 1000);
     if (self.pending) |*event| freeEvent(self.allocator, event);
     self.line_writer.deinit();
     self.state.deinit();

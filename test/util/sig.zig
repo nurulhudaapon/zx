@@ -8,182 +8,118 @@ const is_posix = switch (builtin.os.tag) {
     else => false,
 };
 
-fn sleepMs(ms: i64) void {
-    std.Io.sleep(std.testing.io, .fromMilliseconds(ms), .awake) catch {};
+fn noop(_: posix.SIG) void {}
+
+fn sleepMs(ms: u32) void {
+    var req: posix.timespec = .{ .sec = @intCast(ms / 1000), .nsec = @intCast((ms % 1000) * std.time.ns_per_ms) };
+    _ = posix.system.nanosleep(&req, &req);
 }
 
-fn waitUntil(comptime pred: fn () bool, timeout_ms: u32) bool {
+fn forkStatus(comptime body: fn () void) !u32 {
+    const rc = posix.system.fork();
+    if (posix.errno(rc) != .SUCCESS) return error.SkipZigTest;
+    if (rc == 0) {
+        body();
+        std.process.exit(0);
+    }
+    var status: i32 = 0;
+    while (true) switch (posix.errno(posix.system.waitpid(@intCast(rc), &status, 0))) {
+        .SUCCESS => return @bitCast(status),
+        .INTR => continue,
+        else => return error.TestUnexpectedResult,
+    };
+}
+
+test "signal > runs handler" {
+    if (comptime !is_posix) return error.SkipZigTest;
+
+    const Hit = struct {
+        var signal: std.atomic.Value(u8) = .init(0);
+        fn handler(s: posix.SIG) void {
+            signal.store(@intCast(@backingInt(s)), .release);
+        }
+    };
+    Hit.signal.store(0, .release);
+
+    try sig.install(Hit.handler);
+    defer sig.uninstall();
+    try posix.raise(.TERM);
+
     var waited: u32 = 0;
-    while (waited < timeout_ms) : (waited += 10) {
-        if (pred()) return true;
-        sleepMs(10);
+    while (Hit.signal.load(.acquire) == 0 and waited < 1000) : (waited += 10) {
+        std.Io.sleep(std.testing.io, .fromMilliseconds(10), .awake) catch {};
     }
-    return pred();
+    try std.testing.expectEqual(@backingInt(posix.SIG.TERM), Hit.signal.load(.acquire));
 }
 
-test "install + raise SIGINT sets interrupted and notifies listener" {
-    if (comptime !is_posix) return error.SkipZigTest;
-
-    if (comptime is_posix) {
-        try sig.install();
-        defer sig.uninstall();
-
-        const Flag = struct {
-            var hit: std.atomic.Value(bool) = .init(false);
-            fn onShutdown() void {
-                hit.store(true, .release);
-            }
-        };
-        Flag.hit.store(false, .release);
-        sig.addListener(Flag.onShutdown);
-        defer sig.removeListener(Flag.onShutdown);
-
-        try posix.raise(posix.SIG.INT);
-
-        try std.testing.expect(waitUntil(struct {
-            fn p() bool {
-                return sig.interrupted();
-            }
-        }.p, 1000));
-        try std.testing.expectEqual(posix.SIG.INT, sig.received().?);
-
-        try std.testing.expect(waitUntil(struct {
-            fn p() bool {
-                return Flag.hit.load(.acquire);
-            }
-        }.p, 1000));
-
-        _ = sig.takeSignal();
-        try std.testing.expect(!sig.interrupted());
-    }
-}
-
-test "double install fails" {
-    try sig.install();
+test "signal > double install" {
+    try sig.install(noop);
     defer sig.uninstall();
-    try std.testing.expectError(error.AlreadyInstalled, sig.install());
+    try std.testing.expectError(error.AlreadyInstalled, sig.install(noop));
 }
 
-test "watch group > SIGINT kills supervised process group" {
+test "signal > reinstall" {
+    try sig.install(noop);
+    sig.uninstall();
+    try sig.install(noop);
+    sig.uninstall();
+}
+
+test "signal > second signal force-exits" {
     if (comptime !is_posix) return error.SkipZigTest;
 
-    if (comptime is_posix) {
-        const io = std.testing.io;
-
-        try sig.install();
-        defer sig.uninstall();
-
-        var child = try std.process.spawn(io, .{
-            .argv = &.{ "sleep", "60" },
-            .pgid = 0,
-            .stdout = .ignore,
-            .stderr = .ignore,
-        });
-        const pgid = child.id orelse {
-            child.kill(io);
-            return error.SkipZigTest;
-        };
-        sig.watchGroup(pgid);
-        defer sig.unwatchGroup(pgid);
-
-        try posix.raise(posix.SIG.INT);
-
-        const term = child.wait(io) catch {
-            sig.killProcessGroup(pgid, sig.force_kill);
-            child.kill(io);
-            return error.TestUnexpectedResult;
-        };
-        switch (term) {
-            .signal, .exited => {},
-            else => return error.TestUnexpectedResult,
+    const status = try forkStatus(struct {
+        fn stuck(_: posix.SIG) void {
+            while (true) sleepMs(1000);
         }
+        fn body() void {
+            sig.install(stuck) catch std.process.exit(2);
+            posix.raise(.INT) catch {};
+            sleepMs(50);
+            posix.raise(.INT) catch {};
+            sleepMs(5000);
+            std.process.exit(3);
+        }
+    }.body);
 
-        const probe = posix.kill(-pgid, @enumFromInt(0));
-        try std.testing.expectError(error.ProcessNotFound, probe);
-    }
+    try std.testing.expect(posix.W.IFEXITED(status));
+    try std.testing.expectEqual(@as(u8, 130), posix.W.EXITSTATUS(status));
 }
 
-test "kill group terminates pgid without requiring a signal" {
+test "signal > force handler" {
     if (comptime !is_posix) return error.SkipZigTest;
 
-    if (comptime is_posix) {
-        const io = std.testing.io;
-
-        var child = try std.process.spawn(io, .{
-            .argv = &.{ "sleep", "60" },
-            .pgid = 0,
-            .stdout = .ignore,
-            .stderr = .ignore,
-        });
-        const pgid = child.id orelse {
-            child.kill(io);
-            return error.SkipZigTest;
-        };
-
-        sig.killProcessGroup(pgid, posix.SIG.TERM);
-        const term = child.wait(io) catch {
-            child.kill(io);
-            return error.TestUnexpectedResult;
-        };
-        switch (term) {
-            .signal, .exited => {},
-            else => return error.TestUnexpectedResult,
+    const status = try forkStatus(struct {
+        fn stuck(_: posix.SIG) void {
+            while (true) sleepMs(1000);
         }
-    }
+        fn force() void {
+            std.c._exit(42);
+        }
+        fn body() void {
+            sig.install(stuck) catch std.process.exit(2);
+            sig.setForceHandler(force);
+            posix.raise(.INT) catch {};
+            sleepMs(50);
+            posix.raise(.INT) catch {};
+            sleepMs(5000);
+            std.process.exit(3);
+        }
+    }.body);
+
+    try std.testing.expect(posix.W.IFEXITED(status));
+    try std.testing.expectEqual(@as(u8, 42), posix.W.EXITSTATUS(status));
 }
 
-test "raise default restores SIG_DFL then terminates child with SIGINT" {
+test "signal > exit code" {
     if (comptime !is_posix) return error.SkipZigTest;
 
-    if (comptime is_posix) {
-        const rc = posix.system.fork();
-        switch (posix.errno(rc)) {
-            .SUCCESS => {},
-            else => return error.SkipZigTest,
+    const status = try forkStatus(struct {
+        fn body() void {
+            sig.exit(.TERM);
         }
+    }.body);
 
-        if (rc == 0) {
-            sig.install() catch std.process.exit(2);
-            sig.raiseDefault(posix.SIG.INT);
-        }
-
-        const child_pid: posix.pid_t = @intCast(rc);
-        var status: i32 = 0;
-        while (true) {
-            const wr = posix.system.waitpid(child_pid, &status, 0);
-            switch (posix.errno(wr)) {
-                .SUCCESS => break,
-                .INTR => continue,
-                else => return error.TestUnexpectedResult,
-            }
-        }
-
-        const st: u32 = @bitCast(status);
-        if (posix.W.IFSIGNALED(st)) {
-            try std.testing.expectEqual(posix.SIG.INT, posix.W.TERMSIG(st));
-        } else if (posix.W.IFEXITED(st)) {
-            try std.testing.expectEqual(@as(u8, 130), posix.W.EXITSTATUS(st));
-        } else {
-            return error.TestUnexpectedResult;
-        }
-    }
-}
-
-test "wake fd is installed alongside handlers" {
-    if (comptime !is_posix) return error.SkipZigTest;
-
-    if (comptime is_posix) {
-        try sig.install();
-        defer sig.uninstall();
-        try std.testing.expect(sig.wakeFd() != null);
-    }
-}
-
-test "windows: install + uninstall + double install" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
-
-    try sig.install();
-    defer sig.uninstall();
-    try std.testing.expectError(error.AlreadyInstalled, sig.install());
-    try std.testing.expect(sig.wakeFd() == null);
+    try std.testing.expect(posix.W.IFEXITED(status));
+    try std.testing.expectEqual(@as(u8, 128 + 15), posix.W.EXITSTATUS(status));
 }
