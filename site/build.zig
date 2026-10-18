@@ -55,7 +55,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     const pg_step = b.step("pg", "Install playground assets");
-    const playground_zig_version = "0.17.0-dev.2307";
+    const playground_zig_version = "0.17.0";
 
     // --- Playground Assets --- //
     {
