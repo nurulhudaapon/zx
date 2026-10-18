@@ -6,6 +6,7 @@
 const Builder = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 userdata: ?*anyopaque = null,
 vtable: *const VTable,
@@ -14,7 +15,8 @@ pub const Bsp = @import("Builder/bsp.zig");
 pub const Cli = @import("Builder/cli.zig");
 
 /// Backend used by `zx dev` unless overridden.
-pub const default = Bsp;
+/// Windows uses CLI `--watch`: BSP's watch never wakes there (https://codeberg.org/ziglang/zig/issues/37236).
+pub const default = if (builtin.os.tag == .windows) Cli else Bsp;
 
 pub const VTable = struct {
     deinit: *const fn (userdata: ?*anyopaque, io: std.Io) void,

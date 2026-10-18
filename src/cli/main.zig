@@ -139,10 +139,13 @@ comptime {
 extern "kernel32" fn SetConsoleOutputCP(wCodePageID: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
 
 pub const std_options = std.Options{
+    // Windows client disconnects surface as error.Unexpected, which would dump a trace on every reload.
+    .unexpected_error_tracing = builtin.os.tag != .windows,
     .log_scope_levels = &[_]std.log.ScopeLevel{
         .{ .scope = .cli, .level = @fromBackingInt(@intCast(build_options.log_level)) },
         .{ .scope = .devserver, .level = @fromBackingInt(@intCast(build_options.log_level)) },
         .{ .scope = .builder, .level = @fromBackingInt(@intCast(build_options.log_level)) },
         .{ .scope = .builder_bsp, .level = @fromBackingInt(@intCast(build_options.log_level)) },
+        .{ .scope = .builder_cli, .level = @fromBackingInt(@intCast(build_options.log_level)) },
     },
 };

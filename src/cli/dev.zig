@@ -372,6 +372,15 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 last_was_no_change = false;
                 log.debug("Processing startup/restart request...", .{});
 
+                // The CLI backend can finish a rebuild without announcing it first.
+                if (Builder.default == Builder.Cli and !rebuilding_shown and !is_first_run) {
+                    rebuild_timer = std.Io.Timestamp.now(io, .awake);
+                    rebuild_output_epoch = if (runner_output) |*output| output.outputEpoch() else 0;
+                    build_label = "Rebuilding";
+                    try startStatus(status, use_spinner, "{s}{s}Rebuilding...{s}", .{ Colors.cyan, Colors.bold, Colors.reset });
+                    rebuilding_shown = true;
+                }
+
                 if (program_path == null) {
                     program_path = util.resolveExePath(io, allocator, install_prefix, binpath) catch |err| {
                         log.debug("Error finding ZX executable: {any}", .{err});
