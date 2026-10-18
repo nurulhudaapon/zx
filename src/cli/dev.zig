@@ -101,6 +101,9 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var runner: ?std.process.Child = null;
 
     try sig.install();
+    // Exit from the signal handler so we never race with `zig build` dying first
+    // (shell prompt + orphan zx stuck in cleanup — intermittent double Ctrl+C).
+    sig.setExitOnInterrupt(true);
     defer sig.uninstall();
 
     const allocator = ctx.allocator;
@@ -198,27 +201,26 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var runnable_path_owned: ?[]const u8 = null;
 
     // Release the user-facing port first, then stop child processes.
-    // On Ctrl+C, hard-kill and skip joins so exit never blocks; the process exit reaps detached threads.
+    // On Ctrl+C: SIGKILL children and exit_group immediately. Any wait/join here
+    // races with `zig build` dying first (shell prompt + orphan zx) and causes
+    // the intermittent "need Ctrl+C twice" hang.
     defer {
         if (sig.interrupted()) {
             std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
             sig.killWatches(sig.force_kill);
             if (runner) |*r| {
                 untrackChildGroup(r);
-                killRunnerHard(r, io);
+                if (comptime builtin.os.tag != .windows) {
+                    if (r.id) |pid| sig.killProcessGroup(pid, sig.force_kill);
+                }
                 runner = null;
             }
-            if (runner_output) |*o| {
-                o.deinitOptions(.{ .join = false });
-                runner_output = null;
-            }
             untrackChildGroup(builder.child());
-            if (builder.child().id) |pid| {
-                sig.killProcessGroup(pid, sig.force_kill);
-                _ = sig.waitPidExit(pid, 500);
+            if (comptime builtin.os.tag != .windows) {
+                if (builder.child().id) |pid| sig.killProcessGroup(pid, sig.force_kill);
             }
-            builder.kill(io);
-            dev_server.deinitOptions(.{ .join_serve_thread = false });
+            fatal_sig.* = sig.received() orelse .INT;
+            sig.raiseDefault(fatal_sig.*.?);
         } else {
             dev_server.deinit();
             if (runner) |*r| {

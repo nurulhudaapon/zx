@@ -25,6 +25,10 @@ const WatchSlot = std.atomic.Value(i32);
 var installed: std.atomic.Value(bool) = .init(false);
 var interrupted_flag: std.atomic.Value(bool) = .init(false);
 var received_signo: std.atomic.Value(u8) = .init(0);
+/// When set, SIGINT/SIGTERM kill watches and exit the process from the handler
+/// (no joins). Used by `zx dev` so a single Ctrl+C cannot orphan a hung cleanup
+/// behind `zig build` exiting first.
+var exit_on_interrupt: std.atomic.Value(bool) = .init(false);
 
 var wake_r: if (is_posix) posix.fd_t else void = if (is_posix) -1 else {};
 var wake_w: if (is_posix) posix.fd_t else void = if (is_posix) -1 else {};
@@ -47,11 +51,16 @@ pub const InstallError = error{
     Unexpected,
 } || std.Thread.SpawnError;
 
+pub fn setExitOnInterrupt(enabled: bool) void {
+    exit_on_interrupt.store(enabled, .release);
+}
+
 pub fn install() InstallError!void {
     if (installed.swap(true, .acq_rel)) return error.AlreadyInstalled;
 
     interrupted_flag.store(false, .release);
     received_signo.store(0, .release);
+    exit_on_interrupt.store(false, .release);
     notifier_stop.store(false, .release);
     clearWatches();
 
@@ -131,6 +140,7 @@ pub fn uninstall() void {
     clearWatches();
     interrupted_flag.store(false, .release);
     received_signo.store(0, .release);
+    exit_on_interrupt.store(false, .release);
 }
 
 pub fn interrupted() bool {
@@ -426,7 +436,24 @@ fn wake() void {
 fn recordAndDispatch(signo: u8) void {
     received_signo.store(signo, .release);
     interrupted_flag.store(true, .release);
-    killWatches(posix.SIG.TERM);
+    // SIGKILL so blocked waits (builder.next, runner) unblock immediately; TERM can hang.
+    killWatches(force_kill);
+    if (exit_on_interrupt.load(.acquire)) {
+        // Async-signal-safe exit: skip notifier joins and any main-thread cleanup.
+        // write(2) + exit_group/_exit are safe; std.debug.print is not.
+        if (comptime is_posix) {
+            const msg = "\nStopping dev server...\n";
+            _ = posix.system.write(2, msg.ptr, msg.len);
+        }
+        const code: u8 = 128 +% signo;
+        if (comptime native_os == .linux) {
+            std.os.linux.exit_group(@as(i32, @intCast(code)));
+        } else if (comptime is_posix) {
+            std.c._exit(@intCast(code));
+        } else {
+            std.process.exit(code);
+        }
+    }
     if (comptime is_windows) {
         notifyListeners();
     } else {
