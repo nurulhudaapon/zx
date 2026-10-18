@@ -291,24 +291,38 @@ pub fn copydirs(
     }
 }
 
+/// Runs the app from a snapshot so a rebuild never replaces its files while it
+/// runs: Windows can't overwrite a running exe, and stack traces are symbolized
+/// lazily from the exe (Linux) or the PDB beside it (Windows).
 pub fn getRunnablePath(
     io: std.Io,
     allocator: std.mem.Allocator,
     program_path: []const u8,
     temp_dir: TempDir,
 ) ![]const u8 {
-    if (builtin.os.tag == .windows) {
-        try std.Io.Dir.cwd().createDirPath(io, temp_dir.path);
-        const dest_dir = try std.Io.Dir.cwd().openDir(io, temp_dir.path, .{});
-        defer dest_dir.close(io);
+    const cwd = std.Io.Dir.cwd();
+    try cwd.createDirPath(io, temp_dir.path);
+    const dest_dir = try cwd.openDir(io, temp_dir.path, .{});
+    defer dest_dir.close(io);
 
-        const bin_name = std.fs.path.basename(program_path);
-        try std.Io.Dir.cwd().copyFile(program_path, dest_dir, bin_name, io, .{});
-        return try std.fs.path.join(allocator, &.{ temp_dir.path, bin_name });
+    const bin_name = std.fs.path.basename(program_path);
+    if (builtin.os.tag == .windows) {
+        try cwd.copyFile(program_path, dest_dir, bin_name, io, .{});
+        const stem_len = program_path.len - std.fs.path.extension(program_path).len;
+        const pdb_path = try std.mem.concat(allocator, u8, &.{ program_path[0..stem_len], ".pdb" });
+        defer allocator.free(pdb_path);
+        cwd.copyFile(pdb_path, dest_dir, std.fs.path.basename(pdb_path), io, .{}) catch |err| switch (err) {
+            error.FileNotFound => {},
+            else => |e| return e,
+        };
     } else {
-        return program_path;
+        // Installs replace the exe by rename, so a hard link keeps the old inode.
+        cwd.hardLink(program_path, dest_dir, bin_name, io, .{}) catch
+            try cwd.copyFile(program_path, dest_dir, bin_name, io, .{});
     }
+    return try std.fs.path.join(allocator, &.{ temp_dir.path, bin_name });
 }
+
 pub fn randInt(io: std.Io, comptime T: type) T {
     var x: T = undefined;
     io.random(@ptrCast(&x));

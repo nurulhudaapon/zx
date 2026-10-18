@@ -129,11 +129,6 @@ pub fn init(opts: Options) DevServer {
 }
 
 pub fn deinit(ds: *DevServer) void {
-    ds.deinitOptions(.{ .join_serve_thread = true });
-}
-
-/// `join_serve_thread = false` skips blocking joins (Ctrl+C teardown).
-pub fn deinitOptions(ds: *DevServer, opts: struct { join_serve_thread: bool }) void {
     ds.shutting_down.store(true, .release);
     ds.update_id.store(std.math.maxInt(u32), .release);
     ds.io.futexWake(u32, &ds.update_id.raw, std.math.maxInt(u32));
@@ -152,19 +147,13 @@ pub fn deinitOptions(ds: *DevServer, opts: struct { join_serve_thread: bool }) v
         ds.tcp_server = null;
     }
     if (ds.serve_thread) |t| {
-        if (opts.join_serve_thread) {
-            t.join();
-        } else {
-            t.detach();
-        }
+        t.join();
         ds.serve_thread = null;
     }
 
-    if (opts.join_serve_thread) {
-        var spins: u32 = 0;
-        while (ds.active_workers.load(.acquire) != 0 and spins < 2000) : (spins += 1) {
-            std.Io.sleep(ds.io, .fromMilliseconds(1), .awake) catch {};
-        }
+    var spins: u32 = 0;
+    while (ds.active_workers.load(.acquire) != 0 and spins < 2000) : (spins += 1) {
+        std.Io.sleep(ds.io, .fromMilliseconds(1), .awake) catch {};
     }
     // Drain any remaining queued events
     while (ds.event_tail != ds.event_head) {
