@@ -198,30 +198,40 @@ fn handshakeAndWatch(self: *Bsp, io: Io) !void {
         const body = stdout.take(header.bytes_len) catch unreachable;
         log.debug("received {t} ({d} bytes)", .{ header.tag, body.len });
         switch (header.tag) {
-            .bsp_configuration => {
-                const conf_arena = self.conf_arena.allocator();
-                var file = try Io.Dir.cwd().openFile(io, body, .{});
-                defer file.close(io);
-                self.configuration = try Configuration.loadFile(conf_arena, io, file);
-                try self.buildStepGraph();
-            },
-            .bsp_configuration_failed => {
-                var eb = try Server.allocErrorBundle(self.allocator, body);
-                defer eb.deinit(self.allocator);
-                try self.appendErrorBundle(&eb);
-                try self.pending.append(self.allocator, .{ .errors = .{
-                    .allocator = self.allocator,
-                    .success = false,
-                    .diagnostics = try self.cycle.diagnostics.toOwnedSlice(self.allocator),
-                } });
-                self.previous_had_errors = true;
-                self.closed = true;
-                return;
-            },
+            .bsp_configuration => try self.loadConfiguration(io, body),
+            .bsp_configuration_failed => return self.configurationFailed(body),
             else => return error.UnexpectedMessage,
         }
     }
 
+    try self.serveDefaultStep();
+}
+
+fn loadConfiguration(self: *Bsp, io: Io, path: []const u8) !void {
+    var file = try Io.Dir.cwd().openFile(io, path, .{});
+    defer file.close(io);
+    self.configuration = try Configuration.loadFile(self.conf_arena.allocator(), io, file);
+    try self.buildStepGraph();
+}
+
+fn configurationFailed(self: *Bsp, body: []const u8) !void {
+    var eb = try Server.allocErrorBundle(self.allocator, body);
+    defer eb.deinit(self.allocator);
+    try self.appendErrorBundle(&eb);
+    try self.pending.append(self.allocator, .{ .errors = .{
+        .allocator = self.allocator,
+        .success = false,
+        .diagnostics = try self.cycle.diagnostics.toOwnedSlice(self.allocator),
+    } });
+    self.cycle.diagnostics = .empty;
+    self.previous_had_errors = true;
+    // The build runner exits after a failed configure.
+    self.closed = true;
+}
+
+/// The build runner waits for `bsp_build_steps` after every
+/// `bsp_configuration`, including reconfigures triggered by build.zig edits.
+fn serveDefaultStep(self: *Bsp) !void {
     const c = &self.configuration.?;
     try self.client.serveBuildSteps(&.{c.default_step}, .{ .watch = true });
     self.watching = true;
@@ -359,8 +369,20 @@ fn handleMessage(self: *Bsp, tag: Server.Message.Tag, body: []const u8) !?Event 
             return .{ .build_complete_no_change = duration_ms };
         },
         .bsp_configuration => {
-            // Hot reload of configuration is not needed for zx dev yet.
-            log.warn("ignoring mid-session bsp_configuration", .{});
+            // build.zig inputs changed and the runner reconfigured. Step
+            // indices from the old configuration are now meaningless.
+            log.debug("reconfigured", .{});
+            self.cycle.reset(self.allocator);
+            self.step_dependants = &.{};
+            self.reachable_steps = .{};
+            self.configuration = null;
+            _ = self.conf_arena.reset(.retain_capacity);
+            try self.loadConfiguration(self.io, body);
+            try self.serveDefaultStep();
+            return null;
+        },
+        .bsp_configuration_failed => {
+            try self.configurationFailed(body);
             return null;
         },
         else => {
