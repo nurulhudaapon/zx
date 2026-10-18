@@ -175,7 +175,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     );
     // --- Static Directory Setup --- //
     {
-        b.dependOnDirectoryContents(opts.site_path);
+        const site_sub_path = opts.site_path.src_path.sub_path;
+        if (b.root.access(b.graph.io, site_sub_path, .{})) |_| {
+            b.dependOnDirectoryContents(opts.site_path);
+        } else |_| {
+            b.dependOnDirectoryContents(b.path(std.fs.path.dirname(site_sub_path) orelse ""));
+        }
 
         const public_dir = opts.site_path.path(b, "public");
         if (b.root.access(b.graph.io, public_dir.src_path.sub_path, .{})) |_| {
