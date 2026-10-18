@@ -298,7 +298,9 @@ fn childExited(pid: posix.pid_t) ?bool {
         const WNOWAIT = 0x20;
         if (waitid(P_PID, @intCast(pid), &info, WEXITED | WNOHANG | WNOWAIT) != 0) return null;
     } else return null;
-    return std.mem.readInt(i32, info[0..4], native_endian) != 0;
+    // WNOHANG succeeds with si_pid == 0 when nothing is waitable.
+    const si_pid_offset = if (native_os == .linux and @sizeOf(usize) == 8) 16 else 12;
+    return std.mem.readInt(i32, info[si_pid_offset..][0..4], native_endian) != 0;
 }
 
 const native_endian = builtin.cpu.arch.endian();

@@ -78,15 +78,26 @@ pub fn outputEpoch(self: *const RunnerOutput) usize {
 }
 
 pub fn wait(self: *const RunnerOutput) void {
-    while (!self.state.done.load(.acquire)) {
+    // Bounded so a stuck pipe reader can't hang shutdown.
+    var waited_ms: u32 = 0;
+    while (!self.state.done.load(.acquire) and waited_ms < 5000) : (waited_ms += 1) {
         self.state.io.sleep(.fromMilliseconds(1), .awake) catch {};
     }
 }
 
 pub fn deinit(self: *RunnerOutput) void {
-    self.thread.join();
-    if (self.state.first_line) |line| self.state.allocator.free(line);
-    self.state.allocator.destroy(self.state);
+    self.deinitOptions(.{ .join = true });
+}
+
+/// `join = false` detaches instead (Ctrl+C teardown) and leaks `State`, since the process is exiting.
+pub fn deinitOptions(self: *RunnerOutput, opts: struct { join: bool }) void {
+    if (opts.join) {
+        self.thread.join();
+        if (self.state.first_line) |line| self.state.allocator.free(line);
+        self.state.allocator.destroy(self.state);
+    } else {
+        self.thread.detach();
+    }
     self.* = undefined;
 }
 
