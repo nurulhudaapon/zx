@@ -146,6 +146,27 @@ pub const VNode = struct {
 
 pub const VElement = VNode;
 
+// Fragments have no DOM node of their own, so they resolve to their first descendant's.
+pub fn firstDomNodeId(vnode: *const VNode) ?u64 {
+    switch (vnode.component) {
+        .element => |elem| {
+            if (elem.tag != .fragment) return vnode.id;
+            return firstDomNodeIdFrom(vnode.children.items);
+        },
+        .text => return vnode.id,
+        else => return null,
+    }
+}
+
+// Empty fragments (a false `{if}`) are skipped so an insert lands before whatever
+// follows them instead of falling through to `appendChild`.
+pub fn firstDomNodeIdFrom(siblings: []const *VNode) ?u64 {
+    for (siblings) |sibling| {
+        if (firstDomNodeId(sibling)) |id| return id;
+    }
+    return null;
+}
+
 pub const PatchType = enum {
     UPDATE,
     PLACEMENT,

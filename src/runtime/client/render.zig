@@ -565,22 +565,6 @@ fn findDomParentInSubtree(node: *VNode, target_id: u64, dom_ancestor: ?u64) ?u64
     return null;
 }
 
-fn firstDomNodeId(vnode: *VNode) ?u64 {
-    switch (vnode.component) {
-        .element => |elem| {
-            if (elem.tag == .fragment) {
-                for (vnode.children.items) |child| {
-                    if (firstDomNodeId(child)) |id| return id;
-                }
-                return null;
-            }
-            return vnode.id;
-        },
-        .text => return vnode.id,
-        else => return null,
-    }
-}
-
 /// When inserting into a fragment vnode, DOM nodes must be placed before the
 /// fragment's next sibling (e.g. conditional `{if ...}` before the following `<p>`).
 fn findFragmentInsertReference(client: anytype, fragment_id: u64, insert_index: usize) ?u64 {
@@ -594,13 +578,9 @@ fn findFragmentInsertReference(client: anytype, fragment_id: u64, insert_index: 
 fn findFragmentInsertReferenceInSubtree(parent: *VNode, fragment_id: u64, insert_index: usize) ?u64 {
     for (parent.children.items, 0..) |child, i| {
         if (child.id == fragment_id) {
-            if (insert_index < child.children.items.len) {
-                if (firstDomNodeId(child.children.items[insert_index])) |id| return id;
-            }
-            if (i + 1 < parent.children.items.len) {
-                return firstDomNodeId(parent.children.items[i + 1]);
-            }
-            return null;
+            const start = @min(insert_index, child.children.items.len);
+            if (vdom.firstDomNodeIdFrom(child.children.items[start..])) |id| return id;
+            return vdom.firstDomNodeIdFrom(parent.children.items[i + 1 ..]);
         }
         if (findFragmentInsertReferenceInSubtree(child, fragment_id, insert_index)) |id| return id;
     }
@@ -609,17 +589,7 @@ fn findFragmentInsertReferenceInSubtree(parent: *VNode, fragment_id: u64, insert
 
 /// Find the DOM node to insert before when placing a child at `insert_index` in `parent_id`.
 fn findChildInsertReference(client: anytype, parent_id: u64, insert_index: usize) ?u64 {
-    if (client.getVElementById(parent_id)) |parent| {
-        if (insert_index < parent.children.items.len) {
-            const at_slot = parent.children.items[insert_index];
-            if (vnodeIsFragment(client, at_slot.id)) {
-                if (insert_index + 1 < parent.children.items.len) {
-                    return firstDomNodeId(parent.children.items[insert_index + 1]);
-                }
-                return null;
-            }
-            return firstDomNodeId(at_slot);
-        }
-    }
-    return null;
+    const parent = client.getVElementById(parent_id) orelse return null;
+    const start = @min(insert_index, parent.children.items.len);
+    return vdom.firstDomNodeIdFrom(parent.children.items[start..]);
 }

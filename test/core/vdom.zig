@@ -440,3 +440,79 @@ test "keyed component_fn children preserve keys through resolve" {
     try testing.expectEqual(a_id, tree.vtree.children.items[0].id);
     try testing.expectEqual(b_id, tree.vtree.children.items[1].id);
 }
+
+test "if before for list resolves insert reference to first list item" {
+    const allocator = testing.allocator;
+
+    const title = zx.Component{ .element = .{ .tag = .h2, .children = &[_]zx.Component{.{ .text = "Title" }} } };
+    const empty_frag = zx.Component{ .element = .{ .tag = .fragment, .children = null } };
+    const new_p = zx.Component{ .element = .{ .tag = .p, .children = &[_]zx.Component{.{ .text = "New" }} } };
+    const list = zx.Component{ .element = .{ .tag = .fragment, .children = &[_]zx.Component{
+        .{ .element = .{ .tag = .p, .children = &[_]zx.Component{.{ .text = "B" }} } },
+        .{ .element = .{ .tag = .p, .children = &[_]zx.Component{.{ .text = "A" }} } },
+    } } };
+
+    const before = zx.Component{ .element = .{ .tag = .div, .children = &[_]zx.Component{ title, empty_frag, list } } };
+    const after = zx.Component{ .element = .{ .tag = .div, .children = &[_]zx.Component{ title, new_p, list } } };
+
+    var tree = VDOMTree.init(allocator, before);
+    defer tree.deinit(allocator);
+
+    const fragment_id = tree.vtree.children.items[1].id;
+    const first_item_id = tree.vtree.children.items[2].children.items[0].id;
+
+    var patches = try tree.diffWithComponent(allocator, after);
+    defer {
+        for (patches.items) |patch| {
+            if (patch.type == .PLACEMENT) patch.data.PLACEMENT.vnode.deinit(allocator);
+        }
+        patches.deinit(allocator);
+    }
+
+    var placement_index: ?usize = null;
+    var saw_deletion = false;
+    for (patches.items) |patch| {
+        if (patch.type == .DELETION and patch.data.DELETION.vnode_id == fragment_id) saw_deletion = true;
+        if (patch.type == .PLACEMENT) placement_index = patch.data.PLACEMENT.index;
+    }
+    try testing.expect(saw_deletion);
+    try testing.expectEqual(@as(?usize, 1), placement_index);
+
+    // The client applies DELETION first, leaving [title, list]. The node placed at
+    // index 1 must go before the list's first item, not be appended at the end.
+    const remaining = [_]*VNode{ tree.vtree.children.items[0], tree.vtree.children.items[2] };
+    try testing.expectEqual(@as(?u64, first_item_id), zx.util.vdom.firstDomNodeIdFrom(remaining[placement_index.?..]));
+}
+
+test "first dom node skips empty fragments" {
+    const allocator = testing.allocator;
+
+    const empty_frag = zx.Component{ .element = .{ .tag = .fragment, .children = null } };
+    const button = zx.Component{ .element = .{ .tag = .button, .children = &[_]zx.Component{.{ .text = "Add" }} } };
+    const root = zx.Component{ .element = .{ .tag = .div, .children = &[_]zx.Component{ empty_frag, empty_frag, button } } };
+
+    var tree = VDOMTree.init(allocator, root);
+    defer tree.deinit(allocator);
+
+    const children = tree.vtree.children.items;
+    try testing.expectEqual(@as(?u64, children[2].id), zx.util.vdom.firstDomNodeIdFrom(children));
+    try testing.expectEqual(@as(?u64, null), zx.util.vdom.firstDomNodeIdFrom(children[0..2]));
+    try testing.expectEqual(@as(?u64, null), zx.util.vdom.firstDomNodeIdFrom(children[3..]));
+}
+
+test "first dom node descends into nested fragments" {
+    const allocator = testing.allocator;
+
+    const nested = zx.Component{ .element = .{ .tag = .fragment, .children = &[_]zx.Component{
+        .{ .element = .{ .tag = .fragment, .children = null } },
+        .{ .element = .{ .tag = .fragment, .children = &[_]zx.Component{.{ .text = "deep" }} } },
+    } } };
+    const root = zx.Component{ .element = .{ .tag = .div, .children = &[_]zx.Component{nested} } };
+
+    var tree = VDOMTree.init(allocator, root);
+    defer tree.deinit(allocator);
+
+    const outer = tree.vtree.children.items[0];
+    const text_id = outer.children.items[1].children.items[0].id;
+    try testing.expectEqual(@as(?u64, text_id), zx.util.vdom.firstDomNodeId(outer));
+}

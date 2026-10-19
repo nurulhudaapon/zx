@@ -1,0 +1,74 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <IfBeforeFor @rendering={.client} />
+            <ForBeforeEmptyIf @rendering={.client} />
+            <KeyedForm @rendering={.client} />
+        </main>
+    );
+}
+
+const labels = [_][]const u8{ "One", "Two", "Three", "Four" };
+
+pub fn IfBeforeFor(ctx: *zx.ComponentContext) zx.Component {
+    const shown = ctx.state(bool, false);
+    return (
+        <section @allocator={ctx.allocator} id="if-before-for">
+            <h2>Title</h2>
+            {if (shown.get()) (<p class="item">New</p>)}
+            {for (labels[0..2]) |label| (<p class="item">{label}</p>)}
+            <button type="button" onclick={ctx.bind(show)}>Show</button>
+        </section>
+    );
+}
+
+fn show(e: *zx.client.Event.Stateful) void {
+    e.state(bool).set(true);
+}
+
+pub fn ForBeforeEmptyIf(ctx: *zx.ComponentContext) zx.Component {
+    const count = ctx.state(usize, 2);
+    return (
+        <section @allocator={ctx.allocator} id="for-before-empty-if">
+            {for (labels[0..count.get()]) |label| (<p class="item">{label}</p>)}
+            {if (count.get() > labels.len) (<p class="item">Never</p>)}
+            <button type="button" onclick={ctx.bind(add)}>Add</button>
+        </section>
+    );
+}
+
+fn add(e: *zx.client.Event.Stateful) void {
+    const count = e.state(usize);
+    count.set(@min(count.get() + 1, labels.len));
+}
+
+const Saved = struct { key: u32 = 0, last: []const u8 = "" };
+
+pub fn KeyedForm(ctx: *zx.ComponentContext) zx.Component {
+    const saved = ctx.state(Saved, .{});
+    return (
+        <section @allocator={ctx.allocator} id="keyed-form">
+            <form key={saved.get().key} action={ctx.bind(save)}>
+                <input type="text" name="text" />
+                <button type="submit">Save</button>
+            </form>
+            <p class="last">{saved.get().last}</p>
+        </section>
+    );
+}
+
+// Changing the form's key remounts it with empty fields; "keep" leaves it alone.
+fn save(a: *zx.client.Action.Stateful) void {
+    const text = a.data(struct { text: []const u8 }).text;
+    const saved = a.state(Saved);
+    const cur = saved.get();
+    if (std.mem.eql(u8, text, "keep")) return saved.set(.{ .key = cur.key, .last = "kept" });
+    saved.set(.{ .key = cur.key + 1, .last = zx.allocator.dupe(u8, text) catch "" });
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{ .GET, .POST },
+};
+
+const std = @import("std");
+const zx = @import("zx");
