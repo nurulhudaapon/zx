@@ -9,6 +9,13 @@ import { defineConfig, devices } from '@playwright/test';
 // dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 /**
+ * `E2E_RUNTIME=edge` serves the site through workerd (`wrangler dev`, wasm32-wasi)
+ * instead of the native dev server, so the same suite covers the edge runtime.
+ */
+const edge = process.env.E2E_RUNTIME === 'edge' && !process.env.TEMPLATE_TESTS && !process.env.CSR_BENCH;
+const localUrl = edge ? 'http://127.0.0.1:8788' : 'http://localhost:3000';
+
+/**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
@@ -25,7 +32,7 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    baseURL: new URL(process.env.BASE_URL || 'http://localhost:3000').href,
+    baseURL: new URL(process.env.BASE_URL || localUrl).href,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -75,10 +82,12 @@ export default defineConfig({
         ? 'cd templates/_base && zig build dev'
         : process.env.CSR_BENCH
           ? 'cd bench/ziex && zig build dev'
-          : 'cd site && zig build dev',
+          : edge
+            ? 'cd site && npx wrangler dev --port 8788 --ip 127.0.0.1'
+            : 'cd site && zig build dev',
 
       cwd: '../../',
-      url: 'http://localhost:3000',
+      url: localUrl,
       // Locally, reuse a server you already started. In CI always start fresh.
       // Template tests historically reused an existing `_base` dev server.
       reuseExistingServer: !process.env.CI,

@@ -143,6 +143,9 @@ export function createStatefulFetch(
                 sleep_ms: new Suspending(
                     async (ms: number): Promise<void> => new Promise<void>((r) => setTimeout(r, ms)),
                 ),
+                park: () => {
+                    throw new Error("park is not supported by sticky handlers");
+                },
             };
 
             const wsImports = buildWsImports(Suspending, mem, decoder, connState);

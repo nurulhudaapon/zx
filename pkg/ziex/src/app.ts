@@ -105,6 +105,12 @@ export type ZiexOptions<Env = Record<string, unknown>> = {
      */
     db?: DBKey<Env> | Record<string, DBKey<Env>>;
     /**
+     * Keep initialized instances alive and serve later requests on them instead of
+     * instantiating the module per request. Needs JSPI and a module that exports
+     * `__zx_serve` (current builds); otherwise falls back. Default `true`.
+     */
+    reuse?: boolean;
+    /**
      * Env binding for sticky long-lived fetch (WebSocket upgrades, etc.).
      * Prefer platform helpers (e.g. `stateful(app, binding)` on Cloudflare) over setting this directly.
      */
@@ -226,8 +232,9 @@ export class Ziex<Env = Record<string, unknown>> {
         ctx?: { waitUntil(p: Promise<unknown>): void },
     ): Promise<Response> => {
         const module = await this.getModule();
-        const { wasi, imports, sticky } = this.options;
+        const { wasi, imports, sticky, reuse } = this.options;
         return run({
+            reuse,
             request,
             env,
             ctx,

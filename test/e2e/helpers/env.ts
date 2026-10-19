@@ -30,3 +30,6 @@ export const isCsrBenchServer = !!process.env.CSR_BENCH;
 
 /** Path for the CSR js-framework-benchmark page in the current e2e mode. */
 export const csrBenchPath = isCsrBenchServer ? '/' : '/bench';
+
+/** Site served by workerd (`E2E_RUNTIME=edge`) rather than the native dev server. */
+export const isEdgeRuntime = process.env.E2E_RUNTIME === 'edge';

@@ -14,33 +14,46 @@ export type WASI = {
     }): void;
 };
 
-/** WASI imports for request argv/stdin. Response body uses `__zx_http`, not stdout. */
+/**
+ * WASI imports for request argv/stdin. Response body uses `__zx_http`, not stdout.
+ * `setRequest` swaps the request so one instance can serve many (see `__zx_serve`).
+ */
 export function createWasiImports({
     request,
     stdinData,
+    extraArgs = [],
 }: {
     request: Request;
     stdinData?: Uint8Array;
+    extraArgs?: string[];
 }) {
     const encoder = new TextEncoder();
 
-    // Build args prefixed with a dummy argv[0].
-    const url = new URL(request.url);
-    const argStrings: string[] = [
-        "wasm",
-        "--pathname", url.pathname,
-        "--method", request.method,
-        "--search", url.search,
-        "--url", url.href
-    ];
+    let encodedArgs: Uint8Array[] = [];
+    let argBufSize = 0;
+    let stdinOffset = 0;
 
-    request.headers.forEach((value, name) => {
-        if (value) argStrings.push("--header", `${name}:${value}`);
-    });
+    function setRequest(next: Request, nextStdin?: Uint8Array): void {
+        // Build args prefixed with a dummy argv[0].
+        const url = new URL(next.url);
+        const argStrings: string[] = [
+            "wasm",
+            "--pathname", url.pathname,
+            "--method", next.method,
+            "--search", url.search,
+            "--url", url.href,
+            ...extraArgs,
+        ];
+        next.headers.forEach((value, name) => {
+            if (value) argStrings.push("--header", `${name}:${value}`);
+        });
 
-    // Null-terminated encoded args and total buffer size
-    const encodedArgs = argStrings.map((a) => encoder.encode(a + "\0"));
-    const argBufSize = encodedArgs.reduce((s, a) => s + a.length, 0);
+        encodedArgs = argStrings.map((a) => encoder.encode(a + "\0"));
+        argBufSize = encodedArgs.reduce((s, a) => s + a.length, 0);
+        stdinData = nextStdin;
+        stdinOffset = 0;
+    }
+    setRequest(request, stdinData);
 
     // WASM memory - set after instantiation
     let wasmMemory: WebAssembly.Memory = null!;
@@ -59,8 +72,6 @@ export function createWasiImports({
             }
         }
     }
-
-    let stdinOffset = 0;
 
     function v() { return new DataView(wasmMemory.buffer); }
     function m() { return new Uint8Array(wasmMemory.buffer); }
@@ -231,7 +242,7 @@ export function createWasiImports({
         },
     };
 
-    return { wasiImport, setMemory };
+    return { wasiImport, setMemory, setRequest };
 }
 
 export function mergeUint8Arrays(arrays: Uint8Array[]): Uint8Array {
