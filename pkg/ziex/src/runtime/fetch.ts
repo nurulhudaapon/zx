@@ -1,3 +1,5 @@
+import { Suspending } from "./jspi";
+
 /**
  * Create a `fetch` import object for blocking WASM fetch via JSPI.
  * When JSPI is unavailable the import always returns -1 (network error).
@@ -79,8 +81,7 @@ export function createFetchImports(
         }
     }
 
-    const Suspending = (WebAssembly as any).Suspending;
-    if (typeof Suspending !== 'function') {
+    if (!Suspending) {
         return {
             fetch: (
                 _url_ptr: number, _url_len: number,

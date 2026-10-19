@@ -18,12 +18,16 @@ const Conn = zx.Http.Conn;
 const Capture = zx.Http.Capture;
 const Host = zx.Http.Host;
 const HeaderEntry = zx.Http.Conn.HeaderEntry;
+const Method = zx.server.Request.Method;
 
 const base_path = app_opts.app_base_path;
 const feat_cache = app_opts.feat_cache_server;
 const is_dev = App.mode == .dev;
 
+const MaybePageCache = if (feat_cache) PageCache else void;
+
 var g_inita: zx.Init = undefined;
+var g_request_arena: std.heap.ArenaAllocator = .init(std.heap.wasm_allocator);
 
 pub fn server(inita: zx.Init) Server {
     g_inita = inita;
@@ -40,24 +44,38 @@ const vtable = Server.VTable{
 fn start(_: ?*anyopaque) anyerror!void {
     if (reuseRequested()) {
         // The host serves each request through `__zx_serve` on this initialized instance.
-        ext.park();
+        ext.sys.park();
         return;
     }
     return run(g_inita);
 }
 
-/// Requested by hosts that keep one instance alive across requests.
+comptime {
+    if (builtin.os.tag == .wasi) @export(&serveCurrent, .{ .name = "__zx_serve" });
+}
+
+fn serveCurrent() callconv(.c) void {
+    defer _ = g_request_arena.reset(.retain_capacity);
+    serve(g_inita, g_request_arena.allocator()) catch |err| {
+        std.log.err("request failed: {s}", .{@errorName(err)});
+    };
+}
+
+pub fn run(process_init: std.process.Init) !void {
+    return serve(process_init, std.heap.wasm_allocator);
+}
+
 fn reuseRequested() bool {
     var arena: std.heap.ArenaAllocator = .init(std.heap.wasm_allocator);
     defer arena.deinit();
-    const args = requestArgs(arena.allocator()) catch return false;
+    const args = readArgs(arena.allocator()) catch return false;
     for (args) |arg| if (std.mem.eql(u8, arg, "--zx-reuse")) return true;
     return false;
 }
 
-/// Read argv straight from WASI: with libc linked, `std.process.Args` returns the
-/// startup argv, which is stale once an instance serves more than one request.
-fn requestArgs(allocator: std.mem.Allocator) ![]const [:0]const u8 {
+// Read argv from WASI directly: libc's `std.process.Args` keeps the startup argv,
+// which is stale on reused instances.
+fn readArgs(allocator: std.mem.Allocator) ![]const [:0]const u8 {
     var count: usize = 0;
     var buf_size: usize = 0;
     if (std.os.wasi.args_sizes_get(&count, &buf_size) != .SUCCESS) return error.ArgsUnavailable;
@@ -70,125 +88,141 @@ fn requestArgs(allocator: std.mem.Allocator) ![]const [:0]const u8 {
     return args;
 }
 
-const ArgIterator = struct {
-    args: []const [:0]const u8,
-    index: usize = 1,
+const RequestArgs = struct {
+    pathname: []const u8 = "/",
+    search: []const u8 = "",
+    url: []const u8 = "",
+    method: Method = .GET,
+    headers: std.ArrayList(HeaderEntry) = .empty,
 
-    fn next(self: *ArgIterator) ?[:0]const u8 {
-        if (self.index >= self.args.len) return null;
-        defer self.index += 1;
-        return self.args[self.index];
+    fn parse(allocator: std.mem.Allocator, argv: []const [:0]const u8) !RequestArgs {
+        var self: RequestArgs = .{};
+        errdefer self.headers.deinit(allocator);
+
+        var args = argv[@min(1, argv.len)..];
+        while (nextArg(&args)) |flag| {
+            if (std.mem.eql(u8, flag, "--pathname")) {
+                self.pathname = nextArg(&args) orelse return error.MissingPathname;
+            } else if (std.mem.eql(u8, flag, "--search")) {
+                self.search = nextArg(&args) orelse return error.MissingSearch;
+            } else if (std.mem.eql(u8, flag, "--url")) {
+                self.url = nextArg(&args) orelse return error.MissingUrl;
+            } else if (std.mem.eql(u8, flag, "--method")) {
+                const name = nextArg(&args) orelse return error.MissingMethod;
+                self.method = std.meta.stringToEnum(Method, name) orelse return error.InvalidMethod;
+            } else if (std.mem.eql(u8, flag, "--header")) {
+                const header = nextArg(&args) orelse return error.MissingHeader;
+                const sep = std.mem.indexOfScalar(u8, header, ':') orelse continue;
+                try self.headers.append(allocator, .{
+                    .name = header[0..sep],
+                    .value = std.mem.trimStart(u8, header[sep + 1 ..], " "),
+                });
+            }
+        }
+        return self;
+    }
+
+    fn nextArg(args: *[]const [:0]const u8) ?[]const u8 {
+        if (args.len == 0) return null;
+        defer args.* = args.*[1..];
+        return args.*[0];
+    }
+
+    fn deinit(self: *RequestArgs, allocator: std.mem.Allocator) void {
+        self.headers.deinit(allocator);
     }
 };
 
-var g_request_arena: std.heap.ArenaAllocator = .init(std.heap.wasm_allocator);
+const Ctx = struct {
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    conn: *Conn,
+    http: zx.Http,
+    request: zx.server.Request,
+    response: zx.server.Response,
+    pathname: []const u8,
+    matched_route: ?*const core_handler.Route,
+    out: *std.Io.Writer,
+    page_cache: *MaybePageCache,
+    cache_status: PageCache.Status,
 
-comptime {
-    if (builtin.os.tag == .wasi) @export(&serveCurrent, .{ .name = "__zx_serve" });
-}
+    fn shouldCapture(self: *const Ctx) bool {
+        return feat_cache and self.cache_status == .miss;
+    }
 
-/// Serve the host's current request on an instance parked by `--zx-reuse`.
-fn serveCurrent() callconv(.c) void {
-    defer _ = g_request_arena.reset(.retain_capacity);
-    serve(g_inita, g_request_arena.allocator()) catch |err| {
-        std.log.err("request failed: {s}", .{@errorName(err)});
-    };
-}
-
-pub fn run(process_init: std.process.Init) !void {
-    return serve(process_init, std.heap.wasm_allocator);
-}
+    fn storePageCache(self: *const Ctx, body: []const u8) void {
+        if (comptime !feat_cache) return;
+        self.page_cache.store(self.request, self.response, .{
+            .status = self.conn.status,
+            .body = body,
+            .content_type = headerGet(self.conn.resp_headers.items, "Content-Type") orelse "text/html",
+        });
+    }
+};
 
 fn serve(process_init: std.process.Init, allocator: std.mem.Allocator) !void {
-    const argv = try requestArgs(allocator);
-    var args = ArgIterator{ .args = argv };
+    var args = try RequestArgs.parse(allocator, try readArgs(allocator));
+    defer args.deinit(allocator);
 
-    var pathname: []const u8 = "/";
-    var search: []const u8 = "";
-    var url: []const u8 = "";
-    var method: zx.server.Request.Method = .GET;
-    var header_entries = std.ArrayList(HeaderEntry).empty;
-    defer header_entries.deinit(allocator);
-
-    while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--pathname")) {
-            pathname = args.next() orelse return error.MissingPathname;
-        } else if (std.mem.eql(u8, arg, "--search")) {
-            search = args.next() orelse return error.MissingSearch;
-        } else if (std.mem.eql(u8, arg, "--method")) {
-            const method_str = args.next() orelse return error.MissingMethod;
-            method = std.meta.stringToEnum(zx.server.Request.Method, method_str) orelse return error.InvalidMethod;
-        } else if (std.mem.eql(u8, arg, "--header")) {
-            const header_str = args.next() orelse return error.MissingHeader;
-            if (std.mem.indexOfScalar(u8, header_str, ':')) |sep| {
-                try header_entries.append(allocator, .{
-                    .name = header_str[0..sep],
-                    .value = std.mem.trimStart(u8, header_str[sep + 1 ..], " "),
-                });
-            }
-        } else if (std.mem.eql(u8, arg, "--url")) {
-            url = args.next() orelse return error.MissingUrl;
-        }
-    }
-
-    var stdin_body_buf: std.Io.Writer.Allocating = .init(allocator);
-    defer stdin_body_buf.deinit();
-    var stdin_read_buf: [4096]u8 = undefined;
-    var stdin_reader = std.Io.File.stdin().readerStreaming(process_init.io, &stdin_read_buf);
-    _ = stdin_reader.interface.streamRemaining(&stdin_body_buf.writer) catch {};
-
-    var content_type: []const u8 = "";
-    var cookie_header: []const u8 = "";
-    for (header_entries.items) |entry| {
-        if (std.ascii.eqlIgnoreCase(entry.name, "content-type")) content_type = entry.value;
-        if (std.ascii.eqlIgnoreCase(entry.name, "cookie")) cookie_header = entry.value;
-    }
+    var body: std.Io.Writer.Allocating = .init(allocator);
+    defer body.deinit();
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin = std.Io.File.stdin().readerStreaming(process_init.io, &stdin_buf);
+    _ = stdin.interface.streamRemaining(&body.writer) catch {};
 
     var conn = Conn.init(allocator);
     defer conn.deinit();
-    conn.headers = header_entries.items;
-    conn.search = search;
-    conn.body = stdin_body_buf.written();
-    conn.content_type = content_type;
-    conn.cookie_header = cookie_header;
-    conn.route_match = Router.matchRoute(pathname, .{ .match = .exact });
+    conn.headers = args.headers.items;
+    conn.search = args.search;
+    conn.body = body.written();
+    conn.content_type = headerGet(args.headers.items, "content-type") orelse "";
+    conn.cookie_header = headerGet(args.headers.items, "cookie") orelse "";
+    conn.route_match = Router.matchRoute(args.pathname, .{ .match = .exact });
     conn.http().resHeaderSet("Server", "ziex/wasm");
-
-    const request = conn.request(method, pathname, url);
-    const response = conn.response();
-    const http = conn.http();
 
     var host: Host = .{};
     host.init();
-    const host_out = &host.writer;
 
-    var page_cache: if (feat_cache) PageCache else void = if (feat_cache)
+    var page_cache: MaybePageCache = if (feat_cache)
         try PageCache.initKv(process_init.io, allocator, zx.kv.scoped(.@"page-cache"), AppConfig.CacheConfig{})
     else {};
     defer if (feat_cache) page_cache.deinit();
 
-    const cache_status = if (feat_cache) page_cache.tryServe(request, response) else PageCache.Status.disabled;
-    if (cache_status == .hit) {
-        try sendDeferred(allocator, &conn, host_out);
-        return;
+    const matched = if (conn.route_match) |m| m.route else null;
+    var ctx: Ctx = .{
+        .allocator = allocator,
+        .io = process_init.io,
+        .conn = &conn,
+        .http = conn.http(),
+        .request = conn.request(args.method, args.pathname, args.url),
+        .response = conn.response(),
+        .pathname = args.pathname,
+        .matched_route = matched,
+        .out = &host.writer,
+        .page_cache = &page_cache,
+        .cache_status = .disabled,
+    };
+
+    if (feat_cache) {
+        ctx.cache_status = page_cache.tryServe(ctx.request, ctx.response);
+        if (ctx.cache_status == .hit) return sendBody(&ctx);
     }
 
-    const matched = if (conn.route_match) |m| m.route else null;
     const handlers = if (matched) |r| r.route else null;
     const socket: zx.Socket = if (handlers != null and handlers.?.socket != null)
-        .{ ._internal = .{ .http = http, .attached = true } }
+        .{ ._internal = .{ .http = ctx.http, .attached = true } }
     else
         .{};
 
     const result = try Router.handle(.{ .is_dev = is_dev }, .{
-        .http = http,
-        .request = request,
-        .response = response,
-        .pathname = pathname,
-        .method = method,
+        .http = ctx.http,
+        .request = ctx.request,
+        .response = ctx.response,
+        .pathname = args.pathname,
+        .method = args.method,
         .allocator = allocator,
         .arena = allocator,
-        .io = process_init.io,
+        .io = ctx.io,
         .base_path = base_path,
         .app_ctx = null,
         .socket = socket,
@@ -196,189 +230,102 @@ fn serve(process_init: std.process.Init, allocator: std.mem.Allocator) !void {
 
     switch (result.outcome) {
         .response_ready => {
-            // Capture only when this route opted into `options.caching` (`.miss`).
-            if (shouldCapture(cache_status)) {
-                storePageCache(&page_cache, request, response, &conn, conn.bodySlice());
-            }
-            try sendDeferred(allocator, &conn, host_out);
+            if (ctx.shouldCapture()) ctx.storePageCache(conn.bodySlice());
+            try sendBody(&ctx);
         },
-
         .component => |c| {
-            var component = c.component;
-            if (!headerHas(conn.resp_headers.items, "Content-Type")) {
+            if (headerGet(conn.resp_headers.items, "Content-Type") == null) {
                 conn.setContentTypeStr("text/html");
             }
             if (c.streaming) {
                 try conn.resp_headers.append(allocator, .{ .name = "content-encoding", .value = "identify" });
-                try streamComponent(
-                    allocator,
-                    host_out,
-                    &conn,
-                    &page_cache,
-                    cache_status,
-                    request,
-                    response,
-                    http,
-                    pathname,
-                    process_init.io,
-                    matched,
-                    component,
-                );
+                try streamComponent(&ctx, c.component);
             } else {
-                try emitComponent(
-                    allocator,
-                    host_out,
-                    &conn,
-                    &page_cache,
-                    cache_status,
-                    request,
-                    response,
-                    http,
-                    pathname,
-                    process_init.io,
-                    matched,
-                    &component,
-                );
+                var component = c.component;
+                try emitComponent(&ctx, &component);
             }
         },
-
-        .ws_upgraded => {
-            ext.ws_upgrade();
-            const upgrade_data = conn.upgradeData();
-            if (handlers.?.socket_open) |open_fn| {
-                open_fn(socket, upgrade_data, allocator, allocator, process_init.io) catch {};
-            }
-
-            const recv_buf = allocator.alloc(u8, 65536) catch return;
-            defer allocator.free(recv_buf);
-
-            while (true) {
-                const n = ext.ws_recv(recv_buf.ptr, recv_buf.len);
-                if (n < 0) break;
-                if (handlers.?.socket) |socket_fn| {
-                    socket_fn(socket, recv_buf[0..@intCast(n)], .text, upgrade_data, allocator, allocator, process_init.io) catch {};
-                }
-            }
-
-            if (handlers.?.socket_close) |close_fn| {
-                close_fn(socket, upgrade_data, allocator, process_init.io);
-            }
-        },
-
-        .not_found => |nf| {
-            try emitHtmlOrPlain(allocator, host_out, &conn, nf.component);
-        },
+        .ws_upgraded => runWebSocket(&ctx, handlers.?, socket),
+        .not_found => |nf| try sendComponentOrBody(&ctx, nf.component),
     }
 }
 
-/// True when server cache is on and this route has `options.caching` (PageCache `.miss`).
-fn shouldCapture(cache_status: PageCache.Status) bool {
-    return feat_cache and cache_status == .miss;
+fn runWebSocket(ctx: *const Ctx, handlers: core_handler.ServerApp.RouteHandlers, socket: zx.Socket) void {
+    ext.ws.upgrade();
+    const upgrade_data = ctx.conn.upgradeData();
+    const allocator = ctx.allocator;
+
+    if (handlers.socket_open) |open_fn| {
+        open_fn(socket, upgrade_data, allocator, allocator, ctx.io) catch {};
+    }
+
+    const recv_buf = allocator.alloc(u8, 64 * 1024) catch return;
+    defer allocator.free(recv_buf);
+
+    while (ext.ws.recv(recv_buf)) |n| {
+        if (handlers.socket) |socket_fn| {
+            socket_fn(socket, recv_buf[0..n], .text, upgrade_data, allocator, allocator, ctx.io) catch {};
+        }
+    }
+
+    if (handlers.socket_close) |close_fn| {
+        close_fn(socket, upgrade_data, allocator, ctx.io);
+    }
 }
 
-fn emitComponent(
-    allocator: std.mem.Allocator,
-    host_out: *std.Io.Writer,
-    conn: *Conn,
-    page_cache: anytype,
-    cache_status: PageCache.Status,
-    request: zx.server.Request,
-    response: zx.server.Response,
-    http: zx.Http,
-    pathname: []const u8,
-    io: std.Io,
-    matched_route: ?*const core_handler.Route,
-    component: *zx.Component,
-) !void {
-    try Host.commit(allocator, conn, false);
+fn emitComponent(ctx: *const Ctx, component: *zx.Component) !void {
+    try Host.commit(ctx.allocator, ctx.conn, false);
     defer Host.end();
 
-    if (shouldCapture(cache_status)) {
-        var cap = Capture.init(allocator, host_out);
-        defer cap.deinit();
-        conn.out = &cap.writer;
-        defer conn.out = null;
-        core_handler.renderHtmlDocument(&cap.writer, component, base_path) catch |err| switch (err) {
-            error.NotFound => {
-                try emitErrorBody(allocator, host_out, conn, http, pathname, request, response, io, matched_route, null);
-                return;
-            },
-            else => {
-                try emitErrorBody(allocator, host_out, conn, http, pathname, request, response, io, matched_route, err);
-                return;
-            },
-        };
-        try cap.writer.flush();
-        storePageCache(page_cache, request, response, conn, cap.captured());
-        return;
-    }
+    var capture: ?Capture = if (ctx.shouldCapture()) Capture.init(ctx.allocator, ctx.out) else null;
+    defer if (capture) |*cap| cap.deinit();
+    const out = if (capture) |*cap| &cap.writer else ctx.out;
 
-    conn.out = host_out;
-    defer conn.out = null;
-    core_handler.renderHtmlDocument(host_out, component, base_path) catch |err| switch (err) {
-        error.NotFound => {
-            try emitErrorBody(allocator, host_out, conn, http, pathname, request, response, io, matched_route, null);
-            return;
-        },
-        else => {
-            try emitErrorBody(allocator, host_out, conn, http, pathname, request, response, io, matched_route, err);
-            return;
-        },
+    ctx.conn.out = out;
+    defer ctx.conn.out = null;
+
+    core_handler.renderHtmlDocument(out, component, base_path) catch |err| {
+        // Already committed: only the body can change.
+        return writeErrorBody(ctx, if (err == error.NotFound) null else err);
     };
-    try host_out.flush();
+    try out.flush();
+    if (capture) |*cap| ctx.storePageCache(cap.captured());
 }
 
-fn streamComponent(
-    allocator: std.mem.Allocator,
-    host_out: *std.Io.Writer,
-    conn: *Conn,
-    page_cache: anytype,
-    cache_status: PageCache.Status,
-    request: zx.server.Request,
-    response: zx.server.Response,
-    http: zx.Http,
-    pathname: []const u8,
-    io: std.Io,
-    matched_route: ?*const core_handler.Route,
-    component: zx.Component,
-) !void {
-    var shell_writer = std.Io.Writer.Allocating.init(allocator);
-    const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch |stream_err| switch (stream_err) {
+fn streamComponent(ctx: *const Ctx, component: zx.Component) !void {
+    var shell: std.Io.Writer.Allocating = .init(ctx.allocator);
+    const async_components = Router.streamComponent(component, ctx.allocator, &shell.writer, base_path) catch |err| switch (err) {
         error.NotFound => {
-            try emitNotFoundBeforeCommit(allocator, host_out, conn, http, pathname, request, response, io, matched_route);
-            return;
+            const not_found = core_handler.prepareNotFound(ctx.http, ctx.pathname, ctx.request, ctx.response, ctx.allocator, ctx.io, ctx.matched_route);
+            return sendComponentOrBody(ctx, not_found);
         },
+        // Not committed yet: fall back to a buffered render.
         else => {
             var page = component;
-            try emitComponent(allocator, host_out, conn, page_cache, cache_status, request, response, http, pathname, io, matched_route, &page);
-            return;
+            return emitComponent(ctx, &page);
         },
     };
 
-    try Host.commit(allocator, conn, true);
+    try Host.commit(ctx.allocator, ctx.conn, true);
     defer Host.end();
 
-    if (shouldCapture(cache_status)) {
-        var cap = Capture.init(allocator, host_out);
-        defer cap.deinit();
-        conn.out = &cap.writer;
-        defer conn.out = null;
-        try writeStreamingBody(&cap.writer, shell_writer.written(), async_components, allocator);
-        try cap.writer.flush();
-        storePageCache(page_cache, request, response, conn, cap.captured());
-    } else {
-        conn.out = host_out;
-        defer conn.out = null;
-        try writeStreamingBody(host_out, shell_writer.written(), async_components, allocator);
-        try host_out.flush();
-    }
+    var capture: ?Capture = if (ctx.shouldCapture()) Capture.init(ctx.allocator, ctx.out) else null;
+    defer if (capture) |*cap| cap.deinit();
+    const out = if (capture) |*cap| &cap.writer else ctx.out;
+
+    ctx.conn.out = out;
+    defer ctx.conn.out = null;
+
+    try writeStreamingBody(ctx.allocator, out, shell.written(), async_components);
+    try out.flush();
+    if (capture) |*cap| ctx.storePageCache(cap.captured());
 }
 
 fn writeStreamingBody(
+    allocator: std.mem.Allocator,
     out: *std.Io.Writer,
     shell: []const u8,
     async_components: []render.AsyncComponent,
-    allocator: std.mem.Allocator,
 ) !void {
     try out.writeAll("<!DOCTYPE html>\n");
     try out.writeAll(shell);
@@ -395,79 +342,33 @@ fn writeStreamingBody(
     }
 }
 
-fn emitNotFoundBeforeCommit(
-    allocator: std.mem.Allocator,
-    host_out: *std.Io.Writer,
-    conn: *Conn,
-    http: zx.Http,
-    pathname: []const u8,
-    request: zx.server.Request,
-    response: zx.server.Response,
-    io: std.Io,
-    matched_route: ?*const core_handler.Route,
-) !void {
-    const component = core_handler.prepareNotFound(http, pathname, request, response, allocator, io, matched_route);
-    try emitHtmlOrPlain(allocator, host_out, conn, component);
-}
-
-fn emitErrorBody(
-    allocator: std.mem.Allocator,
-    host_out: *std.Io.Writer,
-    conn: *Conn,
-    http: zx.Http,
-    pathname: []const u8,
-    request: zx.server.Request,
-    response: zx.server.Response,
-    io: std.Io,
-    matched_route: ?*const core_handler.Route,
-    err: ?anyerror,
-) !void {
-    _ = matched_route;
+// null err: 404, otherwise 500.
+fn writeErrorBody(ctx: *const Ctx, err: ?anyerror) !void {
     const component = if (err) |e|
-        core_handler.prepareError(http, pathname, request, response, allocator, io, e)
+        core_handler.prepareError(ctx.http, ctx.pathname, ctx.request, ctx.response, ctx.allocator, ctx.io, e)
     else
-        core_handler.prepareNotFound(http, pathname, request, response, allocator, io, null);
-    if (component) |cmp| {
-        var page = cmp;
-        core_handler.renderHtmlDocument(host_out, &page, base_path) catch {};
-    } else {
-        const body = conn.bodySlice();
-        if (body.len > 0) try host_out.writeAll(body);
-    }
-    try host_out.flush();
+        core_handler.prepareNotFound(ctx.http, ctx.pathname, ctx.request, ctx.response, ctx.allocator, ctx.io, null);
+    try writeComponentOrBody(ctx, component);
 }
 
-fn emitHtmlOrPlain(
-    allocator: std.mem.Allocator,
-    host_out: *std.Io.Writer,
-    conn: *Conn,
-    component: ?zx.Component,
-) !void {
-    try Host.commit(allocator, conn, false);
+fn sendComponentOrBody(ctx: *const Ctx, component: ?zx.Component) !void {
+    try Host.commit(ctx.allocator, ctx.conn, false);
     defer Host.end();
-    if (component) |cmp| {
-        var page = cmp;
-        core_handler.renderHtmlDocument(host_out, &page, base_path) catch {};
-    } else {
-        const body = conn.bodySlice();
-        if (body.len > 0) try host_out.writeAll(body);
-    }
-    try host_out.flush();
+    try writeComponentOrBody(ctx, component);
 }
 
-fn storePageCache(
-    page_cache: anytype,
-    request: zx.server.Request,
-    response: zx.server.Response,
-    conn: *const Conn,
-    body: []const u8,
-) void {
-    if (comptime !feat_cache) return;
-    page_cache.store(request, response, .{
-        .status = conn.status,
-        .body = body,
-        .content_type = headerGet(conn.resp_headers.items, "Content-Type") orelse "text/html",
-    });
+fn sendBody(ctx: *const Ctx) !void {
+    return sendComponentOrBody(ctx, null);
+}
+
+fn writeComponentOrBody(ctx: *const Ctx, component: ?zx.Component) !void {
+    if (component) |cmp| {
+        var page = cmp;
+        core_handler.renderHtmlDocument(ctx.out, &page, base_path) catch {};
+    } else {
+        try ctx.out.writeAll(ctx.conn.bodySlice());
+    }
+    try ctx.out.flush();
 }
 
 fn headerGet(headers: []const HeaderEntry, name: []const u8) ?[]const u8 {
@@ -477,32 +378,14 @@ fn headerGet(headers: []const HeaderEntry, name: []const u8) ?[]const u8 {
     return null;
 }
 
-fn headerHas(headers: []const HeaderEntry, name: []const u8) bool {
-    return headerGet(headers, name) != null;
-}
-
-fn sendDeferred(allocator: std.mem.Allocator, conn: *Conn, host_out: *std.Io.Writer) !void {
-    try Host.commit(allocator, conn, false);
-    defer Host.end();
-    const body = conn.bodySlice();
-    if (body.len > 0) try host_out.writeAll(body);
-    try host_out.flush();
-}
-
 pub fn logFn(
-    comptime message_level: std.log.Level,
+    comptime level: std.log.Level,
     comptime scope: @TypeOf(.enum_literal),
     comptime format: []const u8,
-    log_args: anytype,
+    args: anytype,
 ) void {
-    const level: u8 = switch (message_level) {
-        .err => 0,
-        .warn => 1,
-        .info => 2,
-        .debug => 3,
-    };
     const prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ ") ";
-    const msg = std.fmt.allocPrint(std.heap.wasm_allocator, prefix ++ format, log_args) catch return;
+    const msg = std.fmt.allocPrint(std.heap.wasm_allocator, prefix ++ format, args) catch return;
     defer std.heap.wasm_allocator.free(msg);
-    ext._log(level, msg.ptr, msg.len);
+    ext.log(level, msg);
 }

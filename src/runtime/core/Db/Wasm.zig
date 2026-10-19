@@ -51,9 +51,7 @@ const StatementCtx = struct {
 
 // --- Constructors --- //
 
-/// `options` accepts `Db.OpenOptions` (the WASM/D1 backend has no extra knobs).
-/// `allocator`/`io` are accepted for signature parity with the other backends;
-/// the WASM allocator is always used.
+// `allocator`/`io`/`options` exist for parity with other backends; wasm_allocator is always used.
 pub fn open(allocator_unused: ?std.mem.Allocator, io: ?std.Io, filename: []const u8, options: Db.OpenOptions) !Db {
     _ = allocator_unused;
     _ = io;
@@ -175,29 +173,61 @@ fn paramsCount(_: ?*anyopaque) usize {
     return 0;
 }
 
-fn runQuery(binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) !Db.RunResult {
-    var bindings_writer = std.Io.Writer.Allocating.init(std.heap.wasm_allocator);
-    defer bindings_writer.deinit();
-    try writeBindingsJson(&bindings_writer.writer, bindings);
+const HostQuery = fn (
+    ns_ptr: [*]const u8,
+    ns_len: usize,
+    sql_ptr: [*]const u8,
+    sql_len: usize,
+    bindings_ptr: [*]const u8,
+    bindings_len: usize,
+    out_ptr: *[*]u8,
+) callconv(.c) i32;
+
+// Allocated by the host via `__zx_alloc`.
+const HostJson = struct {
+    bytes: []u8,
+
+    fn free(self: HostJson) void {
+        std.heap.wasm_allocator.free(self.bytes);
+    }
+};
+
+// null: empty result.
+fn callHost(comptime op: HostQuery, binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) !?HostJson {
+    var bindings_json = std.Io.Writer.Allocating.init(std.heap.wasm_allocator);
+    defer bindings_json.deinit();
+    try writeBindingsJson(&bindings_json.writer, bindings);
+    const bindings_bytes = bindings_json.written();
 
     var ptr: [*]u8 = undefined;
-    const n = ext.db_run(
+    const n = op(
         binding_name.ptr,
         binding_name.len,
         sql.ptr,
         sql.len,
-        bindings_writer.written().ptr,
-        bindings_writer.written().len,
+        bindings_bytes.ptr,
+        bindings_bytes.len,
         &ptr,
     );
-    if (n < 0) return error.DatabaseRunFailed;
-    if (n == 0) return error.DatabaseRunFailed;
-    defer std.heap.wasm_allocator.free(ptr[0..@intCast(n)]);
+    if (n < 0) return error.DatabaseQueryFailed;
+    if (n == 0) return null;
+    return .{ .bytes = ptr[0..@intCast(n)] };
+}
 
-    const parsed = try std.json.parseFromSlice(WireRunResult, std.heap.wasm_allocator, ptr[0..@intCast(n)], .{
-        .ignore_unknown_fields = true,
-        .allocate = .alloc_always,
-    });
+const parse_options: std.json.ParseOptions = .{
+    .ignore_unknown_fields = true,
+    .allocate = .alloc_always,
+};
+
+fn runQuery(binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) !Db.RunResult {
+    const result = callHost(ext.db_run, binding_name, sql, bindings) catch |err| switch (err) {
+        error.DatabaseQueryFailed => return error.DatabaseRunFailed,
+        else => |e| return e,
+    };
+    const json = result orelse return error.DatabaseRunFailed;
+    defer json.free();
+
+    const parsed = try std.json.parseFromSlice(WireRunResult, std.heap.wasm_allocator, json.bytes, parse_options);
     defer parsed.deinit();
 
     return .{
@@ -208,70 +238,32 @@ fn runQuery(binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) !D
 
 fn selectRows(
     allocator: std.mem.Allocator,
-    comptime op: anytype,
+    comptime op: HostQuery,
     binding_name: []const u8,
     sql: []const u8,
     bindings: Db.Bindings,
 ) ![]const Db.Row {
-    var bindings_writer = std.Io.Writer.Allocating.init(std.heap.wasm_allocator);
-    defer bindings_writer.deinit();
-    try writeBindingsJson(&bindings_writer.writer, bindings);
+    const json = try callHost(op, binding_name, sql, bindings) orelse return &.{};
+    defer json.free();
 
-    var ptr: [*]u8 = undefined;
-    const n = op(
-        binding_name.ptr,
-        binding_name.len,
-        sql.ptr,
-        sql.len,
-        bindings_writer.written().ptr,
-        bindings_writer.written().len,
-        &ptr,
-    );
-    if (n < 0) return error.DatabaseQueryFailed;
-    if (n == 0) return &[_]Db.Row{};
-    defer std.heap.wasm_allocator.free(ptr[0..@intCast(n)]);
-
-    const parsed = try std.json.parseFromSlice([]WireRow, allocator, ptr[0..@intCast(n)], .{
-        .ignore_unknown_fields = true,
-        .allocate = .alloc_always,
-    });
+    const parsed = try std.json.parseFromSlice([]WireRow, allocator, json.bytes, parse_options);
     defer parsed.deinit();
 
     return cloneRows(allocator, parsed.value);
 }
 
 fn selectValues(allocator: std.mem.Allocator, binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) ![]const []const Db.Value {
-    var bindings_writer = std.Io.Writer.Allocating.init(std.heap.wasm_allocator);
-    defer bindings_writer.deinit();
-    try writeBindingsJson(&bindings_writer.writer, bindings);
+    const json = try callHost(ext.db_values, binding_name, sql, bindings) orelse return &.{};
+    defer json.free();
 
-    var ptr: [*]u8 = undefined;
-    const n = ext.db_values(
-        binding_name.ptr,
-        binding_name.len,
-        sql.ptr,
-        sql.len,
-        bindings_writer.written().ptr,
-        bindings_writer.written().len,
-        &ptr,
-    );
-    if (n < 0) return error.DatabaseQueryFailed;
-    if (n == 0) return &[_][]const Db.Value{};
-    defer std.heap.wasm_allocator.free(ptr[0..@intCast(n)]);
-
-    const parsed = try std.json.parseFromSlice([][]WireValue, allocator, ptr[0..@intCast(n)], .{
-        .ignore_unknown_fields = true,
-        .allocate = .alloc_always,
-    });
+    const parsed = try std.json.parseFromSlice([][]WireValue, allocator, json.bytes, parse_options);
     defer parsed.deinit();
 
     const rows = try allocator.alloc([]const Db.Value, parsed.value.len);
-    for (parsed.value, 0..) |wire_row, row_index| {
+    for (parsed.value, rows) |wire_row, *row| {
         const values_row = try allocator.alloc(Db.Value, wire_row.len);
-        for (wire_row, 0..) |wire_value, value_index| {
-            values_row[value_index] = try cloneValue(allocator, wire_value);
-        }
-        rows[row_index] = values_row;
+        for (wire_row, values_row) |wire_value, *value| value.* = try cloneValue(allocator, wire_value);
+        row.* = values_row;
     }
     return rows;
 }
@@ -349,9 +341,9 @@ fn writeValueJson(writer: *std.Io.Writer, value: Db.Value) !void {
         },
         .blob => |v| {
             try writer.writeAll("\"kind\":\"blob\",\"blob\":");
-            var buf: [4096]u8 = undefined;
-            const encoded = std.base64.standard.Encoder.encode(&buf, v);
-            try std.json.Stringify.value(encoded, .{}, writer);
+            try writer.writeByte('"');
+            try std.base64.standard.Encoder.encodeWriter(writer, v);
+            try writer.writeByte('"');
         },
         .boolean => |v| try writer.writeAll(if (v) "\"kind\":\"boolean\",\"boolean\":true" else "\"kind\":\"boolean\",\"boolean\":false"),
     }

@@ -1,6 +1,8 @@
 export type { WasmAllocRef } from "../wasm/core";
 export { createKVImports } from "./kv/extern";
+export { hasJspi } from "./jspi";
 
+import { hasJspi } from "./jspi";
 import {
     get as localStorageGet,
     put as localStoragePut,
@@ -38,10 +40,6 @@ export type BrowserKVOptions = IndexedDbOptions & {
     forceLocalStorage?: boolean;
 };
 
-export const hasJspi: boolean = (
-    typeof (WebAssembly as any).Suspending === "function" &&
-    typeof (WebAssembly as any).promising === "function"
-);
 
 /** Prefer IndexedDB when JSPI is available, otherwise localStorage. */
 export function createBrowserKVBindings(options: BrowserKVOptions = {}): Record<string, KVNamespace> {
