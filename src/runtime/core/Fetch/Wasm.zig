@@ -10,7 +10,7 @@ const max_response_bytes = 16 * 1024 * 1024;
 
 /// Perform a blocking HTTP fetch via the JS `fetch` import (JSPI).
 pub fn fetch(allocator: std.mem.Allocator, url: []const u8, init: RequestInit) FetchError!Response {
-    const method_str = @tagName(init.method);
+    const method_str = init.methodName();
     var headers_buf: [8192]u8 = undefined;
     const headers_json = serializeHeadersJson(init.headers, &headers_buf);
     const body = init.body orelse "";

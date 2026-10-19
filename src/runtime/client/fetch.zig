@@ -40,7 +40,7 @@ pub fn fetchAsync(
     };
 
     // Serialize request
-    const method_str = @tagName(init.method);
+    const method_str = init.methodName();
     var headers_buf: [8192]u8 = undefined;
     const headers_json = serializeHeadersJson(init.headers, &headers_buf);
     const body = init.body orelse "";
@@ -84,7 +84,7 @@ pub fn fetchAsyncCtx(
         .allocator = allocator,
     };
 
-    const method_str = @tagName(init.method);
+    const method_str = init.methodName();
     var headers_buf: [8192]u8 = undefined;
     const headers_json = serializeHeadersJson(init.headers, &headers_buf);
     const body = init.body orelse "";

@@ -65,6 +65,10 @@ pub const RequestInit = struct {
     /// The request method (GET, POST, PUT, DELETE, etc.)
     method: Method = .GET,
 
+    /// Arbitrary method token that overrides `method`
+    /// `PROPFIND` or `REPORT`, which `std.http.Method` does not cover).
+    method_name: ?[]const u8 = null,
+
     /// Headers to send with the request.
     headers: ?[]const Header = null,
 
@@ -81,6 +85,11 @@ pub const RequestInit = struct {
         name: []const u8,
         value: []const u8,
     };
+
+    /// The method token sent on the wire.
+    pub fn methodName(self: RequestInit) []const u8 {
+        return self.method_name orelse @tagName(self.method);
+    }
 };
 
 /// The Response interface of the Fetch API represents the response to a request.
