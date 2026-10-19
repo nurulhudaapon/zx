@@ -1,6 +1,7 @@
 const Wasm = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 const app_opts = @import("app_opts");
 
 const zx = @import("../../../../root.zig");
@@ -37,14 +38,70 @@ const vtable = Server.VTable{
 };
 
 fn start(_: ?*anyopaque) anyerror!void {
+    if (reuseRequested()) {
+        // The host serves each request through `__zx_serve` on this initialized instance.
+        ext.park();
+        return;
+    }
     return run(g_inita);
 }
 
-pub fn run(process_init: std.process.Init) !void {
-    const allocator = std.heap.wasm_allocator;
+/// Requested by hosts that keep one instance alive across requests.
+fn reuseRequested() bool {
+    var arena: std.heap.ArenaAllocator = .init(std.heap.wasm_allocator);
+    defer arena.deinit();
+    const args = requestArgs(arena.allocator()) catch return false;
+    for (args) |arg| if (std.mem.eql(u8, arg, "--zx-reuse")) return true;
+    return false;
+}
 
-    var args = try process_init.minimal.args.iterateAllocator(allocator);
-    defer args.deinit();
+/// Read argv straight from WASI: with libc linked, `std.process.Args` returns the
+/// startup argv, which is stale once an instance serves more than one request.
+fn requestArgs(allocator: std.mem.Allocator) ![]const [:0]const u8 {
+    var count: usize = 0;
+    var buf_size: usize = 0;
+    if (std.os.wasi.args_sizes_get(&count, &buf_size) != .SUCCESS) return error.ArgsUnavailable;
+    const argv = try allocator.alloc([*:0]u8, count);
+    defer allocator.free(argv);
+    const buf = try allocator.alloc(u8, buf_size);
+    if (std.os.wasi.args_get(argv.ptr, buf.ptr) != .SUCCESS) return error.ArgsUnavailable;
+    const args = try allocator.alloc([:0]const u8, count);
+    for (argv, args) |arg, *out| out.* = std.mem.span(arg);
+    return args;
+}
+
+const ArgIterator = struct {
+    args: []const [:0]const u8,
+    index: usize = 1,
+
+    fn next(self: *ArgIterator) ?[:0]const u8 {
+        if (self.index >= self.args.len) return null;
+        defer self.index += 1;
+        return self.args[self.index];
+    }
+};
+
+var g_request_arena: std.heap.ArenaAllocator = .init(std.heap.wasm_allocator);
+
+comptime {
+    if (builtin.os.tag == .wasi) @export(&serveCurrent, .{ .name = "__zx_serve" });
+}
+
+/// Serve the host's current request on an instance parked by `--zx-reuse`.
+fn serveCurrent() callconv(.c) void {
+    defer _ = g_request_arena.reset(.retain_capacity);
+    serve(g_inita, g_request_arena.allocator()) catch |err| {
+        std.log.err("request failed: {s}", .{@errorName(err)});
+    };
+}
+
+pub fn run(process_init: std.process.Init) !void {
+    return serve(process_init, std.heap.wasm_allocator);
+}
+
+fn serve(process_init: std.process.Init, allocator: std.mem.Allocator) !void {
+    const argv = try requestArgs(allocator);
+    var args = ArgIterator{ .args = argv };
 
     var pathname: []const u8 = "/";
     var search: []const u8 = "";

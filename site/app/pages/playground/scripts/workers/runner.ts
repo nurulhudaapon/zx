@@ -120,6 +120,9 @@ function stubNetImports() {
 function stubSysImports() {
     return {
         sleep_ms: (_ms: number) => {},
+        park: () => {
+            throw new Error("park is not supported in the playground");
+        },
     };
 }
 

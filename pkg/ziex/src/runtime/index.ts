@@ -178,11 +178,20 @@ export function attachWebSocket(ws: WsState): { client: WebSocket } {
  * `sleep_ms` pauses WASM under JSPI so body chunks reach the client
  * incrementally; falls back to a sync no-op when JSPI is unavailable.
  */
-function buildSysImports(jspi: boolean, Suspending: any): WebAssembly.ModuleImports {
+function buildSysImports(jspi: boolean, Suspending: any, onPark?: () => void): WebAssembly.ModuleImports {
     return {
         sleep_ms: jspi
             ? new Suspending(async (ms: number) => new Promise<void>(r => setTimeout(r, ms)))
             : (_ms: number) => {},
+        // `park` never resolves: the instance stays initialized and serves via `__zx_serve`.
+        park: jspi
+            ? new Suspending(() => {
+                onPark?.();
+                return new Promise<void>(() => {});
+            })
+            : () => {
+                throw new Error("park requires WebAssembly JSPI");
+            },
     };
 }
 
@@ -250,6 +259,7 @@ export async function run({
     imports,
     wasi,
     sticky,
+    reuse = true,
 }: {
     request: Request;
     env?: unknown;
@@ -266,10 +276,17 @@ export async function run({
      * When provided, upgrade requests are forwarded so pub/sub works across clients.
      */
     sticky?: StickyNamespace;
+    /**
+     * Reuse initialized instances across requests when the module supports it
+     * (exports `__zx_serve`). Each instance serves one request at a time.
+     */
+    reuse?: boolean;
 }): Promise<Response> {
+    const isUpgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
+
     // Route WebSocket upgrades to the sticky handler so pub/sub works
     // across all connected clients sharing the same instance.
-    if (sticky && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
+    if (sticky && isUpgrade) {
         const id = sticky.idFromName(new URL(request.url).pathname);
         return sticky.get(id).fetch(request);
     }
@@ -278,69 +295,18 @@ export async function run({
         ? new Uint8Array(await request.arrayBuffer())
         : undefined;
 
-    const httpState: HttpState = {
-        committed: false,
-        ended: false,
-        status: 200,
-        streaming: false,
-        headers: new Headers(),
-        bodyChunks: [],
-        streamWriter: null,
-    };
-
-    const { wasiImport, setMemory } = createWasiImports({
-        request,
-        stdinData,
-    });
-
-    let wasmMemory: WebAssembly.Memory = null!;
-    const mem = () => wasmMemory;
-
-    const bridgeRef: [ZxWasiBridge | null] = [null];
-    const allocRef: WasmAllocRef = [null];
-
     const Suspending = (WebAssembly as any).Suspending;
     const jspi = typeof Suspending === 'function';
+    const kv = kvBindings ?? { default: { get, put, del, list } };
+    const db = dbBindings ?? {};
 
-    const wsState: WsState = {
-        upgraded: false,
-        server: null,
-        pendingWrites: [],
-        messageQueue: [],
-        recvResolve: null,
-    };
-
-    const importObject: WebAssembly.Imports = {
-        wasi_snapshot_preview1: { ...wasi?.wasiImport, ...wasiImport },
-        __zx_sys: buildSysImports(jspi, Suspending),
-        __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
-        __zx_http: buildHttpImports(mem, httpState),
-        __zx_net: createFetchImports(mem),
-        ...(imports ? imports(mem) : {}),
-        ...ZxWasiBridge.createImportObject(bridgeRef),
-    };
-    if (typeof __FEAT_KV_SERVER__ === "undefined" || __FEAT_KV_SERVER__) {
-        importObject.__zx_kv = createKVImports(
-            kvBindings ?? { default: { get, put, del, list } },
-            mem,
-            allocRef,
-        );
-    }
-    if (typeof __FEAT_DB__ === "undefined" || __FEAT_DB__) {
-        importObject.__zx_db = createDbImports(
-            dbBindings ?? {},
-            mem,
-            allocRef,
-        );
+    if (reuse && jspi && !isUpgrade && supportsReuse(module)) {
+        return serveReused({ module, request, stdinData, kv, db, imports, wasi, Suspending });
     }
 
-    const instance = new WebAssembly.Instance(module, importObject);
-
-    wasmMemory = instance.exports.memory as WebAssembly.Memory;
-    setMemory(wasmMemory);
-    bridgeRef[0] = new ZxWasiBridge(instance.exports);
-    bindWasmAlloc(allocRef, instance.exports);
-
+    const http = newHttpState();
+    const wsState = newWsState();
+    const { instance } = instantiate({ module, request, stdinData, kv, db, imports, wasi, jspi, Suspending, http, wsState });
     const wasmPromise = executeWasm(instance, jspi, Suspending, wsState);
 
     // After start(), WASM has run synchronously until its first Suspending call.
@@ -353,24 +319,98 @@ export async function run({
         return new Response(null, { status: 101, webSocket: server.client } as ResponseInit);
     }
 
-    if (httpState.committed && httpState.streaming) {
-        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-        httpState.streamWriter = writable.getWriter();
-        for (const chunk of httpState.bodyChunks) void httpState.streamWriter.write(chunk);
-        httpState.bodyChunks.length = 0;
-        void wasmPromise.finally(() => {
-            if (httpState.streamWriter) {
-                void httpState.streamWriter.close();
-                httpState.streamWriter = null;
-            }
-        });
-        return new Response(readable, { status: httpState.status, headers: httpState.headers });
+    return toResponse(http, wasmPromise);
+}
+
+function newHttpState(): HttpState {
+    return {
+        committed: false,
+        ended: false,
+        status: 200,
+        streaming: false,
+        headers: new Headers(),
+        bodyChunks: [],
+        streamWriter: null,
+    };
+}
+
+function newWsState(): WsState {
+    return {
+        upgraded: false,
+        server: null,
+        pendingWrites: [],
+        messageQueue: [],
+        recvResolve: null,
+    };
+}
+
+function instantiate({
+    module, request, stdinData, kv, db, imports, wasi, jspi, Suspending, http, wsState, extraArgs, onPark,
+}: {
+    module: WebAssembly.Module;
+    request: Request;
+    stdinData?: Uint8Array;
+    kv: Record<string, KVNamespace>;
+    db: Record<string, Database>;
+    imports?: (mem: () => WebAssembly.Memory) => WebAssembly.Imports;
+    wasi?: WASI;
+    jspi: boolean;
+    Suspending: any;
+    http: HttpState;
+    wsState: WsState;
+    extraArgs?: string[];
+    onPark?: () => void;
+}) {
+    const { wasiImport, setMemory, setRequest } = createWasiImports({ request, stdinData, extraArgs });
+
+    let wasmMemory: WebAssembly.Memory = null!;
+    const mem = () => wasmMemory;
+    const bridgeRef: [ZxWasiBridge | null] = [null];
+    const allocRef: WasmAllocRef = [null];
+
+    const importObject: WebAssembly.Imports = {
+        wasi_snapshot_preview1: { ...wasi?.wasiImport, ...wasiImport },
+        __zx_sys: buildSysImports(jspi, Suspending, onPark),
+        __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
+        __zx_http: buildHttpImports(mem, http),
+        __zx_net: createFetchImports(mem),
+        ...(imports ? imports(mem) : {}),
+        ...ZxWasiBridge.createImportObject(bridgeRef),
+    };
+    if (typeof __FEAT_KV_SERVER__ === "undefined" || __FEAT_KV_SERVER__) {
+        importObject.__zx_kv = createKVImports(kv, mem, allocRef);
+    }
+    if (typeof __FEAT_DB__ === "undefined" || __FEAT_DB__) {
+        importObject.__zx_db = createDbImports(db, mem, allocRef);
     }
 
-    await wasmPromise;
+    const instance = new WebAssembly.Instance(module, importObject);
+    wasmMemory = instance.exports.memory as WebAssembly.Memory;
+    setMemory(wasmMemory);
+    bridgeRef[0] = new ZxWasiBridge(instance.exports);
+    bindWasmAlloc(allocRef, instance.exports);
+    return { instance, setRequest, memory: mem };
+}
 
-    const status = httpState.status;
-    const headers = httpState.headers;
+async function toResponse(http: HttpState, done: Promise<void>): Promise<Response> {
+    if (http.committed && http.streaming) {
+        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+        http.streamWriter = writable.getWriter();
+        for (const chunk of http.bodyChunks) void http.streamWriter.write(chunk);
+        http.bodyChunks.length = 0;
+        void done.finally(() => {
+            if (http.streamWriter) {
+                void http.streamWriter.close();
+                http.streamWriter = null;
+            }
+        });
+        return new Response(readable, { status: http.status, headers: http.headers });
+    }
+
+    await done;
+
+    const status = http.status;
+    const headers = http.headers;
     headers.delete('transfer-encoding');
 
     // 101/204/205/304 must use a null body (Workers warns on empty ArrayBuffer).
@@ -380,7 +420,107 @@ export async function run({
         return new Response(null, { status, headers });
     }
 
-    const body = mergeUint8Arrays(httpState.bodyChunks);
+    const body = mergeUint8Arrays(http.bodyChunks);
     if (!headers.has('content-length')) headers.set('content-length', String(body.byteLength));
     return new Response(body.buffer as ArrayBuffer, { status, headers });
+}
+
+// --- Instance reuse --- //
+
+const MAX_IDLE_INSTANCES = 4;
+const MAX_REQUESTS_PER_INSTANCE = 1000;
+const MAX_INSTANCE_MEMORY = 64 * 1024 * 1024;
+
+type ReusableInstance = {
+    serve: () => Promise<void>;
+    setRequest: (request: Request, stdin?: Uint8Array) => void;
+    memory: () => WebAssembly.Memory;
+    http: HttpState;
+    kv: Record<string, KVNamespace>;
+    db: Record<string, Database>;
+    served: number;
+};
+
+const reuseSupport = new WeakMap<WebAssembly.Module, boolean>();
+const idleInstances = new WeakMap<WebAssembly.Module, ReusableInstance[]>();
+
+function supportsReuse(module: WebAssembly.Module): boolean {
+    let supported = reuseSupport.get(module);
+    if (supported === undefined) {
+        supported = WebAssembly.Module.exports(module).some((e) => e.name === "__zx_serve");
+        reuseSupport.set(module, supported);
+    }
+    return supported;
+}
+
+async function createReusable(opts: {
+    module: WebAssembly.Module;
+    request: Request;
+    stdinData?: Uint8Array;
+    kv: Record<string, KVNamespace>;
+    db: Record<string, Database>;
+    imports?: (mem: () => WebAssembly.Memory) => WebAssembly.Imports;
+    wasi?: WASI;
+    Suspending: any;
+}): Promise<ReusableInstance> {
+    const http = newHttpState();
+    // Live binding maps: refreshed per request so each request uses its own env.
+    const kv = { ...opts.kv };
+    const db = { ...opts.db };
+
+    let onPark!: () => void;
+    const parked = new Promise<void>((resolve) => { onPark = resolve; });
+    const { instance, setRequest, memory } = instantiate({
+        ...opts, kv, db, http, wsState: newWsState(), jspi: true, extraArgs: ["--zx-reuse"], onPark,
+    });
+
+    const promising = (WebAssembly as any).promising;
+    const exited = (promising(instance.exports._start as Function)() as Promise<void>).then(
+        () => { throw new Error("ziex: wasm exited before parking for reuse"); },
+        (e: unknown) => { throw e; },
+    );
+    await Promise.race([parked, exited]);
+
+    return { serve: promising(instance.exports.__zx_serve as Function), setRequest, memory, http, kv, db, served: 0 };
+}
+
+async function serveReused(opts: {
+    module: WebAssembly.Module;
+    request: Request;
+    stdinData?: Uint8Array;
+    kv: Record<string, KVNamespace>;
+    db: Record<string, Database>;
+    imports?: (mem: () => WebAssembly.Memory) => WebAssembly.Imports;
+    wasi?: WASI;
+    Suspending: any;
+}): Promise<Response> {
+    let idle = idleInstances.get(opts.module);
+    if (!idle) idleInstances.set(opts.module, (idle = []));
+
+    const reused = idle.pop();
+    const inst = reused ?? await createReusable(opts);
+    if (reused) inst.setRequest(opts.request, opts.stdinData);
+    Object.assign(inst.http, newHttpState());
+    replaceEntries(inst.kv, opts.kv);
+    replaceEntries(inst.db, opts.db);
+
+    const done = inst.serve().then(
+        () => {
+            inst.served++;
+            const healthy = inst.served < MAX_REQUESTS_PER_INSTANCE &&
+                inst.memory().buffer.byteLength <= MAX_INSTANCE_MEMORY;
+            if (healthy && idle.length < MAX_IDLE_INSTANCES) idle.push(inst);
+        },
+        (e: unknown) => {
+            // A trapped instance may hold corrupt state: never return it to the pool.
+            if (e instanceof Error && e.message.startsWith("proc_exit")) return;
+            throw e;
+        },
+    );
+    return toResponse(inst.http, done);
+}
+
+function replaceEntries<T>(target: Record<string, T>, source: Record<string, T>): void {
+    for (const key of Object.keys(target)) delete target[key];
+    Object.assign(target, source);
 }

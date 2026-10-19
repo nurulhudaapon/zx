@@ -327,6 +327,8 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         if (t.result.os.tag == .wasi) {
             exe.rdynamic = true;
             exe.export_memory = true;
+            // Edge runtimes instantiate a fresh memory per request, so the 16 MiB default stack is paid every time.
+            if (exe.stack_size == null) exe.stack_size = 2 << 20;
         }
     }
 

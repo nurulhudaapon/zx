@@ -37,7 +37,12 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    name: E2E Tests
+    name: E2E Tests (${{ matrix.runtime }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Edge serves the same site through workerd (wasm32-wasi), so it needs a local build.
+        runtime: ${{ fromJSON(inputs.base_url && '["native"]' || '["native","edge"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,7 +58,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install Site Dependencies
         working-directory: site
@@ -73,6 +78,7 @@ jobs:
         env:
           CI: true
           BASE_URL: ${{ inputs.base_url }}
+          E2E_RUNTIME: ${{ matrix.runtime }}
 
       # - name: Run E2E Tests (WebKit)
       #   working-directory: test/e2e
@@ -85,6 +91,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ${{ inputs.report_name || 'playwright-report' }}
+          name: ${{ inputs.report_name || 'playwright-report' }}-${{ matrix.runtime }}
           path: test/e2e/playwright-report/
           retention-days: 30

@@ -20,7 +20,14 @@ const wasm_import = struct {
 
     /// level: 0=error, 1=warn, 2=info, 3=debug
     pub extern "__zx" fn _log(level: u8, ptr: [*]const u8, len: usize) void;
+
+    /// Suspend forever (JSPI). Keeps an initialized instance alive for `__zx_serve`.
+    pub extern "__zx_sys" fn park() void;
 };
+
+pub fn park() void {
+    if (is_wasm) wasm_import.park();
+}
 
 pub fn ws_upgrade() void {
     if (is_wasm) wasm_import.ws_upgrade();
