@@ -1,5 +1,5 @@
 import { Ziex, type StickyKey } from "../../app";
-import { get, put, del, list } from "../../runtime/kv/memory";
+import { defaultKV } from "../../runtime/instance";
 import { createStatefulFetch } from "./stateful";
 
 export { Ziex, resolveModule } from "../../app";
@@ -28,7 +28,7 @@ export type StatefulOptions<Env> = {
 export function stateful<Env>(app: Ziex<Env>, options: StatefulOptions<Env>) {
     const host = app.stickyHost(options.binding);
     return createStatefulFetch(host.module, {
-        kv: (env) => host.kv(env as Env) ?? { default: { get, put, del, list } },
+        kv: (env) => host.kv(env as Env) ?? defaultKV(),
         db: (env) => host.db(env as Env) ?? {},
         imports: host.imports,
     });

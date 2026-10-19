@@ -1,4 +1,5 @@
 import { type WasmAllocRef, writeJsonOut } from "../../wasm/core";
+import { Suspending } from "../jspi";
 
 export type { WasmAllocRef };
 
@@ -164,8 +165,7 @@ export function createDbImports(
         return database.prepare(sql).bind(...toPositionalBindings(bindingsJson));
     }
 
-    const Suspending = (WebAssembly as any).Suspending;
-    if (typeof Suspending !== "function") {
+    if (!Suspending) {
         return {
             db_open: (_ns: number, _ns_len: number): number => -1,
             db_run: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number): number => -1,

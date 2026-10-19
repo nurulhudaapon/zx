@@ -6,13 +6,11 @@ import {
     writeJsonOut,
 } from "../../wasm/core";
 import type { KVNamespace, SyncKVNamespace } from "../kv";
+import { Suspending } from "../jspi";
 
 export type { WasmAllocRef };
 
-const Suspending = (WebAssembly as any).Suspending as
-    | (new <T extends (...args: any[]) => any>(fn: T) => T)
-    | undefined;
-const jspi = typeof Suspending === "function";
+const jspi = Suspending !== undefined;
 const miss = jspi ? -1 : 0;
 
 function putOptions(ttlSeconds: number): { expirationTtl: number } | undefined {

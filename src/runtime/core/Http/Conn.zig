@@ -312,7 +312,7 @@ fn wsUpgrade(userdata: ?*anyopaque, data: ?[]const u8) anyerror!void {
 
 fn wsWrite(_: ?*anyopaque, data: []const u8) anyerror!void {
     if (comptime !is_wasm) return error.WebSocketNotConnected;
-    wasm_ext.ws_write(data.ptr, data.len);
+    wasm_ext.ws.write(data);
 }
 
 fn wsRead(_: ?*anyopaque) ?[]const u8 {
@@ -321,27 +321,27 @@ fn wsRead(_: ?*anyopaque) ?[]const u8 {
 
 fn wsClose(_: ?*anyopaque) void {
     if (comptime !is_wasm) return;
-    wasm_ext.ws_close(1000, "", 0);
+    wasm_ext.ws.close(1000, "");
 }
 
 fn wsSubscribe(_: ?*anyopaque, topic: []const u8) void {
     if (comptime !is_wasm) return;
-    wasm_ext.ws_subscribe(topic.ptr, topic.len);
+    wasm_ext.ws.subscribe(topic);
 }
 
 fn wsUnsubscribe(_: ?*anyopaque, topic: []const u8) void {
     if (comptime !is_wasm) return;
-    wasm_ext.ws_unsubscribe(topic.ptr, topic.len);
+    wasm_ext.ws.unsubscribe(topic);
 }
 
 fn wsPublish(_: ?*anyopaque, topic: []const u8, message: []const u8) usize {
     if (comptime !is_wasm) return 0;
-    return wasm_ext.ws_publish(topic.ptr, topic.len, message.ptr, message.len);
+    return wasm_ext.ws.publish(topic, message);
 }
 
 fn wsIsSubscribed(_: ?*anyopaque, topic: []const u8) bool {
     if (comptime !is_wasm) return false;
-    return wasm_ext.ws_is_subscribed(topic.ptr, topic.len) != 0;
+    return wasm_ext.ws.isSubscribed(topic);
 }
 
 fn wsSetPublishToSelf(_: ?*anyopaque, _: bool) void {
