@@ -3,6 +3,7 @@
   "framework": null,
   "buildCommand": "zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall",
   "outputDirectory": "zig-out/static",
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/(.*)",

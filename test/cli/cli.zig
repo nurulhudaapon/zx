@@ -130,7 +130,7 @@ test "init → build" {
     try build_zig_zon.writeFile(std.testing.io, .{ .sub_path = build_zig_zon_path, .data = local_zon_str });
 
     const build_result = try std.process.run(allocator, std.testing.io, .{
-        .argv = &.{ "zig", "build", "-Dcli-command=dev" },
+        .argv = &.{ "zig", "build", "-Dziex-config=.{ .command = .dev }" },
         .cwd = .{ .path = test_dir_abs },
     });
     defer allocator.free(build_result.stdout);
@@ -236,11 +236,11 @@ test "dev > double ctrl+c" {
     try dev.shutDown(port, .{ .double_ctrl_c = true });
 }
 
-test "export" {
+test "build --static" {
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
     killPort("3000") catch {};
     try test_cmd(.{
-        .args = &.{"export"},
+        .args = &.{ "build", "--static" },
         .expected_exit_code = 0,
         .expected_stderr_strings = &.{
             "Exporting static site!",
@@ -264,6 +264,60 @@ test "export" {
             "dist/assets/style.css",
             "dist/favicon.ico",
         },
+    });
+}
+
+test "build --static --prerendered-only" {
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    killPort("3000") catch {};
+    // No template page sets `.rendering = .prerendered`, so only static files are copied.
+    try test_cmd(.{
+        .args = &.{ "build", "--static", "--prerendered-only" },
+        .expected_exit_code = 0,
+        .expected_stderr_strings = &.{"Exporting static site!"},
+        .expected_files = &.{
+            "dist/assets/style.css",
+            "dist/favicon.ico",
+        },
+        .unexpected_files = &.{
+            "dist/index.html",
+            "dist/form.html",
+            "dist/404.html",
+        },
+    });
+}
+
+test "build --prerender" {
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    killPort("3000") catch {};
+    // Builds the app and runs the prerender step; unmarked pages stay dynamic.
+    try test_cmd(.{
+        .args = &.{ "build", "--prerender" },
+        .expected_exit_code = 0,
+        .expected_files = &.{
+            "zig-out/bin/ziex_app" ++ (if (builtin.os.tag == .windows) ".exe" else ""),
+            "zig-out/static/assets/style.css",
+        },
+        .unexpected_files = &.{
+            "zig-out/static/index.html",
+            "zig-out/static/404.html",
+        },
+    });
+}
+
+test "build --static rejects a cross-compile target" {
+    try test_cmd(.{
+        .args = &.{ "build", "--static", "--target=wasm32-wasi" },
+        .expected_exit_code = 1,
+        .expected_stdout_strings = &.{"can't be combined with --target=wasm32-wasi"},
+    });
+}
+
+test "export is not a command" {
+    try test_cmd(.{
+        .args = &.{"export"},
+        .expected_exit_code = 1,
+        .expected_stderr_strings = &.{"unexpected argument: export"},
     });
 }
 
@@ -381,6 +435,7 @@ const TestCmdOptions = struct {
     expected_stdout_strings: []const []const u8 = &.{},
     expected_exit_code: i32 = 0,
     expected_files: []const []const u8 = &.{},
+    unexpected_files: []const []const u8 = &.{},
     expected_file_contains: []const FileNeedle = &.{},
     expected_file_excludes: []const FileNeedle = &.{},
     debug: bool = false,
@@ -468,6 +523,15 @@ fn test_cmd(options: TestCmdOptions) !void {
     if (missing_file > 0) {
         std.log.err("\nTotal missing files: {d}\n", .{missing_file});
         return error.TestExpectedEqual;
+    }
+
+    for (options.unexpected_files) |unexpected| {
+        const path = try std.fs.path.join(allocator, &.{ test_dir_abs, unexpected });
+        defer allocator.free(path);
+        if (std.Io.Dir.cwd().statFile(std.testing.io, path, .{})) |_| {
+            std.debug.print("\nExpected file '{s}' to not exist\n", .{unexpected});
+            return error.TestExpectedEqual;
+        } else |_| {}
     }
 
     for (options.expected_file_contains) |fc| {

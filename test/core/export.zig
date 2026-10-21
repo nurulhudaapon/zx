@@ -60,6 +60,30 @@ test "dynamic > true from rendering" {
     try std.testing.expect(route.isDynamic());
 }
 
+test "prerender > default route exported only in full static builds" {
+    const route = emptyRoute("/about");
+    try std.testing.expect(!route.skipsExport(false));
+    try std.testing.expect(route.skipsExport(true));
+}
+
+test "prerender > prerendered rendering exported in prerender builds" {
+    const route = Route{
+        .path = "/about",
+        .rendering = .prerendered,
+    };
+    try std.testing.expect(!route.skipsExport(false));
+    try std.testing.expect(!route.skipsExport(true));
+}
+
+test "prerender > request rendering never exported" {
+    const route = Route{
+        .path = "/dashboard",
+        .rendering = .request,
+    };
+    try std.testing.expect(route.skipsExport(false));
+    try std.testing.expect(route.skipsExport(true));
+}
+
 test "static params > null when no static fn" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();

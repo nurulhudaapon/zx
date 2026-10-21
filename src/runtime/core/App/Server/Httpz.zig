@@ -962,7 +962,7 @@ fn Handler(comptime Ctx: type) type {
                         return;
                     }
 
-                    if (route.isDynamic()) {
+                    if (route.skipsExport(req.header("x-zx-prerendered-only") != null)) {
                         res.header("x-zx-dynamic", "true");
                         try std.zon.stringify.serialize(.{ .dynamic = true }, .{ .whitespace = true }, res.writer());
                         return;

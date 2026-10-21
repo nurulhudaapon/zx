@@ -55,7 +55,7 @@ pub const StaticParams = struct {
     }
 };
 
-/// Context passed to a page or route's `static` function during `zx export`.
+/// Context passed to a page or route's `static` function during `zx build --static` or `zx build --prerender`.
 /// Use `ctx.params.add(...)` to declare which dynamic parameter combinations
 /// should be pre-rendered to static HTML.
 ///
@@ -90,16 +90,20 @@ pub const PageOptions = struct {
     /// apply it to every page below that layout; the nearest setting wins.
     ///
     /// ```zig
-    /// pub const options = zx.PageOptions{ .rendering = .streamed };
+    /// pub const options = zx.PageOptions{ .rendering = .prerendered };
     /// ```
     pub const Rendering = struct {
-        /// Always render per request; skipped by static export.
+        /// Pre-render next to the server/edge app in `zx build --prerender` builds.
+        prerender: bool = false,
+        /// Never pre-render; always render per request (also skipped by `zx build --static`).
         dynamic: bool = false,
         /// Stream HTML, flushing async components as they resolve. Pages only.
         stream: bool = false,
 
         pub const default: Rendering = .{};
-        /// Rendered for every request, never exported.
+        /// Pre-rendered in every build that pre-renders.
+        pub const prerendered: Rendering = .{ .prerender = true };
+        /// Rendered for every request, never pre-rendered.
         pub const request: Rendering = .{ .dynamic = true };
         /// Rendered for every request and streamed.
         pub const streamed: Rendering = .{ .dynamic = true, .stream = true };
@@ -122,7 +126,7 @@ pub const NotFoundOptions = struct {
 };
 pub const ErrorOptions = struct {};
 pub const RouteOptions = struct {
-    /// Only `dynamic` applies; not inherited from layouts.
+    /// Only `prerender` and `dynamic` apply; not inherited from layouts.
     rendering: ?PageOptions.Rendering = null,
     caching: ?BuiltinAttribute.Caching = null,
     static: ?StaticFn = null,

@@ -1,4 +1,5 @@
 const std = @import("std");
+const BuildConfig = @import("../build/init/BuildConfig.zig");
 
 const util = @import("shared/util.zig");
 const context = @import("shared/context.zig");
@@ -6,6 +7,7 @@ const Builder = @import("dev/Builder.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
 const tui = @import("../tui/main.zig");
 const cli_args = @import("root.zig");
+const export_cmd = @import("export.zig");
 
 const CommandContext = context.CommandContext;
 const Colors = tui.Colors;
@@ -17,9 +19,36 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const io = app.io;
     const allocator = ctx.allocator;
 
+    if (args.static) {
+        // Export runs the built app on this machine, so it can't be cross-compiled.
+        if (args.target.len > 0 and !std.mem.eql(u8, args.target, "native")) {
+            try ctx.writer.print("{s}error:{s} --static builds for this machine and can't be combined with --target={s}\n", .{ Colors.red, Colors.reset, args.target });
+            std.process.exit(1);
+        }
+        const release = try std.fmt.allocPrint(allocator, "--release={s}", .{if (args.release.len > 0) args.release else "small"});
+        defer allocator.free(release);
+        return export_cmd.exportSite(ctx, .{
+            .outdir = args.outdir,
+            .binpath = args.binpath,
+            .@"zig-path" = args.@"zig-path",
+            .@"build-args" = if (args.@"build-args".len > 0) args.@"build-args" else release,
+            .@"prerendered-only" = args.@"prerendered-only",
+        });
+    }
+
     var build_args = std.ArrayList([]const u8).empty;
     defer build_args.deinit(allocator);
     try build_args.appendSlice(allocator, &.{ args.@"zig-path", "build" });
+
+    const target_arg = if (args.target.len > 0) try std.fmt.allocPrint(allocator, "-Dtarget={s}", .{args.target}) else null;
+    defer if (target_arg) |t| allocator.free(t);
+    if (target_arg) |t| try build_args.append(allocator, t);
+    const release_arg = if (args.release.len > 0) try std.fmt.allocPrint(allocator, "--release={s}", .{args.release}) else null;
+    defer if (release_arg) |r| allocator.free(r);
+    if (release_arg) |r| try build_args.append(allocator, r);
+    const config_arg = if (args.prerender) try (BuildConfig{ .prerender = true }).arg(allocator) else null;
+    defer if (config_arg) |c| allocator.free(c);
+    if (config_arg) |c| try build_args.append(allocator, c);
 
     var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {

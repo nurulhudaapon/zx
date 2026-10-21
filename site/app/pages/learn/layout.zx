@@ -96,7 +96,12 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/learn#deployment-edge", .text = "Overview" },
                     .{ .href = "/learn#deployment-cloudflare", .text = "Cloudflare" },
                     .{ .href = "/learn#deployment-vercel", .text = "Vercel" },
+                    .{ .href = "/learn#deployment-prerender", .text = "Pre-rendering" },
                 },
+            },
+            .{
+                .title = "Build output",
+                .href = "/learn#deployment-output",
             },
         },
     },

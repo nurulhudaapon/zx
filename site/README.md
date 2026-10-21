@@ -58,7 +58,7 @@ zig build serve --release=fast
 
 ### Exporting as Static Site
 ```bash
-zig build zx -- export
+zig build zx -- build --static
 ```
 This will create a `dist/` directory with the static export of your app. You can deploy the contents of `dist/` to any static hosting provider (Netlify, Vercel, GitHub Pages, etc) or serve it with any static file server.
 

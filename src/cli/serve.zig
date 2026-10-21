@@ -1,4 +1,5 @@
 const std = @import("std");
+const BuildConfig = @import("../build/init/BuildConfig.zig");
 
 const util = @import("shared/util.zig");
 const context = @import("shared/context.zig");
@@ -17,8 +18,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build" });
-    try build_argv.appendSlice(ctx.allocator, &.{"-Dcli-command=serve"});
+    const config_arg = try (BuildConfig{ .command = .serve }).arg(ctx.allocator);
+    defer ctx.allocator.free(config_arg);
+    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build", config_arg });
 
     var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {

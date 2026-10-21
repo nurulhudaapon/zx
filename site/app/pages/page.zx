@@ -555,7 +555,7 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
         .deploy_artifacts = [_]struct { id: []const u8, label: []const u8, command: []const u8, flag: []const u8, caption: []const u8 }{
             .{ .id = "binary", .label = "native binary", .command = "zig build", .flag = "--release=fast", .caption = "Single static binary for any server" },
             .{ .id = "wasi", .label = "wasm32-wasi", .command = "zig build", .flag = "-Dtarget=wasm32-wasi", .caption = "WASI module for edge runtimes" },
-            .{ .id = "static", .label = "static html", .command = "zx export", .flag = "→ dist/", .caption = "Pre-rendered pages for any CDN" },
+            .{ .id = "static", .label = "static html", .command = "zx build", .flag = "--static", .caption = "Pre-rendered pages for any CDN" },
         },
         .memory = .{
             .file = "pages/feed/page.zx",

@@ -378,7 +378,7 @@ fn handleExportProbes(
             return true;
         }
 
-        if (route.isDynamic()) {
+        if (route.skipsExport(http.reqHeaderHas("x-zx-prerendered-only"))) {
             http.resHeaderSet("x-zx-dynamic", "true");
             var aw: std.Io.Writer.Allocating = .init(ctx.arena);
             try std.zon.stringify.serialize(.{ .dynamic = true }, .{ .whitespace = true }, &aw.writer);

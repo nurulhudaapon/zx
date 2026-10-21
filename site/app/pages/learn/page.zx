@@ -842,7 +842,7 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
 
             <h3 id="deployment-standalone">Standalone</h3>
             <p>Compile your app to a single, self-contained binary with zero runtime dependencies. Build for production, then bundle the binary with its static assets:</p>
-            <CodeBlock code="zig build -Doptimize=ReleaseSafe" />
+            <CodeBlock code="zig build --release=fast" />
             <CodeBlock code="zig build zx -- bundle" />
             <p>This creates a <code>bundle/</code> directory containing your binary and <code>static/</code> assets. Copy the whole directory to your server and run the binary.</p>
 
@@ -856,7 +856,7 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
             <p>Scaffold a Railway project with the <code>railway</code> template, or deploy the starter template in one click:</p>
             <CodeBlock code="zx init --template railway" />
             <p>The template includes a Dockerfile and Railway configuration. Build for production, bundle assets, and deploy:</p>
-            <CodeBlock code="zig build -Doptimize=ReleaseSafe && zig build zx -- bundle" />
+            <CodeBlock code="zig build --release=fast && zig build zx -- bundle" />
             <p>
                 <a href=`https://railway.com/new/template?template={ziex_org_url}/template-railway` target="_blank" rel="noopener noreferrer">Deploy on Railway</a>{" "}
                 - one-click deploy from the{" "}
@@ -876,9 +876,9 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
             </p>
 
             <h3 id="deployment-static">Static</h3>
-            <p>For sites without per-request server logic, export every route to static HTML:</p>
-            <CodeBlock code="zig build zx -- export" />
-            <p>This crawls all routes and writes the output to a <code>dist/</code> directory, ready to upload to any static host like Netlify, GitHub Pages, or a CDN. Skip a route with <code>.rendering = .request</code> in its options.</p>
+            <p>For sites without per-request server logic, pre-render every route to static HTML:</p>
+            <CodeBlock code="zig build zx -- build --static" />
+            <p>This builds your app for the current machine, crawls all routes and writes the output to a <code>dist/</code> directory (change it with <code>--outdir</code>), ready to upload to any static host like Netlify, GitHub Pages, or a CDN. Dynamic routes are expanded using their <code>static</code> function. Skip a route with <code>.rendering = .request</code> in its options.</p>
 
             <h3 id="deployment-edge">Edge</h3>
             <p>Ziex compiles to WebAssembly (WASI), so it can be deployed to edge runtimes like Cloudflare Workers or Vercel.</p>
@@ -895,10 +895,24 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
             <p>The template includes a <code>vercel.json</code> configured for Edge Functions (with an optional Node.js runtime). You can deploy with the Vercel CLI:</p>
             <CodeBlock code="vercel deploy" />
 
-            <div class="callout note">
-                <strong>Others:</strong>{" "}
-                You can deploy to any other platforms as you wish as Ziex output can be standalone binary, static site or WASM.
-            </div>
+            <h4 id="deployment-prerender">Pre-rendering</h4>
+            <p>An edge build can also pre-render selected pages into <code>zig-out/static</code>, so the platform serves them as plain files from its CDN while every other route still runs your app. Mark the routes to pre-render:</p>
+            <CodeBlock code="pub const options = zx.PageOptions{ .rendering = .prerendered };" />
+            <p>Set it in a layout's <code>LayoutOptions</code> to apply it to every page below that layout; a page's own setting wins. The other presets are <code>.request</code> (always render per request, never pre-render) and <code>.streamed</code> (render per request and stream async components as they resolve). Fields can also be set directly, for example <code>{".{ .stream = true }"}</code>.</p>
+            <p>Then build with <code>--prerender</code>, for example for an edge runtime:</p>
+            <CodeBlock code="zig build zx -- build --target=wasm32-wasi --release=small --prerender" />
+            <p>With the CLI installed, the same build is <code>zx build --target=wasm32-wasi --release=small --prerender</code>. The <code>zig build zx --</code> form needs only Zig, so it suits hosted builds: on Cloudflare, put it in <code>build.command</code> of <code>wrangler.jsonc</code> so <code>wrangler deploy</code> does both in one build.</p>
+            <p>Pre-rendering runs a native build of your app at build time and saves what each marked page renders, so only mark pages that look the same for every visitor. Pages that read the query string, cookies, KV or a database, or that post back to themselves for actions, should stay unmarked.</p>
+
+            <h3 id="deployment-output">Build output</h3>
+            <p>Ziex doesn't know about hosting platforms. Every build writes the same layout, and a template (or your own config) points the platform at it:</p>
+            <ul>
+                <li><code>zig-out/bin/</code>: the app, a native binary or a <code>.wasm</code> module for <code>-Dtarget=wasm32-wasi</code></li>
+                <li><code>zig-out/static/</code>: everything served as plain files: <code>public/</code>, <code>assets/</code>, and pre-rendered pages as <code>index.html</code> and <code>{"<route>.html"}</code></li>
+                <li><code>zig-out/manifest/app.zon</code>: the route manifest</li>
+                <li><code>zig-out/pkg/ziex/</code>: the JS runtime, when the build installs it</li>
+            </ul>
+            <p>To host on a new platform, serve <code>zig-out/static/</code> as static files, map <code>/about</code> to <code>about.html</code>, and send every other request to the app. For WASM builds, the <code>Ziex</code> class from the JS runtime is a standard fetch handler (request in, response out), so a few lines of glue are enough. The <code>ziex/platforms/*</code> helpers used by the Cloudflare and Vercel templates are optional.</p>
         </section>
     );
 }

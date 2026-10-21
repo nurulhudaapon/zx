@@ -105,6 +105,33 @@ pub const build: Command = .{
     .named_args = &.{
         flags.build_args,
         flags.zig_path,
+        flags.binpath,
+        Argument.init(.target, []const u8, .{
+            .default_value = "",
+            .short = 't',
+            .help = "Zig target triple to build for (e.g. wasm32-wasi, x86_64-linux-musl)",
+        }),
+        Argument.init(.release, []const u8, .{
+            .default_value = "",
+            .help = "Release mode passed to zig build as --release=<mode> (fast, safe, small)",
+        }),
+        Argument.init(.prerender, bool, .{
+            .default_value = false,
+            .help = "Also pre-render routes with `.rendering = .prerendered` into <install-prefix>/static next to the app",
+        }),
+        Argument.init(.static, bool, .{
+            .default_value = false,
+            .help = "Pre-render every route to static HTML in --outdir instead of building a server",
+        }),
+        Argument.init(.outdir, []const u8, .{
+            .default_value = "dist",
+            .short = 'o',
+            .help = "Output directory for --static",
+        }),
+        Argument.init(.@"prerendered-only", bool, .{
+            .default_value = false,
+            .help = "With --static, only pre-render routes with `rendering.prerender` (used by --prerender)",
+        }),
     },
 };
 
@@ -293,24 +320,6 @@ pub const lsp: Command = .{
     },
 };
 
-pub const @"export": Command = .{
-    .name = .@"export",
-    .help_short = "Export the site to a static HTML directory",
-    .named_args = &.{
-        Argument.init(.outdir, []const u8, .{
-            .default_value = "dist",
-            .short = 'o',
-            .help = "Output directory",
-        }),
-        flags.binpath,
-        flags.zig_path,
-        Argument.init(.@"build-args", []const u8, .{
-            .default_value = "--release=small",
-            .help = "Additional arguments to pass to zig build (e.g., -Doptimize=ReleaseFast)",
-        }),
-    },
-};
-
 pub const bundle: Command = .{
     .name = .bundle,
     .help_short = "Bundle the site into a deployable directory",
@@ -365,7 +374,6 @@ pub const commands: []const Command = &.{
     fmt,
     env,
     lsp,
-    @"export",
     bundle,
     update,
     upgrade,

@@ -14,6 +14,7 @@ pub const SerilizableAppMeta = struct {
         rendering: ?[]const u8 = null,
         caching_ttl_s: ?i64 = null,
         caching_key: ?[]const u8 = null,
+        prerender: bool = false,
         dynamic: bool = false,
         stream: bool = false,
         has_static: bool = false,
@@ -119,7 +120,7 @@ pub const SerilizableAppMeta = struct {
 
     /// Name of the matching `zx.PageOptions.Rendering` preset, or "custom".
     fn renderingName(r: zx.PageOptions.Rendering) []const u8 {
-        inline for (.{ "default", "request", "streamed" }) |name| {
+        inline for (.{ "default", "prerendered", "request", "streamed" }) |name| {
             if (std.meta.eql(r, @field(zx.PageOptions.Rendering, name))) return name;
         }
         return "custom";
@@ -128,6 +129,7 @@ pub const SerilizableAppMeta = struct {
     fn renderingOpts(o: *Opts, rendering: ?zx.PageOptions.Rendering) void {
         const r = rendering orelse return;
         o.rendering = renderingName(r);
+        o.prerender = r.prerender;
         o.dynamic = r.dynamic;
         o.stream = r.stream;
     }
@@ -675,6 +677,13 @@ pub const ServerApp = struct {
             return self.rendering.dynamic;
         }
 
+        /// Whether export should skip this route. With `prerendered_only`, only routes
+        /// with `rendering.prerender` are exported.
+        pub fn skipsExport(self: *const Route, prerendered_only: bool) bool {
+            if (self.rendering.dynamic) return true;
+            return prerendered_only and !self.rendering.prerender;
+        }
+
         /// Run the route's `static` fn and return ZON-ready param sets, or null if unset.
         pub fn resolveStaticParams(self: *const Route, allocator: Allocator, io: std.Io) !?[]const []const zx.StaticParam {
             const static_fn = self.staticFn() orelse return null;
@@ -743,6 +752,7 @@ fn resolveRendering(comptime path: []const u8, comptime route: anytype) zx.PageO
 }
 
 fn checkRendering(comptime path: []const u8, comptime r: zx.PageOptions.Rendering, comptime is_api: bool) zx.PageOptions.Rendering {
+    if (r.prerender and r.dynamic) @compileError(path ++ ": rendering cannot set both `prerender` and `dynamic`");
     if (is_api and r.stream) @compileError(path ++ ": `stream` only applies to pages, not route.zig");
     return r;
 }

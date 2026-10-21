@@ -6,6 +6,7 @@ pub const RouteOpts = struct {
     rendering: ?[]const u8 = null,
     caching_ttl_s: ?i64 = null,
     caching_key: ?[]const u8 = null,
+    prerender: bool = false,
     dynamic: bool = false,
     stream: bool = false,
     has_static: bool = false,

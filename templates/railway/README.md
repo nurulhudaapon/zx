@@ -68,7 +68,7 @@ App will be available at [`http://localhost:3000`](http://localhost:3000) with h
 
 The app listens on port **3000** by default. In your Railway service settings, set the **Internal Port** to `3000`.
 
-To use a custom port, add `-Dport=8080` to the build command and update the start command accordingly.
+To use a custom port, set the `PORT` environment variable (for example `PORT=8080`) and update the Internal Port to match.
 
 ## Contributing
 

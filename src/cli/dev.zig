@@ -1,4 +1,5 @@
 const std = @import("std");
+const BuildConfig = @import("../build/init/BuildConfig.zig");
 const builtin = @import("builtin");
 
 const util = @import("shared/util.zig");
@@ -174,11 +175,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     defer build_args_array.deinit(allocator);
 
     const zig_path = args.@"zig-path";
-    try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev" });
-
-    if (incremental) {
-        try build_args_array.appendSlice(allocator, &.{"-Dincremental=true"});
-    }
+    const config_arg = try (BuildConfig{ .command = .dev, .incremental = incremental }).arg(allocator);
+    defer allocator.free(config_arg);
+    try build_args_array.appendSlice(allocator, &.{ zig_path, "build", config_arg });
 
     log.debug("zig path: {s}", .{zig_path});
 

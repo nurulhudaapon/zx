@@ -7,5 +7,5 @@
 zig build --release=fast
 
 # Export
-zig build zx -- export -o /Users/nurulhudaapon/Projects/nurulhudaapon/js-framework-benchmark/frameworks/keyed/ziex
+zig build zx -- build --static -o /Users/nurulhudaapon/Projects/nurulhudaapon/js-framework-benchmark/frameworks/keyed/ziex
 ```

@@ -3,6 +3,7 @@ const html_util = @import("../util/html.zig");
 const build_zig = @import("../../build.zig");
 const CliConstant = @import("../cli/shared/constant.zig");
 pub const InitOptions = @import("init/InitOptions.zig");
+pub const BuildConfig = @import("init/BuildConfig.zig");
 
 const LazyPath = std.Build.LazyPath;
 const AddElementOptions = @import("../Build.zig").AddElementOptions;
@@ -124,17 +125,16 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     }
 
     // --- ZX Options --- //
-    const port_opt = b.option(u16, "port", "Port to run the Ziex server on");
-    const address_opt = b.option([]const u8, "address", "Address to bind the Ziex server to");
-    const cli_command_opt = b.option([]const u8, "cli-command", "Ziex CLI command mode for the app");
-    const is_dev_build = std.mem.eql(u8, cli_command_opt orelse "--", "dev");
-    const incremental = b.option(bool, "incremental", "Enable incremental build") orelse false;
+    const config = buildConfig(b);
+    const cli_command: []const u8 = if (config.command) |c| @tagName(c) else "--";
+    const is_dev_build = config.command == .dev;
+    const incremental = config.incremental;
 
     const app_opts = addAppOpts(b, .{
         .base_path = opts.base_path,
-        .server_port = port_opt,
-        .server_address = address_opt,
-        .cli_command = cli_command_opt orelse "--",
+        .server_port = config.port,
+        .server_address = config.address,
+        .cli_command = cli_command,
         .enable_httpz = enable_httpz,
         .features = opts.features,
     });
@@ -175,6 +175,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         if (is_dev_build) "/assets/_/app.dev" else "/assets/_/app",
     );
     // --- Static Directory Setup --- //
+    var static_install_steps: [2]?*std.Build.Step = .{ null, null };
     {
         const site_sub_path = opts.site_path.src_path.sub_path;
         if (b.root.access(b.graph.io, site_sub_path, .{})) |_| {
@@ -192,6 +193,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             });
             install_static.step.name = "install public/";
             exe.step.dependOn(&install_static.step);
+            static_install_steps[0] = &install_static.step;
         } else |_| {}
 
         const assets_dir = opts.site_path.path(b, "assets");
@@ -203,6 +205,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             });
             install_assets.step.name = "install assets/";
             exe.step.dependOn(&install_assets.step);
+            static_install_steps[1] = &install_assets.step;
         } else |_| {}
     }
 
@@ -412,9 +415,9 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         // Client/wasm builds must not analyze Httpz (no httpz module on that dep).
         wasm_app_module.addOptions("app_opts", addAppOpts(b, .{
             .base_path = opts.base_path,
-            .server_port = port_opt,
-            .server_address = address_opt,
-            .cli_command = cli_command_opt orelse "--",
+            .server_port = config.port,
+            .server_address = config.address,
+            .cli_command = cli_command,
             .enable_httpz = false,
             .features = opts.features,
         }));
@@ -479,6 +482,26 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     install_manifest.step.name = "install app manifest";
     b.default_step.dependOn(&install_manifest.step);
 
+    // --- Prerender --- //
+    // Exports static pages from a host build of the app into the same static dir
+    // the edge host serves, so prerendered routes skip the worker entirely.
+    if (config.prerender and config.command == null) {
+        const prerender_cmd = cliRun(b, zx_cli, opts);
+        prerender_cmd.setName("prerender");
+        prerender_cmd.setCwd(b.path("."));
+        prerender_cmd.addArgs(&.{ "build", "--static", "--prerendered-only", "--zig-path", opts.zig_path });
+        if (optimize) |mode| prerender_cmd.addArgs(&.{ "--build-args", b.fmt("-Doptimize={s}", .{@tagName(mode)}) });
+        prerender_cmd.addArg("--outdir");
+        prerender_cmd.addDirectoryArg(static_lazypath);
+        prerender_cmd.has_side_effects = true;
+
+        // Run after every other write into static/ so prerendered output lands last.
+        prerender_cmd.step.dependOn(&transpile_cmd.step);
+        for (static_install_steps) |step| if (step) |st| prerender_cmd.step.dependOn(st);
+        for (b.getInstallStep().dependencies.items) |dep| prerender_cmd.step.dependOn(dep);
+        b.getInstallStep().dependOn(&prerender_cmd.step);
+    }
+
     // --- Steps: ZX (Root of ZX CLI) --- //
     {
         const zx_step = b.step(
@@ -513,7 +536,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     // --- Steps: Export --- //
     if (opts.steps.@"export") |export_step_name| {
         const export_cmd = cliRun(b, zx_cli, opts);
-        export_cmd.addArgs(&.{"export"});
+        export_cmd.addArgs(&.{ "build", "--static" });
         export_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const export_step = b.step(export_step_name, "Export the Ziex app for static hosting");
         export_step.dependOn(&export_cmd.step);
@@ -658,6 +681,19 @@ const AppOptsParams = struct {
     enable_httpz: bool,
     features: InitOptions.AppOptions.FeatureOptions,
 };
+
+/// Reads `-Dziex-config`, which the zx CLI sets; a plain `zig build` uses the defaults.
+fn buildConfig(b: *std.Build) BuildConfig {
+    const source = b.option([]const u8, BuildConfig.option_name, "Ziex settings as ZON, set by the zx CLI (`zig build zx -- <command>`)") orelse return .{};
+    var diagnostics: std.zon.parse.Diagnostics = undefined;
+    return BuildConfig.parse(b.allocator, source, &diagnostics) catch |err| {
+        switch (err) {
+            error.ParseZon => diagnostics.log("-D" ++ BuildConfig.option_name),
+            else => std.log.err("-D" ++ BuildConfig.option_name ++ ": {t}", .{err}),
+        }
+        std.process.exit(1);
+    };
+}
 
 fn addAppOpts(b: *std.Build, params: AppOptsParams) *std.Build.Step.Options {
     const app_opts = b.addOptions();

@@ -24,7 +24,7 @@ jobs:
 
       - name: Build
         working-directory: ide/devtool
-        run: zig build zx -- export --outdir zig-out/static
+        run: zig build zx -- build --static --outdir zig-out/static
 
       - name: Bundle
         working-directory: ide/devtool

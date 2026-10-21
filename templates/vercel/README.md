@@ -73,6 +73,16 @@ vercel deploy
 
 Or click the **Deploy with Vercel** button above for one-click deployment.
 
+### Pre-rendering
+
+Pages that look the same for every visitor can be served straight from Vercel's CDN. Mark them with `pub const options = zx.PageOptions{ .rendering = .prerendered };` and build with `--prerender` in `buildCommand` in `vercel.json`:
+
+```json
+"buildCommand": "zig build zx -- build --target=wasm32-wasi --release=small --prerender"
+```
+
+See [Pre-rendering](https://ziex.dev/learn#deployment-prerender).
+
 ## Contributing
 
 Contributions are welcome! For feature requests, bug reports, or questions, see the [Ziex Repo](https://github.com/ziex-dev/ziex).

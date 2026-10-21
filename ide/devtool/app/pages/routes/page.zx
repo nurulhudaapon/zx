@@ -202,6 +202,7 @@ fn OptsSection(allocator: zx.Allocator, props: struct { title: []const u8, opts:
                 <DetailRow allocator={allocator} key="rendering" value={rendering} />
                 <DetailRow allocator={allocator} key="caching.ttl" value={ttl} />
                 <DetailRow allocator={allocator} key="caching.key" value={cache_key} />
+                <DetailRow allocator={allocator} key="prerender" value={store.boolLabel(opts.prerender)} />
                 <DetailRow allocator={allocator} key="dynamic" value={store.boolLabel(opts.dynamic)} />
                 <DetailRow allocator={allocator} key="stream" value={store.boolLabel(opts.stream)} />
                 <DetailRow allocator={allocator} key="static" value={store.boolLabel(opts.has_static)} />

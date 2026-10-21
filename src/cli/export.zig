@@ -1,4 +1,5 @@
 const std = @import("std");
+const BuildConfig = @import("../build/init/BuildConfig.zig");
 const builtin = @import("builtin");
 
 const util = @import("shared/util.zig");
@@ -8,16 +9,16 @@ const options_mod = @import("../runtime/core/App/Router/options.zig");
 const DevServer = @import("dev/DevServer.zig");
 const tui = @import("../tui/main.zig");
 const ManifestApp = @import("../build/Manifest.zig").App;
-const cli_args = @import("root.zig");
 
 const CommandContext = context.CommandContext;
 const log = std.log.scoped(.cli);
-pub const command = cli_args.@"export";
 
-pub fn run(ctx: CommandContext, args: anytype) !void {
+/// Builds the app for the host, runs it and crawls every route into `args.outdir`.
+pub fn exportSite(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
     const io = app.io;
     const outdir = args.outdir;
+    const prerendered_only = args.@"prerendered-only";
 
     var temp_dir = try util.TempDir.init(io, ctx.allocator);
     defer temp_dir.deinit(io, ctx.allocator);
@@ -25,7 +26,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build", "-Dcli-command=export" });
+    const config_arg = try (BuildConfig{ .command = .@"export" }).arg(ctx.allocator);
+    defer ctx.allocator.free(config_arg);
+    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build", config_arg });
 
     var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {
@@ -159,7 +162,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
                             .has_notfound = route.has_notfound,
                             .is_dynamic = false,
                         };
-                        processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page, .param_child) catch |err| {
+                        processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page, .param_child, prerendered_only) catch |err| {
                             if (err == error.ConnectionRefused) {
                                 try waitForServerRetry(io, &connection_retries, expanded_route.path, "page", &app_child);
                                 continue :process_block;
@@ -172,7 +175,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
                     printer.filepathKind(route_display, .dynamic);
                 }
             } else {
-                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page, .static) catch |err| {
+                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page, .static, prerendered_only) catch |err| {
                     if (err == error.ConnectionRefused) {
                         try waitForServerRetry(io, &connection_retries, route.path, "page", &app_child);
                         continue :process_block;
@@ -183,8 +186,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
             connection_retries = 0;
 
             // Also export 404.html for routes that have notfound handler
-            if (route.has_notfound) {
-                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound, .static) catch |err| {
+            // 404 pages are only exported for full static sites; servers render their own.
+            if (route.has_notfound and !prerendered_only) {
+                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound, .static, false) catch |err| {
                     if (err == error.ConnectionRefused) {
                         try waitForServerRetry(io, &connection_retries, route.path, "notfound", &app_child);
                         continue :process_block;
@@ -312,6 +316,7 @@ fn processRoute(
     printer: *tui.Printer,
     export_type: ExportType,
     print_as: tui.Printer.FilePathKind,
+    prerendered_only: bool,
 ) !void {
     var client = std.http.Client{ .allocator = allocator, .io = io };
     defer client.deinit();
@@ -324,13 +329,22 @@ fn processRoute(
     defer allocator.free(url);
 
     const uri = try std.Uri.parse(url);
-    var extra_headers: [1]std.http.Header = .{.{ .name = "x-zx-export-notfound", .value = "true" }};
+    var extra_headers: [2]std.http.Header = undefined;
+    var header_count: usize = 0;
+    if (export_type == .notfound) {
+        extra_headers[header_count] = .{ .name = "x-zx-export-notfound", .value = "true" };
+        header_count += 1;
+    }
+    if (prerendered_only) {
+        extra_headers[header_count] = .{ .name = "x-zx-prerendered-only", .value = "true" };
+        header_count += 1;
+    }
 
     log.debug("Fetching {s} kind={s} url={s}", .{ route.path, @tagName(export_type), url });
 
     var req = try client.request(.GET, uri, .{
         .keep_alive = false,
-        .extra_headers = if (export_type == .notfound) &extra_headers else &.{},
+        .extra_headers = extra_headers[0..header_count],
     });
     defer req.deinit();
 
@@ -356,8 +370,10 @@ fn processRoute(
 
     const body_reader = response.readerDecompressing(&transfer_buffer, &decompress, decompress_buffer);
 
-    if (is_dynamic) {
-        log.debug("Skipping dynamic route: {s}", .{route.path});
+    // A GET to a route without a GET handler falls through to a 404 page; don't save it as content.
+    const not_ok = export_type == .page and response.head.status.class() != .success;
+    if (is_dynamic or not_ok) {
+        log.debug("Skipping route: {s} dynamic={} status={}", .{ route.path, is_dynamic, response.head.status });
         _ = body_reader.discardRemaining() catch {};
         printer.filepathKind(export_path.path, .dynamic);
         return;

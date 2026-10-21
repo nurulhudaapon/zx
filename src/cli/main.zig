@@ -15,7 +15,6 @@ const app_cmd = @import("app.zig");
 const fmt = @import("fmt.zig");
 const env = @import("env.zig");
 const lsp = @import("lsp.zig");
-const export_cmd = @import("export.zig");
 const bundle = @import("bundle.zig");
 const update = @import("update.zig");
 const upgrade = @import("upgrade.zig");
@@ -35,7 +34,7 @@ const use_debug_allocator = builtin.optimize == .debug and switch (builtin.os.ta
 
 const os_modules = switch (builtin.os.tag) {
     .wasi, .freestanding => .{ version, transpile, fmt, lsp },
-    else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, env, lsp, export_cmd, bundle, update, upgrade },
+    else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, env, lsp, bundle, update, upgrade },
 };
 
 pub fn main(init_process: std.process.Init) !void {

@@ -76,7 +76,7 @@ pub fn build(b: *std.Build) !void {
     // Step: zig build chromium
     const chromium_step = b.step("chromium", "Build chromium extension");
     const chromium_export = b.addRunArtifact(ziex_b.cli.exe);
-    chromium_export.addArgs(&.{ "export", "--build-args", "-Dplatform=chromium", "--outdir" });
+    chromium_export.addArgs(&.{ "build", "--static", "--build-args", "-Dplatform=chromium", "--outdir" });
     chromium_export.addDirectoryArg(b.path("../chromium/pages"));
 
     const chromium_zip = b.addSystemCommand(&.{ "zip", "-r" });

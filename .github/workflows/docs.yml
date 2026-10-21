@@ -42,7 +42,7 @@ jobs:
         run: cd site && npm ci
 
       - name: Build Site
-        run: cd site && zig build zx -- export
+        run: cd site && zig build zx -- build --static
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
