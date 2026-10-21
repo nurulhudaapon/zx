@@ -1,20 +1,56 @@
-const features = [_]Feature{
-    .{ .id = "performance", .label = "Performance", .icon_fn = icons.Lightning, .title = "Fast Performance", .description = "Significantly faster at SSR than many other frameworks. Optimized for speed and low latency." },
-    .{ .id = "syntax", .label = "Syntax", .icon_fn = icons.Code, .title = "Familiar Syntax", .description = "Familiar plain HTML-style markup, with full access to Zig's control flow." },
-    .{ .id = "routing", .label = "Routing", .icon_fn = icons.Folder, .title = "File System Routing", .description = "Just files in folders to create routes." },
-    .{ .id = "api-routes", .label = "API Routes", .icon_fn = icons.Server, .title = "API Routes", .description = "Drop a route.zig beside your pages. Same file-based routing for GET, POST, and more." },
-    .{ .id = "hybrid", .label = "Hybrid", .icon_fn = icons.Monitor, .title = "Hybrid Rendering", .description = "SSR by default. Opt into client rendering where interaction matters." },
-    .{ .id = "control-flow", .label = "Control Flow", .icon_fn = icons.Flow, .title = "Control Flow", .description = "Use Zig if, for, while, and switch directly in your markup—no template DSL." },
-    .{ .id = "tooling", .label = "Tooling", .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best development experience." },
-    .{ .id = "deploy", .label = "Deploy", .icon_fn = icons.Rocket, .title = "Deploy Anywhere", .description = "Native binaries for servers; WASI modules for Cloudflare and Vercel. Pick the artifact that fits the host." },
-    .{ .id = "memory", .label = "Memory", .icon_fn = icons.Layers, .title = "Predictable Memory", .description = "Explicit memory management of Zig, no hidden allocations." },
-};
+const repo = zx.info.repository;
 
-const deployments = [_]Deployment{
-    .{ .icon_fn = icons.Terminal, .title = "Standalone", .description = "Deploy as a self-contained binary on Linux, macOS, Windows andy many more platforms that Zig supports." },
-    .{ .icon_fn = icons.Globe, .title = "Edge Anywhere", .description = "Deploy to the edge via WASI. Native bindings for Cloudflare and Vercel." },
-    .{ .icon_fn = icons.Layers, .title = "Static", .description = "Generate a statically pre-rendered site at build time. Deploy to GitHub Pages, Netlify, S3, or any CDN." },
-    .{ .icon_fn = icons.Package, .title = "Cross-Platform", .description = "Build for any target from any host. Easily cross-compile optimized binaries for x86_64, aarch64, and more." },
+const features = [_]Feature{
+    .{ .id = "performance", .label = "Performance", .icon_fn = icons.Lightning, .title = "Fast Performance", .description = "Significantly faster at SSR than many other frameworks. Optimized for speed and low latency.", .links = &.{
+        .{ .icon_fn = icons.ChartIcon, .label = "Benchmarks", .href = "#benchmarks" },
+        .{ .icon_fn = icons.GitHub, .label = "Methodology", .href = repo ++ "/tree/main/bench" },
+    } },
+    .{ .id = "syntax", .label = "Syntax", .icon_fn = icons.Code, .title = "Familiar Syntax", .description = "Familiar plain HTML-style markup, with full access to Zig's control flow.", .links = &.{
+        .{ .icon_fn = icons.BookIcon, .label = "Writing Markup", .href = "/learn#writing-markup" },
+        .{ .icon_fn = icons.BookIcon, .label = "Components", .href = "/learn#creating-components" },
+        .{ .icon_fn = icons.PlayIcon, .label = "Playground", .href = "/playground" },
+    } },
+    .{ .id = "routing", .label = "Routing", .icon_fn = icons.Folder, .title = "File System Routing", .description = "Just files in folders to create routes.", .links = &.{
+        .{ .icon_fn = icons.BookIcon, .label = "Pages & Layouts", .href = "/learn#pages-layouts" },
+    } },
+    .{ .id = "api-routes", .label = "API Routes", .icon_fn = icons.Server, .title = "API Routes", .description = "Drop a route.zig beside your pages. Same file-based routing for GET, POST, and more.", .links = &.{
+        .{ .icon_fn = icons.BookIcon, .label = "API Routes", .href = "/learn#api-routes" },
+        .{ .icon_fn = icons.BookIcon, .label = "Key-Value", .href = "/learn#kv" },
+        .{ .icon_fn = icons.Database, .label = "Database", .href = "/learn#database" },
+    } },
+    .{ .id = "hybrid", .label = "Hybrid", .icon_fn = icons.Monitor, .title = "Hybrid Rendering", .description = "SSR by default. Opt into client rendering where interaction matters.", .links = &.{
+        .{ .icon_fn = icons.BookIcon, .label = "Interactivity", .href = "/learn#interactivity" },
+        .{ .icon_fn = icons.BookIcon, .label = "Server Actions", .href = "/learn#server-actions" },
+        .{ .icon_fn = icons.BookIcon, .label = "Client Actions", .href = "/learn#client-actions" },
+    } },
+    .{ .id = "control-flow", .label = "Control Flow", .icon_fn = icons.Flow, .title = "Control Flow", .description = "Use Zig if, for, while, and switch directly in your markup—no template DSL.", .links = &.{
+        .{ .icon_fn = icons.BookIcon, .label = "Conditionals", .href = "/learn#conditional-rendering" },
+        .{ .icon_fn = icons.BookIcon, .label = "Lists", .href = "/learn#rendering-lists" },
+    } },
+    .{ .id = "tooling", .label = "Tooling", .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best development experience.", .links = &.{
+        .{ .icon_fn = icons.VSCodeLogo, .label = "VS Code", .href = "https://marketplace.visualstudio.com/items?itemName=ziex.ziex" },
+        .{ .icon_fn = icons.Code, .label = "Cursor / Open VSX", .href = "https://open-vsx.org/extension/ziex/ziex" },
+        .{ .icon_fn = icons.ZedLogo, .label = "Zed", .href = repo ++ "/tree/main/ide/zed" },
+        .{ .icon_fn = icons.NeovimLogo, .label = "Neovim", .href = repo ++ "/tree/main/ide/neovim" },
+        .{ .icon_fn = icons.HelixLogo, .label = "Helix", .href = repo ++ "/tree/main/ide/helix" },
+        .{ .icon_fn = icons.EmacsLogo, .label = "Emacs", .href = repo ++ "/tree/main/ide/emacs" },
+        .{ .icon_fn = icons.PlayIcon, .label = "Playground", .href = "/playground" },
+        .{ .icon_fn = icons.ChromeLogo, .label = "Chrome DevTools", .href = "https://chromewebstore.google.com/detail/ziex-devtools/efnedneccooengjfmahlnmicgkalnopj" },
+        .{ .icon_fn = icons.PlugIcon, .label = "Language Server", .href = repo ++ "/tree/main/ide#language-server" },
+    } },
+    .{ .id = "deploy", .label = "Deploy", .icon_fn = icons.Rocket, .title = "Deploy Anywhere", .description = "Native binaries for servers; WASI modules for Cloudflare and Vercel. Pick the artifact that fits the host.", .links = &.{
+        .{ .icon_fn = icons.LinuxLogo, .label = "Standalone", .href = "/learn#deployment-standalone" },
+        .{ .icon_fn = icons.DockerLogo, .label = "Docker", .href = "/learn#deployment-docker" },
+        .{ .icon_fn = icons.RailwayLogo, .label = "Railway", .href = "/learn#deployment-railway" },
+        .{ .icon_fn = icons.RenderLogo, .label = "Render", .href = "/learn#deployment-render" },
+        .{ .icon_fn = icons.CloudflareLogo, .label = "Cloudflare", .href = "/learn#deployment-cloudflare" },
+        .{ .icon_fn = icons.VercelLogo, .label = "Vercel", .href = "/learn#deployment-vercel" },
+        .{ .icon_fn = icons.Globe, .label = "Static", .href = "/learn#deployment-static" },
+    } },
+    .{ .id = "memory", .label = "Memory", .icon_fn = icons.Layers, .title = "Predictable Memory", .description = "Explicit memory management of Zig, no hidden allocations.", .links = &.{
+        .{ .icon_fn = icons.ZigLogo, .label = "Zig Memory", .href = "https://ziglang.org/documentation/master/#Memory" },
+        .{ .icon_fn = icons.BookIcon, .label = "Allocators", .href = "https://ziglang.org/documentation/master/#Choosing-an-Allocator" },
+    } },
 };
 
 const benchmark_cwv_rows = [_]BenchmarkRow{
@@ -387,13 +423,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </nav>
                         <div class="features-panels">
                             {for (features, 0..) |f, i| (
-                                <FeaturePanel id={f.id} label={f.label} title={f.title} description={f.description} index={i} show_code={std.mem.eql(u8, f.id, "syntax")} code_source={feature_examples} code_section="Control Flow: if" />
+                                <FeaturePanel id={f.id} label={f.label} title={f.title} description={f.description} links={f.links} index={i} show_code={std.mem.eql(u8, f.id, "syntax")} code_source={feature_examples} code_section="Control Flow: if" />
                             )}
                         </div>
                     </div>
                 </section>
                 <BenchmarksSection eyebrow="" title="Performance" subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.` tabs={benchmark_tabs[0..]} run_url={bench_run.url} run_date={bench_run.date} />
-                <DeploymentSection />
                 <section class="feature-examples">
                     <div class="feature-examples-header">
                         <h2 class="section-title">Code Examples</h2>
@@ -437,8 +472,8 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
         self: bool = false,
     };
 
-    const bar_count = @min(4, benchmark_ssr_rows.len);
-    var bars: [4]PerfBar = undefined;
+    const bar_count = @min(5, benchmark_ssr_rows.len);
+    var bars: [5]PerfBar = undefined;
     for (0..bar_count) |i| {
         bars[i] = .{
             .label = benchmark_ssr_rows[i].label,
@@ -459,12 +494,12 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
             .{ .file = "notfound.zx", .kind = "notfound", .url = "404", .note = "Not found" },
         },
         .api = .{
-            .file = "pages/api/route.zig",
-            .handler = "→ handler",
+            .file = "pages/api/users/route.zig",
+            .signature = "(ctx: zx.RouteContext) !void",
             .methods = [_]struct { method: []const u8, path: []const u8, status: []const u8, body: []const u8 }{
-                .{ .method = "GET", .path = "/api/users", .status = "200", .body = "[{ id, name }]" },
-                .{ .method = "POST", .path = "/api/users", .status = "201", .body = "{ created: true }" },
-                .{ .method = "DELETE", .path = "/api/users/1", .status = "204", .body = "" },
+                .{ .method = "GET", .path = "/api/users", .status = "200 OK", .body = "[{ \"id\": 1, \"name\": \"Zig\" }]" },
+                .{ .method = "POST", .path = "/api/users", .status = "201 Created", .body = "{ \"id\": 2, \"created\": true }" },
+                .{ .method = "DELETE", .path = "/api/users/1", .status = "204 No Content", .body = "" },
             },
         },
         .control_flow = .{
@@ -481,35 +516,62 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
             .switch_arms = [_][]const u8{ ".admin", ".member", "else" },
         },
         .hybrid = .{
-            .server_label = "server",
-            .client_label = "client",
-            .server_lines = [_][]const u8{ "SSR", "<Page/>", "default" },
-            .hydrate_lines = [_][]const u8{ "hydrate", "attach listeners" },
-            .rendering_hint = "@rendering",
+            .server_steps = [_][]const u8{ "render <Page/>", "stream HTML" },
+            .hint = "<Counter @rendering={.client} />",
+            .button = "Click Me",
             .captions = [_][]const u8{
                 "Start on the server, send HTML",
-                "Then bring it to life in the browser",
-                "Go interactive only where it matters",
+                "Hydrate only the islands that need it",
+                "Interactive where it matters",
             },
         },
         .tooling = .{
-            .command = "$ zig build dev",
-            .subtitle = "hot reload  ·  CLI  ·  editor extensions",
+            .file = "pages/page.zx",
+            .code = [_][]const u8{
+                "pub fn Page(ctx: zx.PageContext) zx.Component {",
+                "    return (",
+                "        <main @allocator={ctx.arena}>",
+                "            <h1>Hello, Ziex</h1>",
+                "            <Counter @rendering={.client} />",
+                "        </main>",
+                "    );",
+                "}",
+            },
+            .completions = [_][]const u8{ "@rendering", "@allocator", "@escaping", "class" },
+            .command = "zig build dev",
+            .version = zx.info.version,
+            .url = "http://localhost:3000",
+            .restart_time = "0.38s",
         },
         .deploy = [_]struct { name: []const u8, artifact: []const u8 }{
+            .{ .name = "Linux / macOS", .artifact = "binary" },
+            .{ .name = "Docker", .artifact = "binary" },
+            .{ .name = "Railway", .artifact = "binary" },
             .{ .name = "Cloudflare", .artifact = "wasi" },
             .{ .name = "Vercel", .artifact = "wasi" },
-            .{ .name = "Standalone", .artifact = "binary" },
-            .{ .name = "Any Server", .artifact = "binary" },
+            .{ .name = "GitHub Pages", .artifact = "static" },
+            .{ .name = "Netlify / S3", .artifact = "static" },
         },
-        .deploy_captions = .{
-            .wasi = "WASI for edge hosts",
-            .binary = "native binary for servers",
+        .deploy_artifacts = [_]struct { id: []const u8, label: []const u8, command: []const u8, flag: []const u8, caption: []const u8 }{
+            .{ .id = "binary", .label = "native binary", .command = "zig build", .flag = "--release=fast", .caption = "Single static binary for any server" },
+            .{ .id = "wasi", .label = "wasm32-wasi", .command = "zig build", .flag = "-Dtarget=wasm32-wasi", .caption = "WASI module for edge runtimes" },
+            .{ .id = "static", .label = "static html", .command = "zx export", .flag = "→ dist/", .caption = "Pre-rendered pages for any CDN" },
         },
         .memory = .{
-            .cols = 5,
-            .rows = 3,
-            .caption = "explicit allocations",
+            .file = "pages/feed/page.zx",
+            .code = [_][]const u8{
+                "pub fn Page(ctx: zx.PageContext) !zx.Component {",
+                "    const user = try ctx.arena.create(User);",
+                "    const posts = try ctx.arena.alloc(Post, 32);",
+                "    return (<Feed @allocator={ctx.arena} posts={posts} />);",
+                "}",
+            },
+            .allocs = [_]struct { label: []const u8, size: u32 }{
+                .{ .label = "User", .size = 48 },
+                .{ .label = "[32]Post", .size = 160 },
+                .{ .label = "<Feed/>", .size = 112 },
+            },
+            .capacity = 384,
         },
     };
 
@@ -526,19 +588,21 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
     return allocator.dupe(u8, out.items) catch raw;
 }
 
-const Deployment = struct { icon_fn: *const fn (zx.Allocator) zx.Component, title: []const u8, description: []const u8 };
+const FeatureLink = struct { icon_fn: ?*const fn (zx.Allocator) zx.Component = null, label: []const u8, href: []const u8 };
 const Feature = struct {
     id: []const u8,
     label: []const u8,
     icon_fn: *const fn (zx.Allocator) zx.Component,
     title: []const u8,
     description: []const u8,
+    links: []const FeatureLink = &.{},
 };
 const FeaturePanelProps = struct {
     id: []const u8,
     label: []const u8,
     title: []const u8,
     description: []const u8,
+    links: []const FeatureLink = &.{},
     index: usize,
     show_code: bool = false,
     code_source: []const u8 = "",
@@ -559,6 +623,7 @@ fn FeaturePanel(allocator: zx.Allocator, props: FeaturePanelProps) zx.Component 
                             <h3 class="feature-panel-title">{props.title}</h3>
                             <p class="feature-panel-description">{props.description}</p>
                         </div>
+                        <FeatureLinks links={props.links} />
                     </div>
                     <div class="feature-panel-visual feature-panel-visual--code" aria-hidden="true">
                         <pre class="feature-syntax"><code class="hljs" @escaping={.none}>{code_html}</code></pre>
@@ -574,6 +639,7 @@ fn FeaturePanel(allocator: zx.Allocator, props: FeaturePanelProps) zx.Component 
                         <h3 class="feature-panel-title">{props.title}</h3>
                         <p class="feature-panel-description">{props.description}</p>
                     </div>
+                    <FeatureLinks links={props.links} />
                 </div>
                 <div class="feature-panel-visual feature-panel-visual--code" aria-hidden="true">
                     <pre class="feature-syntax"><code class="hljs" @escaping={.none}>{code_html}</code></pre>
@@ -590,6 +656,7 @@ fn FeaturePanel(allocator: zx.Allocator, props: FeaturePanelProps) zx.Component 
                         <h3 class="feature-panel-title">{props.title}</h3>
                         <p class="feature-panel-description">{props.description}</p>
                     </div>
+                    <FeatureLinks links={props.links} />
                 </div>
                 <div class="feature-panel-visual" aria-hidden="true">
                     <canvas class="feature-canvas" data-feature={props.id}></canvas>
@@ -605,11 +672,29 @@ fn FeaturePanel(allocator: zx.Allocator, props: FeaturePanelProps) zx.Component 
                     <h3 class="feature-panel-title">{props.title}</h3>
                     <p class="feature-panel-description">{props.description}</p>
                 </div>
+                <FeatureLinks links={props.links} />
             </div>
             <div class="feature-panel-visual" aria-hidden="true">
                 <canvas class="feature-canvas" data-feature={props.id}></canvas>
             </div>
         </article>
+    );
+}
+
+const FeatureLinksProps = struct { links: []const FeatureLink };
+fn FeatureLinks(allocator: zx.Allocator, props: FeatureLinksProps) zx.Component {
+    return (
+        <ul @allocator={allocator} class="feature-panel-links">
+            {for (props.links) |link| (
+                <li>
+                    {if (std.mem.startsWith(u8, link.href, "http")) (
+                        <a href={link.href} class="feature-panel-link" target="_blank" rel="noopener noreferrer">{if (link.icon_fn) |icon_fn| (<span class="feature-panel-link-icon">{icon_fn(allocator)}</span>)}{link.label}<span class="feature-panel-link-arrow" aria-hidden="true">↗</span></a>
+                    ) else (
+                        <a href={link.href} class="feature-panel-link">{if (link.icon_fn) |icon_fn| (<span class="feature-panel-link-icon">{icon_fn(allocator)}</span>)}{link.label}<span class="feature-panel-link-arrow" aria-hidden="true">→</span></a>
+                    )}
+                </li>
+            )}
+        </ul>
     );
 }
 
@@ -712,7 +797,7 @@ fn normalizeValue(value: f64, rows: []const BenchmarkRow) f64 {
     return value / max_value;
 }
 
-fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab) zx.Component {
+fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab, run_url: []const u8, run_date: []const u8) zx.Component {
     const panel_id = std.fmt.allocPrint(allocator, "panel-{s}", .{tab.id}) catch unreachable;
     const tab_id = std.fmt.allocPrint(allocator, "tab-{s}", .{tab.id}) catch unreachable;
     return (
@@ -723,7 +808,12 @@ fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab) zx.Component {
                     <BenchmarkRowView row={row} normalized_value={normalizeValue(row.value, tab.rows)} />
                 )}
             </div>
-            <div class="benchmarks-footnote">{tab.footnote}</div>
+            <div class="benchmarks-footnote">
+                <span>{tab.footnote}</span>
+                {if (run_url.len > 0) (
+                    <a href={run_url} target="_blank" rel="noopener noreferrer" class="benchmarks-run-link" data-tooltip={std.fmt.allocPrint(allocator, "Last benchmarked on {s}", .{run_date}) catch unreachable}>View CI run</a>
+                )}
+            </div>
         </div>
     );
 }
@@ -731,7 +821,7 @@ fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab) zx.Component {
 fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.Component {
     const tab_styles = buildBenchTabStyles(allocator, "benchmarks-tabs", props.tabs);
     return (
-        <section @allocator={allocator} class="benchmarks">
+        <section @allocator={allocator} class="benchmarks" id="benchmarks">
             <div class="benchmarks-header">
                 <span class="benchmarks-eyebrow">{props.eyebrow}</span>
                 <h2 class="section-title">{props.title}</h2>
@@ -752,37 +842,8 @@ fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.
                     )}
                 </div>
                 <div class="benchmarks-panels">
-                    {for (props.tabs) |tab| (BenchmarksPanel(allocator, tab))}
+                    {for (props.tabs) |tab| (BenchmarksPanel(allocator, tab, props.run_url, props.run_date))}
                 </div>
-                {if (props.run_url.len > 0) (
-                    <div class="benchmarks-run-meta">
-                        <span class="benchmarks-run-date">Last benchmarked on {props.run_date}</span>
-                        <a href={props.run_url} target="_blank" rel="noopener noreferrer" class="benchmarks-run-link">View CI run →</a>
-                    </div>
-                )}
-            </div>
-        </section>
-    );
-}
-
-const DeploymentSectionProps = struct {};
-fn DeploymentSection(allocator: zx.Allocator, _: DeploymentSectionProps) zx.Component {
-    return (
-        <section @allocator={allocator} class="deployment">
-            <div class="deployment-header">
-                <h2 class="section-title">Deploy Anywhere.</h2>
-                <p class="section-subtitle">
-                    Ziex compiles to a single, statically linked binary or a WASI module, making it compatible with every major cloud provider and edge network.
-                </p>
-            </div>
-            <div class="deployment-grid">
-                {for (deployments) |d| (
-                    <div class="deployment-card">
-                        <div class="deployment-card-icon">{d.icon_fn(allocator)}</div>
-                        <h3 class="deployment-card-title">{d.title}</h3>
-                        <p class="deployment-card-text">{d.description}</p>
-                    </div>
-                )}
             </div>
         </section>
     );
