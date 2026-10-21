@@ -3,15 +3,11 @@ const Cache = @This();
 const std = @import("std");
 const builtin = @import("builtin");
 
-const zx = @import("../../root.zig");
 const Kv = @import("Kv.zig");
 
 const Allocator = std.mem.Allocator;
 
 pub const cachez = @import("Cache/Mem/cache.zig");
-
-const entry_version: u8 = 1;
-const header_len = 9;
 
 backend: Kv = Kv.failing,
 namespace: []const u8 = "default",
@@ -105,7 +101,11 @@ pub fn get(self: Cache, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
     const encoded = (try backend.get(allocator, key)) orelse return null;
     defer allocator.free(encoded);
 
-    const decoded = try decodeStoredEntry(encoded);
+    const decoded = decodeStoredEntry(encoded) orelse {
+        try backend.delete(key);
+        _ = memory.del(scoped_key);
+        return null;
+    };
     if (isExpired(io, decoded.expires_at)) {
         try backend.delete(key);
         _ = memory.del(scoped_key);
@@ -119,17 +119,7 @@ pub fn get(self: Cache, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
 pub fn as(self: Cache, allocator: std.mem.Allocator, key: []const u8, comptime T: type) !?T {
     const raw = (try self.get(allocator, key)) orelse return null;
     defer allocator.free(raw);
-
-    const expected_hash = zx.util.zxon.schema(T).hash;
-    if (try storedTypeHash(raw) != expected_hash) return error.InvalidType;
-
-    const TypedValue = struct {
-        hash: u64,
-        value: T,
-    };
-
-    const parsed = try zx.util.zxon.parse(TypedValue, allocator, raw, .{});
-    return parsed.value;
+    return try Kv.decodeTyped(T, allocator, raw);
 }
 
 pub fn put(self: Cache, key: []const u8, value: []const u8, opts: PutOptions) !void {
@@ -150,21 +140,9 @@ pub fn put(self: Cache, key: []const u8, value: []const u8, opts: PutOptions) !v
 pub fn putAs(self: Cache, key: []const u8, value: anytype, opts: PutOptions) !void {
     _ = self.memory orelse return error.CacheUnavailable;
 
-    const ValueType = @TypeOf(value);
-    const TypedValue = struct {
-        hash: u64,
-        value: ValueType,
-    };
-
-    const allocator = self.allocator;
-    var writer = std.Io.Writer.Allocating.init(allocator);
+    var writer = std.Io.Writer.Allocating.init(self.allocator);
     defer writer.deinit();
-
-    try zx.util.zxon.serialize(TypedValue{
-        .hash = zx.util.zxon.schema(ValueType).hash,
-        .value = value,
-    }, &writer.writer, .{});
-
+    try Kv.encodeTyped(&writer.writer, value);
     try self.put(key, writer.written(), opts);
 }
 
@@ -195,7 +173,10 @@ pub fn list(self: Cache, allocator: std.mem.Allocator, prefix: []const u8) ![][]
         const encoded = (try backend.get(allocator, key)) orelse continue;
         defer allocator.free(encoded);
 
-        const decoded = try decodeStoredEntry(encoded);
+        const decoded = decodeStoredEntry(encoded) orelse {
+            try backend.delete(key);
+            continue;
+        };
         if (isExpired(io, decoded.expires_at)) {
             try backend.delete(key);
 
@@ -256,22 +237,24 @@ fn scopedKey(allocator: Allocator, ns: []const u8, key: []const u8) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}\x1f{s}", .{ ns, key });
 }
 
+/// A `Kv.Meta.Expiry` line followed by the payload.
 fn encodeStoredEntry(io: std.Io, allocator: Allocator, payload: []const u8, opts: PutOptions) ![]u8 {
     const expires_at = try expirationFromOptions(io, opts);
-    const encoded = try allocator.alloc(u8, header_len + payload.len);
-    encoded[0] = entry_version;
-    std.mem.writeInt(u64, encoded[1..header_len], expires_at orelse 0, .little);
-    @memcpy(encoded[header_len..], payload);
+    var line_buf: [Kv.Meta.max_len]u8 = undefined;
+    const line = Kv.Meta.line(&line_buf, Kv.Meta.Expiry{ .expires_at = expires_at orelse 0 });
+    const encoded = try allocator.alloc(u8, line.len + payload.len);
+    @memcpy(encoded[0..line.len], line);
+    @memcpy(encoded[line.len..], payload);
     return encoded;
 }
 
-fn decodeStoredEntry(encoded: []const u8) !StoredEntry {
-    if (encoded.len < header_len or encoded[0] != entry_version) return error.InvalidCacheEntry;
-
-    const expires_raw = std.mem.readInt(u64, encoded[1..header_len], .little);
+/// Null for entries without a valid expiry line (e.g. written by an older format).
+fn decodeStoredEntry(encoded: []const u8) ?StoredEntry {
+    const entry = Kv.Meta.split(Kv.Meta.Expiry, encoded) orelse return null;
+    const expires_at = entry.meta.expires_at;
     return .{
-        .expires_at = if (expires_raw == 0) null else expires_raw,
-        .payload = encoded[header_len..],
+        .expires_at = if (expires_at == 0) null else expires_at,
+        .payload = entry.rest,
     };
 }
 
@@ -329,22 +312,6 @@ fn cachezSafeTtl(io: std.Io, ttl_seconds: ?u32) u32 {
 
     const max_ttl = max_u32 - @as(u32, @intCast(current_now));
     return @min(ttl_seconds orelse max_ttl, max_ttl);
-}
-
-fn storedTypeHash(raw: []const u8) !u64 {
-    var i: usize = 0;
-
-    while (i < raw.len and std.ascii.isWhitespace(raw[i])) : (i += 1) {}
-    if (i >= raw.len or raw[i] != '[') return error.InvalidType;
-    i += 1;
-
-    while (i < raw.len and std.ascii.isWhitespace(raw[i])) : (i += 1) {}
-    const start = i;
-
-    while (i < raw.len and std.ascii.isDigit(raw[i])) : (i += 1) {}
-    if (start == i) return error.InvalidType;
-
-    return std.fmt.parseUnsigned(u64, raw[start..i], 10);
 }
 
 pub const failing: Cache = .{

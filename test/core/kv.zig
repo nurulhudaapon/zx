@@ -190,3 +190,98 @@ test "scoped typed roundtrip" {
     try std.testing.expectEqualStrings("scoped-user", user.name);
     try std.testing.expect(user.active);
 }
+
+test "ttl entry is readable before it expires" {
+    var key_buf: [64]u8 = undefined;
+    const key = try uniqueLabel("kv-ttl-live", &key_buf);
+    defer kv.delete(key) catch {};
+
+    try kv.put(key, "still here", .{ .ttl = .fromSeconds(60) });
+
+    const found = (try kv.get(allocator, key)).?;
+    defer allocator.free(found);
+    try std.testing.expectEqualStrings("still here", found);
+}
+
+test "expired entry reads as missing and is left out of list" {
+    var key_buf: [64]u8 = undefined;
+    const key = try uniqueLabel("kv-ttl-expired", &key_buf);
+    defer kv.delete(key) catch {};
+
+    try kv.put(key, "gone", .{ .ttl = .fromSeconds(0) });
+
+    const keys = try kv.list(allocator, key);
+    defer {
+        for (keys) |k| allocator.free(k);
+        allocator.free(keys);
+    }
+    try std.testing.expectEqual(@as(usize, 0), keys.len);
+    try std.testing.expect((try kv.get(allocator, key)) == null);
+}
+
+test "values with newlines and metadata-like bytes roundtrip" {
+    var key_buf: [64]u8 = undefined;
+    const key = try uniqueLabel("kv-raw-bytes", &key_buf);
+    defer kv.delete(key) catch {};
+
+    const value = "[1,99]\n[1,0]\nnot metadata\n\x00tail";
+    try kv.put(key, value, .{ .ttl = .fromSeconds(60) });
+
+    const found = (try kv.get(allocator, key)).?;
+    defer allocator.free(found);
+    try std.testing.expectEqualStrings(value, found);
+}
+
+test "large values roundtrip" {
+    var key_buf: [64]u8 = undefined;
+    const key = try uniqueLabel("kv-large", &key_buf);
+    defer kv.delete(key) catch {};
+
+    var value: [4096]u8 = undefined;
+    for (&value, 0..) |*b, i| b.* = @truncate(i * 31);
+    try kv.put(key, &value, .{});
+
+    const found = (try kv.get(allocator, key)).?;
+    defer allocator.free(found);
+    try std.testing.expectEqualSlices(u8, &value, found);
+}
+
+test "file without a metadata line reads as missing" {
+    var key_buf: [64]u8 = undefined;
+    const key = try uniqueLabel("kv-old-format", &key_buf);
+    defer kv.delete(key) catch {};
+
+    var name_buf: [128]u8 = undefined;
+    const name = std.base64.url_safe_no_pad.Encoder.encode(&name_buf, key);
+    var path_buf: [256]u8 = undefined;
+    const path = try std.fmt.bufPrint(&path_buf, "{s}{s}default{s}{s}", .{ kv_fs.subdir, std.fs.path.sep_str, std.fs.path.sep_str, name });
+    try kv.put(key, "placeholder", .{});
+    try std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = path, .data = "plain value from an older format" });
+
+    try std.testing.expect((try kv.get(allocator, key)) == null);
+}
+
+test "typed value from an older format is an invalid type" {
+    var key_buf: [64]u8 = undefined;
+    const key = try uniqueLabel("kv-old-typed", &key_buf);
+    defer kv.delete(key) catch {};
+
+    try kv.put(key, "[123,[1,\"name\",true]]", .{});
+    try std.testing.expectError(error.InvalidType, kv.as(allocator, key, User));
+}
+
+test "meta line roundtrips and rejects bad input" {
+    const Meta = zx.Kv.Meta;
+    var buf: [Meta.max_len]u8 = undefined;
+    const line = Meta.line(&buf, Meta.Expiry{ .expires_at = 1730000000 });
+    try std.testing.expectEqualStrings("[1,1730000000]\n", line);
+
+    const raw = "[1,42]\nvalue\nwith lines";
+    const parsed = Meta.split(Meta.Typed, raw).?;
+    try std.testing.expectEqual(@as(u64, 42), parsed.meta.hash);
+    try std.testing.expectEqualStrings("value\nwith lines", parsed.rest);
+
+    try std.testing.expect(Meta.split(Meta.Typed, "no newline") == null);
+    try std.testing.expect(Meta.split(Meta.Typed, "[2,42]\nfuture version") == null);
+    try std.testing.expect(Meta.split(Meta.Typed, "not zxon\nvalue") == null);
+}

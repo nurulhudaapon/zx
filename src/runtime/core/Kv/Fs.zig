@@ -7,22 +7,49 @@ io: std.Io,
 namespace: []const u8 = "default",
 subdir: []const u8,
 
+/// Each file is a `Kv.Meta.Expiry` line followed by the raw value.
 fn get(userdata: ?*anyopaque, ns: []const u8, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
     const f: *Fs = @ptrCast(@alignCast(userdata));
     var buf: [1024]u8 = undefined;
     const path = keyPath(f.subdir, ns, key, &buf) orelse return null;
-    return std.Io.Dir.cwd().readFileAlloc(f.io, path, allocator, .limited(10 * 1024 * 1024)) catch null;
+
+    var file = std.Io.Dir.cwd().openFile(f.io, path, .{}) catch return null;
+    defer file.close(f.io);
+
+    // One read covers the metadata line and, for small values, the value itself.
+    var head: [512]u8 = undefined;
+    const head_len = file.readPositionalAll(f.io, &head, 0) catch return null;
+    const entry = f.liveEntry(path, head[0..head_len]) orelse return null;
+    const offset = head_len - entry.rest.len;
+
+    const total = file.length(f.io) catch return null;
+    if (total > max_value_len) return null;
+    const value = try allocator.alloc(u8, @intCast(total - offset));
+    errdefer allocator.free(value);
+    if (total <= head_len) {
+        @memcpy(value, entry.rest);
+    } else {
+        const n = file.readPositionalAll(f.io, value, offset) catch return null;
+        if (n != value.len) return error.KvGetFailed;
+    }
+    return value;
 }
 
-fn put(userdata: ?*anyopaque, ns: []const u8, key: []const u8, value: []const u8, _: Kv.PutOptions) !void {
+fn put(userdata: ?*anyopaque, ns: []const u8, key: []const u8, value: []const u8, opts: Kv.PutOptions) !void {
     const f: *Fs = @ptrCast(@alignCast(userdata));
     var buf: [1024]u8 = undefined;
     const path = keyPath(f.subdir, ns, key, &buf) orelse return error.KeyTooLong;
+
+    const expires_at: u64 = if (opts.ttl) |ttl| @intCast(@max(0, f.nowSeconds() + ttl.toSeconds())) else 0;
+    var line_buf: [Kv.Meta.max_len]u8 = undefined;
+    const line = Kv.Meta.line(&line_buf, Kv.Meta.Expiry{ .expires_at = expires_at });
+
     var file = try std.Io.Dir.cwd().createFileAtomic(f.io, path, .{
         .make_path = true,
         .replace = true,
     });
     defer file.deinit(f.io);
+    try file.file.writeStreamingAll(f.io, line);
     try file.file.writeStreamingAll(f.io, value);
     try file.replace(f.io);
 }
@@ -32,6 +59,35 @@ fn delete(userdata: ?*anyopaque, ns: []const u8, key: []const u8) !void {
     var buf: [1024]u8 = undefined;
     const path = keyPath(f.subdir, ns, key, &buf) orelse return;
     std.Io.Dir.cwd().deleteFile(f.io, path) catch {};
+}
+
+const max_value_len = 10 * 1024 * 1024;
+
+/// Parses the expiry line from the start of a file. Expired or unreadable
+/// entries (including files from before this format) are deleted.
+fn liveEntry(f: *Fs, path: []const u8, head: []const u8) ?Kv.Meta.Split(Kv.Meta.Expiry) {
+    const entry = Kv.Meta.split(Kv.Meta.Expiry, head) orelse {
+        std.Io.Dir.cwd().deleteFile(f.io, path) catch {};
+        return null;
+    };
+    const expires_at = entry.meta.expires_at;
+    if (expires_at != 0 and f.nowSeconds() >= @as(i64, @intCast(expires_at))) {
+        std.Io.Dir.cwd().deleteFile(f.io, path) catch {};
+        return null;
+    }
+    return entry;
+}
+
+fn isLive(f: *Fs, path: []const u8) bool {
+    var file = std.Io.Dir.cwd().openFile(f.io, path, .{}) catch return false;
+    defer file.close(f.io);
+    var head: [Kv.Meta.max_len]u8 = undefined;
+    const n = file.readPositionalAll(f.io, &head, 0) catch return false;
+    return f.liveEntry(path, head[0..n]) != null;
+}
+
+fn nowSeconds(f: *Fs) i64 {
+    return std.Io.Timestamp.now(f.io, .real).toSeconds();
 }
 
 fn list(userdata: ?*anyopaque, ns: []const u8, allocator: std.mem.Allocator, prefix: []const u8) ![][]u8 {
@@ -51,7 +107,10 @@ fn list(userdata: ?*anyopaque, ns: []const u8, allocator: std.mem.Allocator, pre
             allocator.free(key);
             continue;
         };
-        if (prefix.len == 0 or std.mem.startsWith(u8, key, prefix)) {
+        var path_buf: [1024]u8 = undefined;
+        const matches = prefix.len == 0 or std.mem.startsWith(u8, key, prefix);
+        const path = keyPath(f.subdir, ns, key, &path_buf);
+        if (matches and path != null and f.isLive(path.?)) {
             try keys.append(allocator, key);
         } else {
             allocator.free(key);
