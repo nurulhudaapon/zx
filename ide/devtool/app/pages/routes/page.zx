@@ -170,6 +170,7 @@ fn RouteSection(allocator: zx.Allocator, props: struct { route: store.AppRoute }
                 <DetailRow allocator={allocator} key="kind" value={route.kind} />
                 <DetailRow allocator={allocator} key="methods" value={joinMethods(allocator, route.methods)} />
                 <DetailRow allocator={allocator} key="is_dynamic" value={store.boolLabel(route.is_dynamic)} />
+                <DetailRow allocator={allocator} key="rendering" value={route.rendering.rendering orelse "default"} />
                 <DetailRow allocator={allocator} key="has_page" value={store.boolLabel(route.has_page)} />
                 <DetailRow allocator={allocator} key="has_route" value={store.boolLabel(route.has_route)} />
                 <DetailRow allocator={allocator} key="has_layout" value={store.boolLabel(route.has_layout)} />
@@ -201,8 +202,8 @@ fn OptsSection(allocator: zx.Allocator, props: struct { title: []const u8, opts:
                 <DetailRow allocator={allocator} key="rendering" value={rendering} />
                 <DetailRow allocator={allocator} key="caching.ttl" value={ttl} />
                 <DetailRow allocator={allocator} key="caching.key" value={cache_key} />
-                <DetailRow allocator={allocator} key="streaming" value={store.boolLabel(opts.streaming)} />
                 <DetailRow allocator={allocator} key="dynamic" value={store.boolLabel(opts.dynamic)} />
+                <DetailRow allocator={allocator} key="stream" value={store.boolLabel(opts.stream)} />
                 <DetailRow allocator={allocator} key="static" value={store.boolLabel(opts.has_static)} />
             </div>
         </div>

@@ -878,7 +878,7 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
             <h3 id="deployment-static">Static</h3>
             <p>For sites without per-request server logic, export every route to static HTML:</p>
             <CodeBlock code="zig build zx -- export" />
-            <p>This crawls all routes and writes the output to a <code>dist/</code> directory, ready to upload to any static host like Netlify, GitHub Pages, or a CDN.</p>
+            <p>This crawls all routes and writes the output to a <code>dist/</code> directory, ready to upload to any static host like Netlify, GitHub Pages, or a CDN. Skip a route with <code>.rendering = .request</code> in its options.</p>
 
             <h3 id="deployment-edge">Edge</h3>
             <p>Ziex compiles to WebAssembly (WASI), so it can be deployed to edge runtimes like Cloudflare Workers or Vercel.</p>

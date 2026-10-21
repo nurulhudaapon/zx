@@ -14,8 +14,8 @@ pub const SerilizableAppMeta = struct {
         rendering: ?[]const u8 = null,
         caching_ttl_s: ?i64 = null,
         caching_key: ?[]const u8 = null,
-        streaming: bool = false,
         dynamic: bool = false,
+        stream: bool = false,
         has_static: bool = false,
     };
 
@@ -33,6 +33,8 @@ pub const SerilizableAppMeta = struct {
         page_opts: ?Opts = null,
         route_opts: ?Opts = null,
         layout_opts: ?Opts = null,
+        /// Effective rendering after layout inheritance.
+        rendering: Opts = .{},
     };
     pub const Config = struct {
         server: AppConfig.ServerConfig,
@@ -63,6 +65,7 @@ pub const SerilizableAppMeta = struct {
                 .route_opts = try serializeRouteOpts(allocator, route.route_opts),
                 .layout_opts = try serializeLayoutOpts(allocator, route.layout_opts),
             };
+            renderingOpts(&routes[i].rendering, route.rendering);
         }
 
         const version = try allocator.dupe(u8, zx.info.version);
@@ -114,38 +117,43 @@ pub const SerilizableAppMeta = struct {
         return .{ ttl_s, key };
     }
 
+    /// Name of the matching `zx.PageOptions.Rendering` preset, or "custom".
+    fn renderingName(r: zx.PageOptions.Rendering) []const u8 {
+        inline for (.{ "default", "request", "streamed" }) |name| {
+            if (std.meta.eql(r, @field(zx.PageOptions.Rendering, name))) return name;
+        }
+        return "custom";
+    }
+
+    fn renderingOpts(o: *Opts, rendering: ?zx.PageOptions.Rendering) void {
+        const r = rendering orelse return;
+        o.rendering = renderingName(r);
+        o.dynamic = r.dynamic;
+        o.stream = r.stream;
+    }
+
     fn serializePageOpts(allocator: std.mem.Allocator, opts: ?zx.PageOptions) !?Opts {
         const o = opts orelse return null;
         const ttl_s, const key = try serializeCaching(allocator, o.caching);
-        return Opts{
-            .rendering = if (o.rendering) |r| @tagName(r) else null,
-            .caching_ttl_s = ttl_s,
-            .caching_key = key,
-            .streaming = o.streaming,
-            .dynamic = o.dynamic,
-            .has_static = o.static != null,
-        };
+        var out = Opts{ .caching_ttl_s = ttl_s, .caching_key = key, .has_static = o.static != null };
+        renderingOpts(&out, o.rendering);
+        return out;
     }
 
     fn serializeRouteOpts(allocator: std.mem.Allocator, opts: ?zx.RouteOptions) !?Opts {
         const o = opts orelse return null;
         const ttl_s, const key = try serializeCaching(allocator, o.caching);
-        return Opts{
-            .caching_ttl_s = ttl_s,
-            .caching_key = key,
-            .dynamic = o.dynamic,
-            .has_static = o.static != null,
-        };
+        var out = Opts{ .caching_ttl_s = ttl_s, .caching_key = key, .has_static = o.static != null };
+        renderingOpts(&out, o.rendering);
+        return out;
     }
 
     fn serializeLayoutOpts(allocator: std.mem.Allocator, opts: ?zx.LayoutOptions) !?Opts {
         const o = opts orelse return null;
         const ttl_s, const key = try serializeCaching(allocator, o.caching);
-        return Opts{
-            .rendering = if (o.rendering) |r| @tagName(r) else null,
-            .caching_ttl_s = ttl_s,
-            .caching_key = key,
-        };
+        var out = Opts{ .caching_ttl_s = ttl_s, .caching_key = key };
+        renderingOpts(&out, o.rendering);
+        return out;
     }
 
     fn getRouteKindAndMethods(allocator: std.mem.Allocator, route: ServerApp.Route) !struct { []const u8, []const []const u8 } {
@@ -648,6 +656,8 @@ pub const ServerApp = struct {
         proxy: ?ProxyHandler = null,
         page_proxy: ?ProxyHandler = null,
         route_proxy: ?ProxyHandler = null,
+        /// Effective rendering after layout inheritance (see `resolveRendering`).
+        rendering: zx.PageOptions.Rendering = .default,
 
         /// Prefer `page_opts.static` over `route_opts.static` when both are set.
         pub fn staticFn(self: *const Route) ?zx.StaticFn {
@@ -662,13 +672,7 @@ pub const ServerApp = struct {
 
         /// True when export should skip static generation for this route.
         pub fn isDynamic(self: *const Route) bool {
-            if (self.page_opts) |page_opts| {
-                if (page_opts.dynamic) return true;
-            }
-            if (self.route_opts) |route_opts| {
-                if (route_opts.dynamic) return true;
-            }
-            return false;
+            return self.rendering.dynamic;
         }
 
         /// Run the route's `static` fn and return ZON-ready param sets, or null if unset.
@@ -704,11 +708,51 @@ const server_routes = blk: {
             .proxy = if (route.proxy) |proxy| ServerApp.proxy(proxy) else null,
             .page_proxy = if (route.proxy) |proxy| ServerApp.pageProxy(proxy) else null,
             .route_proxy = if (route.proxy) |proxy| ServerApp.routeProxy(proxy) else null,
+            .rendering = resolveRendering(route.path, route),
         };
     }
 
     break :blk routes;
 };
+
+/// A page's own `rendering`, else the nearest layout's at or above its path, else
+/// `.default`. API routes only use their own setting.
+fn resolveRendering(comptime path: []const u8, comptime route: anytype) zx.PageOptions.Rendering {
+    @setEvalBranchQuota(100_000);
+    if (route.page) |page| {
+        if (getOptions(page, zx.PageOptions)) |o| if (o.rendering) |r| return checkRendering(path, r, false);
+
+        var best: ?zx.PageOptions.Rendering = null;
+        var best_len: usize = 0;
+        for (app.routes) |ancestor| {
+            const layout = ancestor.layout orelse continue;
+            const lo = getOptions(layout, zx.LayoutOptions) orelse continue;
+            const r = lo.rendering orelse continue;
+            if (!isPathAncestor(ancestor.path, path)) continue;
+            if (best == null or ancestor.path.len > best_len) {
+                best = r;
+                best_len = ancestor.path.len;
+            }
+        }
+        if (best) |r| return checkRendering(path, r, false);
+    }
+    if (route.route) |rt| {
+        if (getOptions(rt, zx.RouteOptions)) |o| if (o.rendering) |r| return checkRendering(path, r, true);
+    }
+    return .default;
+}
+
+fn checkRendering(comptime path: []const u8, comptime r: zx.PageOptions.Rendering, comptime is_api: bool) zx.PageOptions.Rendering {
+    if (is_api and r.stream) @compileError(path ++ ": `stream` only applies to pages, not route.zig");
+    return r;
+}
+
+/// Whether `ancestor` is `path` or one of its parent paths, on segment boundaries.
+fn isPathAncestor(comptime ancestor: []const u8, comptime path: []const u8) bool {
+    if (std.mem.eql(u8, ancestor, "/")) return true;
+    if (!std.mem.startsWith(u8, path, ancestor)) return false;
+    return path.len == ancestor.len or path[ancestor.len] == '/';
+}
 
 pub const server_app = ServerApp{
     .routes = &server_routes,

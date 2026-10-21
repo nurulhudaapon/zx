@@ -86,29 +86,46 @@ pub const StaticFn = *const fn (ctx: *StaticContext) anyerror!void;
 pub const PageOptions = struct {
     pub const Method = PageMethod;
 
-    rendering: ?BuiltinAttribute.Rendering = null,
+    /// How and when a page or route is rendered. Set it on a page, or on a layout to
+    /// apply it to every page below that layout; the nearest setting wins.
+    ///
+    /// ```zig
+    /// pub const options = zx.PageOptions{ .rendering = .streamed };
+    /// ```
+    pub const Rendering = struct {
+        /// Always render per request; skipped by static export.
+        dynamic: bool = false,
+        /// Stream HTML, flushing async components as they resolve. Pages only.
+        stream: bool = false,
+
+        pub const default: Rendering = .{};
+        /// Rendered for every request, never exported.
+        pub const request: Rendering = .{ .dynamic = true };
+        /// Rendered for every request and streamed.
+        pub const streamed: Rendering = .{ .dynamic = true, .stream = true };
+    };
+
+    /// Inherits from the nearest layout when null.
+    rendering: ?Rendering = null,
     caching: ?BuiltinAttribute.Caching = null,
     methods: []const PageMethod = &.{.GET},
     static: ?StaticFn = null,
-    /// Enable streaming SSR with async components
-    streaming: bool = false,
-    /// When true export command will skip over generating static content for this route.
-    dynamic: bool = false,
 };
 
 pub const LayoutOptions = struct {
-    rendering: ?BuiltinAttribute.Rendering = null,
+    /// Default for every page below this layout.
+    rendering: ?PageOptions.Rendering = null,
     caching: ?BuiltinAttribute.Caching = null,
 };
 pub const NotFoundOptions = struct {
-    rendering: ?BuiltinAttribute.Rendering = null,
     caching: ?BuiltinAttribute.Caching = null,
 };
 pub const ErrorOptions = struct {};
 pub const RouteOptions = struct {
+    /// Only `dynamic` applies; not inherited from layouts.
+    rendering: ?PageOptions.Rendering = null,
     caching: ?BuiltinAttribute.Caching = null,
     static: ?StaticFn = null,
-    dynamic: bool = false,
 };
 
 /// Options for proxy middleware

@@ -227,10 +227,6 @@ fn sparkPath(allocator: zx.Allocator, points: []const f64) []const u8 {
     return out.items;
 }
 
-pub const options = zx.PageOptions{
-    .rendering = .server,
-};
-
 const Stats = stats_gen.Stats;
 const GitHubIcon = icons.GitHub;
 

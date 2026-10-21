@@ -52,27 +52,10 @@ test "dynamic > false by default" {
     try std.testing.expect(!route.isDynamic());
 }
 
-test "dynamic > true from page_opts" {
+test "dynamic > true from rendering" {
     const route = Route{
         .path = "/dashboard",
-        .page_opts = .{ .dynamic = true },
-    };
-    try std.testing.expect(route.isDynamic());
-}
-
-test "dynamic > true from route_opts" {
-    const route = Route{
-        .path = "/api/stream",
-        .route_opts = .{ .dynamic = true },
-    };
-    try std.testing.expect(route.isDynamic());
-}
-
-test "dynamic > true when either opts flag is set" {
-    const route = Route{
-        .path = "/mixed",
-        .page_opts = .{ .dynamic = false },
-        .route_opts = .{ .dynamic = true },
+        .rendering = .request,
     };
     try std.testing.expect(route.isDynamic());
 }

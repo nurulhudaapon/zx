@@ -80,7 +80,7 @@ extern "__zx_sys" fn sleep_ms(ms: u32) void;
 
 
 pub const options = zx.PageOptions{
-    .streaming = true,
+    .rendering = .streamed,
 };
 
 const std = @import("std");

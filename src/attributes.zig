@@ -6,8 +6,6 @@ pub const builtin = struct {
         client,
         /// Server-side rendering (default)
         server,
-        /// Static rendering (pre-render the component/page/layout as static HTML and store in cache/cdn)
-        static,
 
         pub fn from(value: []const u8) Rendering {
             const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;

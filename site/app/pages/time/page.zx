@@ -28,7 +28,6 @@ fn Time(allocator: zx.Allocator) zx.Component {
 }
 
 pub const options = zx.PageOptions{
-    .rendering = .server,
     .caching = .{ .ttl = .fromSeconds(1) },
 };
 

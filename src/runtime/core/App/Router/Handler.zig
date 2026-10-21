@@ -306,6 +306,5 @@ pub fn injectDevScript(allocator: Allocator, page: *Component) void {
 
 /// Check if streaming is enabled for a route.
 pub fn isStreamingEnabled(route: *const Route) bool {
-    if (route.page_opts) |opts| return opts.streaming;
-    return false;
+    return route.rendering.stream;
 }
