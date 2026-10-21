@@ -471,7 +471,7 @@ fn collectEmbedFiles(
     out_dir: []const u8,
 ) !void {
     for (0..ast.nodes.len) |i| {
-        const node: std.zig.Ast.Node.Index = @enumFromInt(i);
+        const node: std.zig.Ast.Node.Index = @fromBackingInt(@intCast(i));
         switch (ast.nodeTag(node)) {
             .builtin_call_two, .builtin_call_two_comma => {},
             else => continue,
@@ -543,7 +543,7 @@ fn collectAndCopyCompanions(
     verbose: bool,
 ) anyerror!void {
     for (0..ast.nodes.len) |i| {
-        const node: std.zig.Ast.Node.Index = @enumFromInt(i);
+        const node: std.zig.Ast.Node.Index = @fromBackingInt(@intCast(i));
         switch (ast.nodeTag(node)) {
             .builtin_call_two, .builtin_call_two_comma => {},
             else => continue,
@@ -626,7 +626,7 @@ fn collectZxImports(
     source_dir: []const u8,
 ) !void {
     for (0..ast.nodes.len) |i| {
-        const node: std.zig.Ast.Node.Index = @enumFromInt(i);
+        const node: std.zig.Ast.Node.Index = @fromBackingInt(@intCast(i));
         switch (ast.nodeTag(node)) {
             .builtin_call_two, .builtin_call_two_comma => {},
             else => continue,
@@ -1786,8 +1786,10 @@ fn transpileDirectory(
                 break :blk true;
             };
 
+            const cache_is_output = std.mem.eql(u8, cache_out_path, output_path);
+
             if (should_skip) {
-                if (opts.cache_dir) |_| {
+                if (opts.cache_dir != null and !cache_is_output) {
                     if (std.fs.path.dirname(output_path)) |parent_dir| {
                         std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
                     }
@@ -1813,7 +1815,7 @@ fn transpileDirectory(
                     continue;
                 };
 
-                if (opts.cache_dir) |_| {
+                if (opts.cache_dir != null and !cache_is_output) {
                     if (std.fs.path.dirname(cache_out_path)) |parent_dir| {
                         std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
                     }
@@ -2010,6 +2012,17 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
     if (opts.client_dir) |dir| {
         try readClientZons(io, allocator, dir, &client_cmps);
     }
+
+    // Walk order is filesystem-dependent
+    std.mem.sort(ClientComponentSerializable, client_cmps.items, {}, struct {
+        fn less(_: void, a: ClientComponentSerializable, b: ClientComponentSerializable) bool {
+            return switch (std.mem.order(u8, a.path, b.path)) {
+                .lt => true,
+                .gt => false,
+                .eq => std.mem.lessThan(u8, a.id, b.id),
+            };
+        }
+    }.less);
 
     genRoutes(io, allocator, opts.outdir, opts.base_path, client_cmps.items, if (manifest) |*m| m else null, opts.verbose) catch |err| switch (err) {
         error.NoPagesOrRoutes => {}, // No routes to generate is not an error
