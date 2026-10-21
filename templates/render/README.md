@@ -1,89 +1,52 @@
-# Ziex App on Render
+[![Ziex Render template](https://ziex.dev/branding/banner-render.svg)](https://ziex.dev)
 
-> A starter template for building web applications with [Ziex](https://ziex.dev) deployed on [Render](https://render.com/).
+<p align="center">
+	<a href="https://ziex.dev/learn">Docs</a> ·
+	<a href="https://ziex.dev/examples">Examples</a> ·
+	<a href="https://ziex.dev/reference#cli">CLI</a> ·
+	<a href="https://ziex.dev/r/discord">Discord</a> ·
+	<a href="https://github.com/ziex-dev/ziex">GitHub</a>
+</p>
 
-**[Documentation →](https://ziex.dev)**
+<p align="center"><a href="https://render.com/deploy?repo=https://github.com/ziex-dev/template-render"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a></p>
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ziex-dev/template-render)
+## Developing
 
-## Getting Started
+Requirements: `zig` ([version](build.zig.zon#L5))
 
-### Prerequisites
-
-**1. Install ZX CLI**
-
-```bash
-# Linux/macOS
-curl -fsSL https://ziex.dev/install | bash
-
-# Windows
-powershell -c "irm ziex.dev/install.ps1 | iex"
-```
-
-**2. Install Zig**
-
-```bash
-brew install zig  # macOS
-winget install -e --id zig.zig  # Windows
-```
-
-[_Other platforms →_](https://ziglang.org/learn/getting-started/)
-
-## Project Structure
-
-```
-├── app/
-│   ├── assets/         # Static assets (CSS, images, etc)
-│   ├── main.zig        # Zig entrypoint
-│   ├── pages/          # Pages (Zig/ZX)
-│   │   ├── layout.zx   # Root layout
-│   │   ├── page.zx     # Home page
-│   │   ├── client.zx   # Client-side component
-│   │   └── ...
-│   └── public/         # Public static files (favicon, etc)
-├── build.zig           # Zig build script
-└── build.zig.zon       # Zig package manager config
-```
-
-## Development
+Start dev server (http://localhost:3000):
 
 ```bash
 zig build dev
 ```
 
-App will be available at [`http://localhost:3000`](http://localhost:3000) with hot reload enabled.
+Serve a production build:
 
-## Deploy to Render
+```bash
+zig build serve --release=fast
+```
 
-### Via Render Dashboard
+Bundle for deployment (output in `bundle/`):
 
-1. Push this repo to GitHub
-2. Go to [Render](https://render.com/) and create a new **Web Service**
-3. Select **Deploy from GitHub repo**
-4. Render will auto-detect the `render.yaml` blueprint and configure:
-   - **Environment**: Docker
-   - **Dockerfile Path**: `./Dockerfile`
-   - **Health Check Path**: `/`
+```bash
+zig build zx -- bundle
+```
 
-### Via Blueprint
+Format code:
 
-This template includes a `render.yaml` blueprint. Click the deploy button above or:
+```bash
+zig build zx -- fmt .
+```
 
-1. Go to [Render Blueprint Dashboard](https://dashboard.render.com/select-repo?type=blueprint)
-2. Select this repository
-3. Render will read `render.yaml` and configure the service automatically
+Every [ZX CLI](https://ziex.dev/reference#cli) command is available as `zig build zx -- <command>`.
 
-### Configuration
+## Deploying
 
-The app automatically reads the `PORT` environment variable provided by Render and binds to `0.0.0.0`. No manual port configuration is needed.
+Push this repo to GitHub and create a [Blueprint](https://dashboard.render.com/select-repo?type=blueprint) from it. Render reads `render.yaml` and builds with the included `Dockerfile`.
 
-## Contributing
+The app reads Render's `PORT` and binds to `0.0.0.0`, so no port setup is needed.
 
-Contributions are welcome! For feature requests, bug reports, or questions, see the [Ziex Repo](https://github.com/ziex-dev/ziex).
+Built with
 
-## Links
-
-- [Documentation](https://ziex.dev)
-- [Discord](https://ziex.dev/r/discord)
-- [Render Docs](https://render.com/docs)
-- [Zig Language](https://ziglang.org/)
+- Ziex: https://ziex.dev
+- Zig: https://ziglang.org

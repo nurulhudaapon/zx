@@ -209,6 +209,7 @@ pub fn build(b: *std.Build) !void {
         if (b.lazyDependency("lunasvg", .{ .optimize = optimize, .target = target })) |lunasvg|
             app_exe.root_module.addImport("lunasvg", lunasvg.module("lunasvg"));
     app_exe.root_module.addImport("geist_fonts", addGeistFontsModule(b));
+    app_exe.root_module.addImport("branding", addBrandingModule(b));
 
     app_exe.step.dependOn(pg_step);
 
@@ -422,6 +423,19 @@ fn addGeistFontsModule(b: *std.Build) *std.Build.Module {
     const root = wf.add("root.zig",
         \\pub const regular = @embedFile("Geist-Regular.ttf");
         \\pub const bold = @embedFile("Geist-Bold.ttf");
+        \\
+    );
+    return b.createModule(.{
+        .root_source_file = root,
+    });
+}
+
+fn addBrandingModule(b: *std.Build) *std.Build.Module {
+    const branding = b.dependency("branding", .{});
+    const wf = b.addWriteFiles();
+    _ = wf.addCopyFile(branding.path("banner-animated.svg"), "banner-animated.svg");
+    const root = wf.add("root.zig",
+        \\pub const banner_animated = @embedFile("banner-animated.svg");
         \\
     );
     return b.createModule(.{

@@ -1,95 +1,48 @@
-# Ziex App on Vercel
+[![Ziex Vercel template](https://ziex.dev/branding/banner-vercel.svg)](https://ziex.dev)
 
-> A starter template for building web applications with [Ziex](https://ziex.dev) deployed on [Vercel](https://vercel.com/).
+<p align="center">
+	<a href="https://ziex.dev/learn">Docs</a> ·
+	<a href="https://ziex.dev/examples">Examples</a> ·
+	<a href="https://ziex.dev/reference#cli">CLI</a> ·
+	<a href="https://ziex.dev/r/discord">Discord</a> ·
+	<a href="https://github.com/ziex-dev/ziex">GitHub</a>
+</p>
 
-**[Documentation →](https://ziex.dev)**
+<p align="center"><a href="https://vercel.com/new/clone?repository-url=https://github.com/ziex-dev/template-vercel"><img src="https://vercel.com/button" alt="Deploy with Vercel" /></a></p>
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/ziex-dev/template-vercel)
+## Developing
 
-## Getting Started
-
-### Prerequisites
-
-**1. Install ZX CLI**
-
-```bash
-# Linux/macOS
-curl -fsSL https://ziex.dev/install | bash
-
-# Windows
-powershell -c "irm ziex.dev/install.ps1 | iex"
-```
-
-**2. Install Zig**
+Requirements: [Node.js](https://nodejs.org/)
 
 ```bash
-brew install zig  # macOS
-winget install -e --id zig.zig  # Windows
+npm install
 ```
 
-[_Other platforms →_](https://ziglang.org/learn/getting-started/)
-
-**3. Install Node.js** (for Vercel CLI)
-
-[_Download →_](https://nodejs.org/)
-
-## Project Structure
-
-```
-├── api/
-│   └── index.ts        # Vercel Edge Function entrypoint
-│   └── nodejs.ts       # Vercel Node.js Function entrypoint
-├── app/
-│   ├── assets/         # Static assets (CSS, images, etc)
-│   ├── main.zig        # Zig entrypoint
-│   ├── pages/          # Pages (Zig/ZX)
-│   │   ├── layout.zx   # Root layout
-│   │   ├── page.zx     # Home page
-│   │   ├── client.zx   # Client-side component
-│   │   └── ...
-│   └── public/         # Public static files (favicon, etc)
-├── build.zig           # Zig build script
-├── build.zig.zon       # Zig package manager config
-└── package.json
-```
-
-## Usage
-
-By default the app is configured to use Vercel Edge Functions. If you want to use Node.js runtime instead, update .vercelignore to remove `api/nodejs.ts` and update `vercel.json` to point to `api/nodejs.ts` as the entrypoint.
-
-### Development
+Start dev server (http://localhost:3000):
 
 ```bash
-vercel dev
+npx vercel dev
 ```
 
-App will be available at [`http://localhost:3000`](http://localhost:3000) with hot reload enabled.
+Every [ZX CLI](https://ziex.dev/reference#cli) command is available as `npx zx <command>`.
 
-### Deploy to Vercel
+## Deploying
 
 ```bash
-vercel deploy
+npx vercel deploy
 ```
 
-Or click the **Deploy with Vercel** button above for one-click deployment.
+Runtime: Edge Functions by default (`api/index.ts`). To use the Node.js runtime instead, remove `api/nodejs.ts` from `.vercelignore` and point `vercel.json` at `api/nodejs.ts`.
 
-### Pre-rendering
+Pre-rendering: pages that look the same for every visitor can be served from Vercel's CDN. Mark them with `pub const options = zx.PageOptions{ .rendering = .prerendered };` and set `buildCommand` in `vercel.json` to:
 
-Pages that look the same for every visitor can be served straight from Vercel's CDN. Mark them with `pub const options = zx.PageOptions{ .rendering = .prerendered };` and build with `--prerender` in `buildCommand` in `vercel.json`:
-
-```json
-"buildCommand": "zig build zx -- build --target=wasm32-wasi --release=small --prerender"
+```bash
+zig build zx -- build --target=wasm32-wasi --release=small --prerender
 ```
 
 See [Pre-rendering](https://ziex.dev/learn#deployment-prerender).
 
-## Contributing
+Built with
 
-Contributions are welcome! For feature requests, bug reports, or questions, see the [Ziex Repo](https://github.com/ziex-dev/ziex).
-
-## Links
-
-- [Documentation](https://ziex.dev)
-- [Discord](https://ziex.dev/r/discord)
-- [Vercel Docs](https://vercel.com/docs)
-- [Zig Language](https://ziglang.org/)
+- Ziex: https://ziex.dev
+- Zig: https://ziglang.org
