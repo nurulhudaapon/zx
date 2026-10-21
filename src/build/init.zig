@@ -164,6 +164,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     transpile_cmd.addArgs(&.{"--cache-dir"});
     transpile_cmd.addDirectoryArg(transpile_store);
     transpile_cmd.expectExitCode(0);
+    transpile_cmd.has_side_effects = true;
 
     const uses_local_bindings = opts.client.bindings.href == null;
     const use_stable_assets = is_dev_build or optimize == .debug;
