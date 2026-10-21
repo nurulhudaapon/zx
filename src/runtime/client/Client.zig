@@ -27,7 +27,9 @@ const js = window.js;
 pub const EventType = @import("event_type.zig").EventType;
 
 pub const ComponentMeta = struct {
-    type: zx.BuiltinAttribute.Rendering,
+    pub const Type = enum { client };
+
+    type: Type = .client,
     id: []const u8,
     name: []const u8,
     path: []const u8,

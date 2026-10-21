@@ -1026,8 +1026,8 @@ function drawTooling(ctx: Ctx, t: number, data: FeatureCanvasData) {
 
   const lh = 20;
   const codeTop = 48;
-  const typeLine = tl.code.findIndex((l) => l.includes("@rendering"));
-  const typeAt = typeLine >= 0 ? tl.code[typeLine].indexOf("@rendering") : -1;
+  const typeLine = tl.code.findIndex((l) => l.includes("@client"));
+  const typeAt = typeLine >= 0 ? tl.code[typeLine].indexOf("@client") : -1;
   const typed = typeAt >= 0 ? Math.floor(clamp((local - 0.4) / 1.0) * 4) : 0;
   const accepted = local > 2.6;
 

@@ -2,11 +2,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena}>
             <input type="text" name="name" value="Jodhn Doe" />
-            <ProfileForm @rendering={.client} />
+            <ProfileForm @client />
             <br />
             <hr />
             <br />
-            <ProfileForm @rendering={.client} />
+            <ProfileForm @client />
         </div>
     );
 }

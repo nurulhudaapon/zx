@@ -125,11 +125,13 @@ module.exports = grammar(zig, {
       '}',
     ),
 
-    // Builtin attributes starting with @: @allocator, @rendering, etc.
+    // Builtin attributes starting with @: @allocator={...}, or bare like @client
     zx_builtin_attribute: $ => seq(
       field('name', $.zx_builtin_name),
-      '=',
-      field('value', $.zx_attribute_value),
+      optional(seq(
+        '=',
+        field('value', $.zx_attribute_value),
+      )),
     ),
 
     zx_builtin_name: _$ => /@[a-zA-Z_][a-zA-Z0-9_]*/,

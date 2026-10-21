@@ -303,10 +303,11 @@ fn appendBuiltinCompletions(
         const bare = if (full.len > 0 and full[0] == '@') full[1..] else full;
         if (!prefixMatches(prefix, bare) and !prefixMatches(prefix, full)) continue;
 
-        const insert = if (has_at)
-            try std.fmt.allocPrint(arena, "{s}={{$1}}", .{bare})
+        const name = if (has_at) bare else full;
+        const insert = if (builtins.isFlag(full))
+            name
         else
-            try std.fmt.allocPrint(arena, "{s}={{$1}}", .{full});
+            try std.fmt.allocPrint(arena, "{s}={{$1}}", .{name});
 
         const md = try html_hover.builtinAttributeMarkdown(arena, full) orelse "ZX builtin attribute";
 

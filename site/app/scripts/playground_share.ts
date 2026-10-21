@@ -110,7 +110,7 @@ export function needsAppMode(code: string, filename = "Playground.zx"): boolean 
     if (looksLikeRoute(code, filename)) return true;
     if (name === "layout.zx" || name === "page.zx") return true;
     if (hasPageExport(code) || hasLayoutExport(code)) return true;
-    if (/@rendering\s*=\s*\{\s*\.client\s*\}/.test(code)) return true;
+    if (/@client\b/.test(code)) return true;
     if (/\bzx\.client\./.test(code)) return true;
     if (/\bzx\.server\.Action\b/.test(code)) return true;
     if (/\bzx\.PageContext\b/.test(code)) return true;
@@ -162,12 +162,12 @@ function wrapComponentAsPage(code: string): string {
     if (!name) return code;
 
     const wantsClient =
-        /@rendering\s*=\s*\{\s*\.client\s*\}/.test(code) ||
+        /@client\b/.test(code) ||
         /\bzx\.client\./.test(code) ||
         /\bzx\.client\.Action\b/.test(code);
 
     const allocatorAttr = componentTakesAllocator(code, name) ? " @allocator={ctx.arena}" : "";
-    const renderingAttr = wantsClient ? " @rendering={.client}" : "";
+    const renderingAttr = wantsClient ? " @client" : "";
 
     return `pub fn Page(ctx: zx.PageContext) !zx.Component {
     return (

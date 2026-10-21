@@ -5,7 +5,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h1>Counter</h1>
                 <p>A minimal state example with bound updates and derived output.</p>
             </header>
-            <Counter @rendering={.client} initial={0} />
+            <Counter @client initial={0} />
         </main>
     );
 }

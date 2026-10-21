@@ -1,9 +1,9 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
-            <CounterComponent @rendering={.client} />
+            <CounterComponent @client />
             <CounterComponent />
-            <Button @rendering={.client} title="Custom Button" />
+            <Button @client title="Custom Button" />
         </main>
     );
 }

@@ -42,7 +42,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                     <h3>Hybrid Rendering</h3>
                     <p>Rendered on the server, hydrated on the client, kept in sync.</p>
                 </div>
-                <CounterComponent @rendering={.client} count={count} />
+                <CounterComponent @client count={count} />
             </section>
 
             <section class="category">

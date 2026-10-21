@@ -1,18 +1,6 @@
 const std = @import("std");
 
 pub const builtin = struct {
-    pub const Rendering = enum {
-        /// Client-side Zig
-        client,
-        /// Server-side rendering (default)
-        server,
-
-        pub fn from(value: []const u8) Rendering {
-            const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
-            return std.meta.stringToEnum(Rendering, v) orelse .client;
-        }
-    };
-
     pub const Escaping = enum {
         /// HTML escaping (default behavior)
         html,

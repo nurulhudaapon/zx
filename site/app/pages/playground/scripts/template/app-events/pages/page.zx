@@ -2,7 +2,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     return (
         <main @allocator={ctx.arena}>
             <p>Click and type;  open the console to see logs.</p>
-            <EventDemo @rendering={.client} />
+            <EventDemo @client />
         </main>
     );
 }

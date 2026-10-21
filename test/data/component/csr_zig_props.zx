@@ -2,9 +2,9 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
-            <Counter @rendering={.client} initial={5} label="Main Counter" />
-            <Counter @rendering={.client} initial={10} label="Secondary" />
-            <Counter @rendering={.client} initial={0} />
+            <Counter @client initial={5} label="Main Counter" />
+            <Counter @client initial={10} label="Secondary" />
+            <Counter @client initial={0} />
         </main>
     );
 }

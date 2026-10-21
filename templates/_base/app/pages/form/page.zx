@@ -6,7 +6,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <p>Stateful server forms with typed input and validation.</p>
             </div>
             <section class="card">
-                <AuthForm @rendering={.client} />
+                <AuthForm @client />
             </section>
         </main>
     );

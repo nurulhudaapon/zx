@@ -14,7 +14,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <main @allocator={ctx.arena} class="demo-page">
-            {if (chat_username.len > 0) (<ChatRoom username={chat_username} @rendering={.client} />) else (<JoinScreen />)}
+            {if (chat_username.len > 0) (<ChatRoom username={chat_username} @client />) else (<JoinScreen />)}
             <style @escaping={.none}>{@embedFile("style.css")}</style>
         </main>
     );

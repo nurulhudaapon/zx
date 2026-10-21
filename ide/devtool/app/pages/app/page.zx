@@ -7,7 +7,7 @@ const ConnectionFallback = @import("../connection_fallback.zx");
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena} class="app-page">
-            <AppStats @rendering={.client} />
+            <AppStats @client />
         </div>
     );
 }

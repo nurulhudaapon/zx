@@ -1,9 +1,9 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <main @allocator={ctx.arena}>
-            <IfBeforeFor @rendering={.client} />
-            <ForBeforeEmptyIf @rendering={.client} />
-            <KeyedForm @rendering={.client} />
+            <IfBeforeFor @client />
+            <ForBeforeEmptyIf @client />
+            <KeyedForm @client />
         </main>
     );
 }

@@ -42,7 +42,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <p>Full-stack CRUD demonstration with Ziex</p>
             </header>
 
-            <TaskBoard tasks={tasks.items} @rendering={.client} />
+            <TaskBoard tasks={tasks.items} @client />
         </main>
     );
 }

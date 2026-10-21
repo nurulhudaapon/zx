@@ -221,7 +221,7 @@ pub fn rerender() void {
 
 /// Request a re-render of a specific component by ID.
 /// If the component_id is not found in the registry (e.g. a nested ComponentCtx
-/// component without @rendering={.client}), falls back to re-rendering all components.
+/// component without @client), falls back to re-rendering all components.
 pub fn scheduleRender(component_id: []const u8) void {
     if (!is_wasm) return;
     if (Client.global_client) |client| {

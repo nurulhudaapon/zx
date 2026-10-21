@@ -388,10 +388,10 @@ test "completion > builtin attribute after element text" {
 
     const src =
         \\pub fn Page(a: zx.Allocator) zx.Component {
-        \\    return (<p @allocator={a}>hello <Counter @rend
+        \\    return (<p @allocator={a}>hello <Counter @cl
     ;
     const labels = try completionLabels(arena, src, @intCast(src.len));
-    try testing.expect(hasLabel(labels, "@rendering"));
+    try testing.expect(hasLabel(labels, "@client"));
 }
 
 test "completion > closing tag after element text" {

@@ -54,7 +54,6 @@ pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.
     var counter: u32 = 0;
     try render(self, writer, .{
         .escaping = .html,
-        .rendering = .server,
         .async_components = &async_components,
         .async_counter = &counter,
         .base_path = options.base_path,
@@ -64,7 +63,6 @@ pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.
 
 pub const RenderOptions = struct {
     escaping: ?zx.BuiltinAttribute.Escaping = .html,
-    rendering: ?zx.BuiltinAttribute.Rendering = .server,
     async_components: ?*std.array_list.Managed(AsyncComponent) = null,
     async_counter: ?*u32 = null,
     base_path: ?[]const u8 = null,
@@ -167,7 +165,6 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 if (elem.fallback) |fallback| {
                     try render(fallback.*, writer, .{
                         .escaping = options.escaping,
-                        .rendering = options.rendering,
                     });
                 }
 
@@ -186,7 +183,6 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 if (elem.children) |children| {
                     const child_options = RenderOptions{
                         .escaping = elem.escaping orelse options.escaping,
-                        .rendering = elem.rendering orelse options.rendering,
                         .async_components = options.async_components,
                         .async_counter = options.async_counter,
                         .base_path = options.base_path,
@@ -282,7 +278,6 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             if (elem.children) |children| {
                 const child_options = RenderOptions{
                     .escaping = elem.escaping orelse options.escaping,
-                    .rendering = elem.rendering orelse options.rendering,
                     .async_components = options.async_components,
                     .async_counter = options.async_counter,
                     .base_path = options.base_path,

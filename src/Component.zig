@@ -274,7 +274,6 @@ pub const Element = struct {
     attributes: ?[]const Element.Attribute = null,
 
     escaping: ?BuiltinAttribute.Escaping = .html,
-    rendering: ?BuiltinAttribute.Rendering = .server,
     async: ?BuiltinAttribute.Async = .sync,
     fallback: ?*const Component = null,
 

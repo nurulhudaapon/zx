@@ -180,7 +180,7 @@ pub const ComponentSerializable = struct {
         value: ?[]const u8 = null,
     };
 
-    /// Non-default `@escaping` / `@rendering` / `@async` / `@caching` (not `@allocator`).
+    /// Non-default `@escaping` / `@client` / `@async` / `@caching` (not `@allocator`).
     const BuiltinSerializable = struct {
         name: []const u8,
         value: []const u8,
@@ -197,7 +197,7 @@ pub const ComponentSerializable = struct {
     /// Source file path when known (from `@src()` at the component call site).
     source: ?[]const u8 = null,
     line: u32 = 0,
-    /// True when this node is a `@rendering={.client}` island boundary.
+    /// True when this node is a `@client` island boundary.
     client: bool = false,
 
     /// Convert Element.Attribute slice to serializable form (strips handlers).
@@ -256,9 +256,6 @@ pub const ComponentSerializable = struct {
         if (element.escaping) |e| {
             if (e != .html) try appendBuiltin(allocator, &list, "escaping", @tagName(e));
         }
-        if (element.rendering) |r| {
-            if (r != .server) try appendBuiltin(allocator, &list, "rendering", @tagName(r));
-        }
         if (element.async) |a| {
             if (a != .sync) try appendBuiltin(allocator, &list, "async", @tagName(a));
         }
@@ -286,7 +283,7 @@ pub const ComponentSerializable = struct {
         errdefer list.deinit(allocator);
 
         if (comp_fn.isIsland()) {
-            try appendBuiltin(allocator, &list, "rendering", "client");
+            try appendBuiltin(allocator, &list, "client", "true");
         }
         if (comp_fn.caching) |caching| {
             const value = try formatCachingValue(allocator, caching);

@@ -466,13 +466,69 @@ test "sema > known builtin attribute is fine" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,
         \\pub fn Page(a: zx.Allocator) zx.Component {
-        \\    return (<div @allocator={a} @rendering={.client}>x</div>);
+        \\    return (<div @allocator={a}><Counter @client /></div>);
         \\}
         \\const zx = @import("zx");
     );
     defer diags.deinit();
 
     try testing.expect(!hasMessage(diags, "unknown ZX builtin attribute"));
+}
+
+test "sema > @client takes no value" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<div @allocator={a}><Counter @client={.client} /></div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(diags.hasErrors());
+    try testing.expect(hasMessage(diags, "'@client' takes no value"));
+}
+
+test "sema > valued builtin without a value" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<div @allocator={a} @escaping>x</div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(diags.hasErrors());
+    try testing.expect(hasMessage(diags, "'@escaping' needs a value"));
+}
+
+test "sema > @rendering points to @client" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<div @allocator={a}><Counter @rendering={.client} /></div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(diags.hasErrors());
+    try testing.expect(hasMessage(diags, "'@rendering' was replaced by '@client'"));
+}
+
+test "sema > @client has no shorthand" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator, client: bool) zx.Component {
+        \\    _ = client;
+        \\    return (<div @allocator={a}><Counter @{client} /></div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(hasMessage(diags, "unknown ZX builtin attribute"));
 }
 
 test "sema > unknown builtin shorthand" {

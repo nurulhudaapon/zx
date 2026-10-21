@@ -341,7 +341,7 @@ pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
 pub fn Csr__Page(ctx: zx.PageContext) !zx.Component {
     return (
         <main @allocator={ctx.arena}>
-            <Counter @rendering={.client} />
+            <Counter @client />
         </main>
     );
 }
@@ -605,10 +605,10 @@ pub fn Learn__DynamicAttrs(allocator: zx.Allocator) zx.Component {
 
 // --- Learn: onclick ---
 pub fn Onclick__Page(ctx: zx.PageContext) !zx.Component {
-    return (<Learn__EventHandling @allocator={ctx.arena} @rendering={.client} />);
+    return (<Learn__EventHandling @allocator={ctx.arena} @client />);
 }
 pub fn Learn__Interactivity(allocator: zx.Allocator) zx.Component {
-    return (<Learn__EventHandling @{allocator} @rendering={.client} />);
+    return (<Learn__EventHandling @{allocator} @client />);
 }
 pub fn Learn__EventHandling(allocator: zx.Allocator) zx.Component {
     return (
@@ -910,10 +910,10 @@ pub fn unwrap__ref_cache_invalidation() void {
 
 // --- Learn: state management ---
 pub fn State__Page(ctx: zx.PageContext) !zx.Component {
-    return (<Learn__StatePanel @allocator={ctx.arena} @rendering={.client} />);
+    return (<Learn__StatePanel @allocator={ctx.arena} @client />);
 }
 pub fn Learn__StateDemo(allocator: zx.Allocator) zx.Component {
-    return (<Learn__StatePanel @allocator={allocator} @rendering={.client} />);
+    return (<Learn__StatePanel @allocator={allocator} @client />);
 }
 
 pub fn Learn__StatePanel(ctx: *zx.ComponentCtx(void)) zx.Component {
@@ -1181,7 +1181,7 @@ fn CsrStateBind__increment(value: i32) i32 {
 // --- Imports ---
 /// Docs-site preview helper (not part of the CSR playground section extract).
 pub fn Client(allocator: zx.Allocator) zx.Component {
-    return (<Counter @{allocator} @rendering={.client} />);
+    return (<Counter @{allocator} @client />);
 }
 
 pub fn RenderTest(ctx: zx.PageContext) !zx.Component {

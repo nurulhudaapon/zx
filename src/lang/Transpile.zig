@@ -36,16 +36,7 @@ pub const Options = struct {
 };
 
 pub const ClientComponentMetadata = struct {
-    pub const Type = enum {
-        client,
-        server,
-        static,
-
-        pub fn from(value: []const u8) Type {
-            const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
-            return std.meta.stringToEnum(Type, v) orelse .client;
-        }
-    };
+    pub const Type = enum { client };
 
     type: Type,
     name: []const u8,
@@ -983,18 +974,16 @@ fn transpileFullElement(self: *Transpile, node: ts.Node, is_root: bool, parent_p
 
 /// Write a custom component with optional client rendering metadata.
 fn writeCustomComponent(self: *Transpile, _: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node) error{OutOfMemory}!void {
-    // Check whether this is a client-side rendered Zig component.
-    var rendering_value: ?[]const u8 = null;
+    // `@client` marks a client-side rendered Zig component.
+    var is_client = false;
     for (attributes) |attr| {
-        if (attr.is_builtin and std.mem.eql(u8, attr.name, "@rendering")) {
-            rendering_value = attr.value;
+        if (attr.is_builtin and std.mem.eql(u8, attr.name, "@client")) {
+            is_client = true;
             break;
         }
     }
 
-    const is_client = if (rendering_value) |rv| std.mem.eql(u8, rv, ".client") else false;
-
-    // Zig client components (@rendering={.client}) use _zx.cmp() with client option
+    // Client components (@client) use _zx.cmp() with client option
     if (is_client) {
         var path_buf: [512]u8 = undefined;
         var full_path: []const u8 = undefined;
@@ -1020,9 +1009,8 @@ fn writeCustomComponent(self: *Transpile, _: ts.Node, tag: []const u8, tag_name_
         }
 
         // Add to client components list (use current list length as stable index)
-        const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "client");
         const component_index = self.client_components.items.len;
-        const client_cmp = try ClientComponentMetadata.init(self.allocator, tag, full_path, rendering_type, component_index);
+        const client_cmp = try ClientComponentMetadata.init(self.allocator, tag, full_path, .client, component_index);
         try self.client_components.append(self.allocator, client_cmp);
 
         // Write _zx.cmp(Component, .{ .name = ..., .client = .{ .name = ..., .id = ... } }, .{ props })
@@ -1271,8 +1259,8 @@ fn writeCustomComponent(self: *Transpile, _: ts.Node, tag: []const u8, tag_name_
 fn writeComponentBuiltinOptions(self: *Transpile, builtin_attrs: []const ZxAttribute, has_prior_field: bool) !void {
     var first = !has_prior_field;
     for (builtin_attrs) |attr| {
-        // Skip @rendering which is handled separately for CSR components
-        if (std.mem.eql(u8, attr.name, "@rendering")) continue;
+        // Skip @client which is handled separately for CSR components
+        if (std.mem.eql(u8, attr.name, "@client")) continue;
         // Skip @allocator which is not relevant for components
         if (std.mem.eql(u8, attr.name, "@allocator")) continue;
 
@@ -2107,7 +2095,7 @@ fn writeAttributes(self: *Transpile, attributes: []const ZxAttribute, in_functio
     for (attributes) |attr| {
         if (!attr.is_builtin) continue;
         // Skip transpiler directives - not runtime attributes
-        if (std.mem.eql(u8, attr.name, "@rendering")) continue;
+        if (std.mem.eql(u8, attr.name, "@client")) continue;
         try self.writeIndent();
         try self.write(".");
         try self.write(attr.name[1..]); // Skip @ prefix

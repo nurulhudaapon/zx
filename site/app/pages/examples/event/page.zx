@@ -17,7 +17,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <main @allocator={ctx.arena}>
             <h1>Event.as() type-safety demo</h1>
             <p>Open the console, then interact with each control below.</p>
-            <EventDemo @rendering={.client} />
+            <EventDemo @client />
         </main>
     );
 }

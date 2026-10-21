@@ -211,8 +211,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <div class="tree-pane">
                 <div class="search-box">
                     <div class="search-wrapper">
-                        <ComponentSearchInput @rendering={.client} />
-                        <NativeToggle @rendering={.client} />
+                        <ComponentSearchInput @client />
+                        <NativeToggle @client />
                         <button
                             id="zx-devtool-pick-btn"
                             class="native-toggle-btn picker-btn"
@@ -222,19 +222,19 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         >
                             {icons.Inspect(ctx.arena)}
                         </button>
-                        <RoutePathSelector @rendering={.client} />
+                        <RoutePathSelector @client />
                     </div>
                 </div>
-                <ComponentTree @rendering={.client} />
+                <ComponentTree @client />
             </div>
 
             <div class="devtools-resize-handle"></div>
 
             <div class="state-panel">
                 <div class="state-header">
-                    <ComponentStateFilter @rendering={.client} />
+                    <ComponentStateFilter @client />
                 </div>
-                <ComponentState @rendering={.client} />
+                <ComponentState @client />
             </div>
         </div>
     );

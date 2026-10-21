@@ -86,7 +86,7 @@ const categories = [_]SidebarProps.Category{
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/reference#allocator", .text = "@allocator" },
                     .{ .href = "/reference#escaping", .text = "@escaping" },
-                    .{ .href = "/reference#rendering", .text = "@rendering" },
+                    .{ .href = "/reference#client", .text = "@client" },
                     .{ .href = "/reference#form-actions", .text = "Form Actions" },
                 },
             },

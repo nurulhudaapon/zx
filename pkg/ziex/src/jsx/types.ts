@@ -1,15 +1,14 @@
 /**
  * Metadata for a client-side component used within a ZX file.
  *
- * This type represents the metadata for components that are marked with the `@rendering` attribute
- * in ZX files. When a component is declared with `@rendering={.react}` or `@rendering={.client}` in a
- * `.zx` file, the ZX transpiler generates a `ComponentMetadata` entry that is included in the
- * generated `components` array.
+ * This type represents the metadata for components that are marked with the `@client` attribute
+ * in ZX files. When a component is declared with `@client` in a `.zx` file, the ZX transpiler
+ * generates a `ComponentMetadata` entry that is included in the generated `components` array.
  *
  * @example
  * ```tsx
  * // In a ZX file (page.zx):
- * <CounterComponent @rendering={.react} max_count={10} />
+ * <CounterComponent @client max_count={10} />
  *
  * // Generated components array (components.ts):
  * export const components: ComponentMetadata[] = [
@@ -52,7 +51,7 @@ export type ComponentMetadata = {
    * @example
    * ```tsx
    * // In ZX file:
-   * <CounterComponent @rendering={.react} />
+   * <CounterComponent @client />
    *
    * // name will be: "CounterComponent"
    * ```
@@ -73,7 +72,7 @@ export type ComponentMetadata = {
    * ```tsx
    * // In ZX file:
    * const CounterComponent = @jsImport("components/Counter.tsx");
-   * <CounterComponent @rendering={.react} />
+   * <CounterComponent @client />
    *
    * // path will be: "components/Counter.tsx"
    * ```
@@ -81,7 +80,7 @@ export type ComponentMetadata = {
    * @example
    * ```tsx
    * // Without explicit @jsImport:
-   * <MyComponent @rendering={.react} />
+   * <MyComponent @client />
    *
    * // path will default to: "./MyComponent.tsx"
    * ```
@@ -135,14 +134,11 @@ export type ComponentMetadata = {
    *   WebAssembly and rendered on the client side. This allows you to use Zig's performance
    *   and type safety for client-side components.
    *
-   * The type is determined by the `@rendering` attribute value in the ZX file (`.react` or `.client`).
+   * Components marked `@client` in a ZX file have type `"client"`.
    *
    * @example
    * ```tsx
-   * // CSR component (JSX):
-   * <CounterComponent @rendering={.react} max_count={10} />
-   * // type: "react"
-   *
+   * // CSR component (JSX), type: "react"
    * // Component file (CounterComponent.tsx):
    * export default function CounterComponent({ max_count }: { max_count: number }) {
    *   return <div>Count: {max_count}</div>;
@@ -152,7 +148,7 @@ export type ComponentMetadata = {
    * @example
    * ```tsx
    * // Client component (Zig/WASM):
-   * <CounterComponent @rendering={.client} />
+   * <CounterComponent @client />
    * // type: "client"
    *
    * // Component file (CounterComponent.zig):

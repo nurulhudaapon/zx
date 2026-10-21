@@ -284,18 +284,14 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 </ul>
                 <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} filename="raw_html.zx" />
                 <p><strong>Warning:</strong> Only use <code>@escaping={"{.none}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
-                <h3 id="rendering">@rendering</h3>
-                <p>The <code>@rendering</code> attribute enables client-side rendering for interactive components. Without it, all components render server-side only and event handlers are not active in the browser.</p>
-                <p><strong>Values:</strong></p>
-                <ul>
-                    <li><code>.client</code> - Client-side render with Zig (compiles component to WebAssembly)</li>
-                </ul>
+                <h3 id="client">@client</h3>
+                <p>The <code>@client</code> attribute enables client-side rendering for interactive components, compiling the component to WebAssembly. It takes no value. Without it, all components render server-side only and event handlers are not active in the browser.</p>
 
-                <h4 id="rendering-client">Client-side Zig rendering</h4>
-                <p>Use <code>@rendering={"{.client}"}</code> to make a component interactive. The component is server-rendered for the initial HTML, then hydrated and re-rendered client-side on state changes. Only the marked component is managed client-side; the rest of the page stays server-rendered.</p>
+                <h4 id="client-rendering">Client-side Zig rendering</h4>
+                <p>Write <code>{"<Counter @client />"}</code> to make a component interactive. The component is server-rendered for the initial HTML, then hydrated and re-rendered client-side on state changes. Only the marked component is managed client-side; the rest of the page stays server-rendered.</p>
                 <ExampleBlock id="csr" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} filename="counter.zx" preview_component={preview_csr} />
 
-                <h4 id="rendering-client-state">Managing state</h4>
+                <h4 id="client-state">Managing state</h4>
                 <p>Client components that need reactive state must use <code>zx.ComponentCtx(Props)</code> (or <code>zx.ComponentCtx(void)</code> when there are no props). The context provides <code>ctx.state(T, initial)</code> to declare a piece of state:</p>
                 <ul>
                     <li><code>ctx.state(T, initial_value)</code> - declares a reactive value of type <code>T</code>. Returns a <code>State(T)</code> handle that persists across re-renders.</li>
@@ -305,7 +301,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 </ul>
                 <p>State is stored per-component-instance and survives re-renders. On the server (SSR), <code>ctx.state()</code> always returns the initial value.</p>
 
-                <h4 id="rendering-client-events">Event handlers</h4>
+                <h4 id="client-events">Event handlers</h4>
                 <p>ZX provides three ways to attach event handlers to client components:</p>
                 <p><strong>1. Simple handler</strong> - for reading the event without touching state:</p>
                 <CodeBlock code={csr_simple_handler_example} />

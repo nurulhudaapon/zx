@@ -9,7 +9,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </header>
 
             <Counter
-                @rendering={.client}
+                @client
                 initial={42}
                 label="Hydrated counter"
                 enabled={true}

@@ -21,7 +21,6 @@ const Options = struct {
     attributes: ?[]const Element.Attribute = null,
     allocator: ?std.mem.Allocator = null,
     escaping: ?BuiltinAttribute.Escaping = .html,
-    rendering: ?BuiltinAttribute.Rendering = .server,
     async: ?BuiltinAttribute.Async = .sync,
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
@@ -86,7 +85,6 @@ const Context = struct {
             .children = options.children,
             .attributes = options.attributes,
             .escaping = options.escaping,
-            .rendering = options.rendering,
             .async = options.async,
             .fallback = options.fallback,
         } };
@@ -569,7 +567,7 @@ const Context = struct {
             }
         }
 
-        // If client option is set, return a client component (for @rendering={.client})
+        // If client option is set, return a client component (for @client)
         // Render the component on the server for SSR, then hydrate on client.
         // On Browser (already on the client), skip the island wrapper - just render
         // the component directly as a component_fn.

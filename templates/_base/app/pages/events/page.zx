@@ -9,12 +9,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <section class="card">
                     <h3>Client</h3>
                     <p>Updates state in the browser.</p>
-                    <ClientEvent @rendering={.client} />
+                    <ClientEvent @client />
                 </section>
                 <section class="card">
                     <h3>Server</h3>
                     <p>Runs the handler on the server.</p>
-                    <ServerEvent @rendering={.client} />
+                    <ServerEvent @client />
                 </section>
             </div>
         </main>

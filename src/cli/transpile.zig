@@ -1642,7 +1642,6 @@ fn transpileFile(
                 //   @@ - literal " (for quotes inside @import())
                 cloned_import = try std.fmt.allocPrint(allocator, "@zx.client.ComponentMeta.init(@@@import(@@{s}@@).{s})@", .{ clean_path, component.name });
             },
-            else => return error.InvalidComponentType,
         }
 
         try global_components.append(.{
@@ -1997,14 +1996,13 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
         };
     }
 
-    // --- @rendering -> Client Side Rendering Related Files Generation --- //
+    // --- @client -> Client Side Rendering Related Files Generation --- //
     var client_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
     defer client_cmps.deinit();
 
     for (all_client_cmps.items) |component| {
         switch (component.type) {
             .client => try client_cmps.append(component),
-            else => return error.InvalidComponentType,
         }
     }
 

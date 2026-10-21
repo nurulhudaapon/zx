@@ -5,7 +5,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <h1>Async APIs</h1>
                 <p>Observe timeout, interval, and fetch callbacks update component state.</p>
             </header>
-            <AsyncDemo @rendering={.client} />
+            <AsyncDemo @client />
         </main>
     );
 }

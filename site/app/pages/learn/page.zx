@@ -557,7 +557,7 @@ fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.
             <h3>Spread and shorthand</h3>
             <p>Use <code>{"{..struct}"}</code> to spread struct fields as attributes, or <code>{"{variable}"}</code> as shorthand when the attribute name matches the variable:</p>
             <CodeBlock code={props.spread_example} />
-            <p>See the <a href="/reference#attribute-syntax">Attribute Syntax documentation</a> for more details. ZX also provides special <a href="/reference#builtin-attributes">builtin attributes</a> like <code>@allocator</code>, <code>@escaping</code>, and <code>@rendering</code>.</p>
+            <p>See the <a href="/reference#attribute-syntax">Attribute Syntax documentation</a> for more details. ZX also provides special <a href="/reference#builtin-attributes">builtin attributes</a> like <code>@allocator</code>, <code>@escaping</code>, and <code>@client</code>.</p>
         </section>
     );
 }
@@ -592,7 +592,7 @@ fn Interactivity(allocator: zx.Allocator, props: InteractivityProps) zx.Componen
             <ExampleBlock id="onclick-state" zx_code={props.zx_onclick_state} html_code={props.html_onclick_state} filename="events.zig" preview_component={props.preview_onclick_state} />
             <p>When you use <code>ctx.bind()</code>, the handler receives a <code>zx.client.Event.Stateful</code> which provides access to component state through <code>event.state(T)</code>. Call <code>state(T)</code> in the same order as the <code>ctx.state()</code> calls in the component; the types must match.</p>
             <div class="callout note">
-                <strong>Note:</strong>{" "}For event handlers to run in the browser, <code>@rendering={"{.client}"}</code>{" "}must be set on the interactive component or a parent that wraps it. Without it, the component renders server-side only and event handlers are ignored.
+                <strong>Note:</strong>{" "}For event handlers to run in the browser, <code>@client</code>{" "}must be set on the interactive component or a parent that wraps it. Without it, the component renders server-side only and event handlers are ignored.
             </div>
 
             <h3 id="form-actions">Form actions</h3>

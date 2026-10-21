@@ -11,19 +11,19 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <div class="tree-pane">
                 <div class="search-box">
                     <div class="search-wrapper">
-                        <RouteSearchInput @rendering={.client} />
+                        <RouteSearchInput @client />
                     </div>
                 </div>
-                <RoutesList @rendering={.client} />
+                <RoutesList @client />
             </div>
 
             <div class="devtools-resize-handle"></div>
 
             <div class="state-panel">
                 <div class="state-header">
-                    <RoutePanelHeader @rendering={.client} />
+                    <RoutePanelHeader @client />
                 </div>
-                <RouteDetails @rendering={.client} />
+                <RouteDetails @client />
             </div>
         </div>
     );

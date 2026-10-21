@@ -15,7 +15,7 @@ pub const Hover = struct {
 };
 
 pub const BuiltinAttrDoc = struct {
-    /// Full name including `@` prefix, e.g. `"@rendering"`.
+    /// Full name including `@` prefix, e.g. `"@client"`.
     name: []const u8,
     description: []const u8,
     /// Optional code snippet illustrating usage (Zig/ZX syntax).
@@ -24,18 +24,14 @@ pub const BuiltinAttrDoc = struct {
 
 pub const builtin_attrs = std.StaticStringMap(BuiltinAttrDoc).initComptime(.{
     .{
-        "@rendering",
+        "@client",
         BuiltinAttrDoc{
-            .name = "@rendering",
+            .name = "@client",
             .description =
-            \\Controls where a component is rendered.
-            \\
-            \\**Values**
-            \\- `.server` - server-side rendering (default).
-            \\- `.client` - client-side Zig, hydrated in the browser.
-            \\- `.static` - pre-rendered to static HTML once and cached.
+            \\Renders the component on the server, then hydrates it in the browser
+            \\as client-side Zig. Components without it render on the server only.
             ,
-            .example = "<Counter @rendering={.client} />",
+            .example = "<Counter @client />",
         },
     },
     .{
@@ -224,7 +220,7 @@ fn attributeMarkdown(arena: std.mem.Allocator, tag: []const u8, attr: []const u8
 }
 
 /// Build Markdown documentation for a ZX builtin attribute, or null if unknown.
-/// `name` must include the `@` prefix (e.g. `"@rendering"`).
+/// `name` must include the `@` prefix (e.g. `"@client"`).
 pub fn builtinAttributeMarkdown(arena: std.mem.Allocator, name: []const u8) !?[]const u8 {
     const doc = builtin_attrs.get(name) orelse return null;
 

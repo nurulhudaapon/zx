@@ -1,8 +1,8 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <main @allocator={ctx.arena}>
-            <LoginForm @rendering={.client} />
-            <EventForm @rendering={.client} />
+            <LoginForm @client />
+            <EventForm @client />
         </main>
     );
 }

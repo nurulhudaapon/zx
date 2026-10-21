@@ -9,7 +9,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <section class="card">
                     <h3>Client-rendered</h3>
                     <p>Hydrated form, action still runs on the server.</p>
-                    <LoginForm @rendering={.client} name="Ziex Client" />
+                    <LoginForm @client name="Ziex Client" />
                 </section>
                 <section class="card">
                     <h3>Server-rendered</h3>

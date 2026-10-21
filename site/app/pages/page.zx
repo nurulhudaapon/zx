@@ -517,7 +517,7 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
         },
         .hybrid = .{
             .server_steps = [_][]const u8{ "render <Page/>", "stream HTML" },
-            .hint = "<Counter @rendering={.client} />",
+            .hint = "<Counter @client />",
             .button = "Click Me",
             .captions = [_][]const u8{
                 "Start on the server, send HTML",
@@ -532,12 +532,12 @@ fn buildFeatureCanvasJson(allocator: zx.Allocator) []const u8 {
                 "    return (",
                 "        <main @allocator={ctx.arena}>",
                 "            <h1>Hello, Ziex</h1>",
-                "            <Counter @rendering={.client} />",
+                "            <Counter @client />",
                 "        </main>",
                 "    );",
                 "}",
             },
-            .completions = [_][]const u8{ "@rendering", "@allocator", "@escaping", "class" },
+            .completions = [_][]const u8{ "@client", "@caching", "@allocator", "class" },
             .command = "zig build dev",
             .version = zx.info.version,
             .url = "http://localhost:3000",

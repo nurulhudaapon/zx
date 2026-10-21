@@ -10,23 +10,23 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <section class="prefs-group">
                 <h3 class="prefs-group-title">Appearance</h3>
                 <div class="prefs-list">
-                    <ThemeSetting @rendering={.client} />
+                    <ThemeSetting @client />
                 </div>
             </section>
 
             <section class="prefs-group">
                 <h3 class="prefs-group-title">Connection</h3>
                 <div class="prefs-list">
-                    <HostSetting @rendering={.client} />
+                    <HostSetting @client />
                 </div>
             </section>
 
             <section class="prefs-group">
                 <h3 class="prefs-group-title">Component Tree</h3>
                 <div class="prefs-list">
-                    <NativeElementsSetting @rendering={.client} />
-                    <IncludePropsSetting @rendering={.client} />
-                    <IncludeAttributesSetting @rendering={.client} />
+                    <NativeElementsSetting @client />
+                    <IncludePropsSetting @client />
+                    <IncludeAttributesSetting @client />
                 </div>
             </section>
 

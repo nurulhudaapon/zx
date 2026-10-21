@@ -37,7 +37,7 @@ pub fn TopNavigation(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                     // <a href="/examples" class="pg-nav-link">Examples</a>
                 </div>
             </div>
-            <ActionButtons @rendering={.client} />
+            <ActionButtons @client />
             <div class="pg-nav-actions">
                 // <a href="/learn" class="pg-nav-btn">Docs</a>
                 <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn" disabled="true" title="Run code (F5)" aria-label="Run code">

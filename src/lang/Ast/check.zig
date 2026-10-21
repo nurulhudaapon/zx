@@ -312,7 +312,7 @@ fn validateAttributes(
         if (name.len == 0) continue;
 
         if (Parse.NodeKind.fromNode(attr) == .zx_builtin_attribute) {
-            try validateBuiltinName(allocator, name_node, name, list);
+            try validateBuiltin(allocator, attr, name_node, name, list);
         }
 
         const gop = try seen_attrs.getOrPut(allocator, name);
@@ -344,21 +344,26 @@ fn isHtmlElement(name: []const u8) bool {
     return name.len > 0 and !html.isCustomOrComponent(name);
 }
 
-fn validateBuiltinName(
+fn validateBuiltin(
     allocator: std.mem.Allocator,
+    attr: ts.Node,
     name_node: ts.Node,
     name: []const u8,
     list: *std.ArrayList(Diagnostic),
 ) AllocError!void {
-    if (builtins.isKnown(name)) return;
-    try appendDiagnostic(
-        allocator,
-        name_node,
-        list,
-        .err,
-        "unknown ZX builtin attribute '{s}'",
-        .{name},
-    );
+    if (!builtins.isKnown(name)) {
+        if (std.ascii.eqlIgnoreCase(name, "@rendering")) {
+            return appendDiagnostic(allocator, name_node, list, .err, "'@rendering' was replaced by '@client'", .{});
+        }
+        return appendDiagnostic(allocator, name_node, list, .err, "unknown ZX builtin attribute '{s}'", .{name});
+    }
+
+    const has_value = attr.childByFieldName("value") != null;
+    if (builtins.isFlag(name)) {
+        if (has_value) try appendDiagnostic(allocator, name_node, list, .err, "'{s}' takes no value", .{name});
+    } else if (!has_value) {
+        try appendDiagnostic(allocator, name_node, list, .err, "'{s}' needs a value", .{name});
+    }
 }
 
 fn validateBuiltinShorthand(
