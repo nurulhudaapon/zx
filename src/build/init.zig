@@ -164,7 +164,9 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     transpile_cmd.addArgs(&.{"--cache-dir"});
     transpile_cmd.addDirectoryArg(transpile_store);
     transpile_cmd.expectExitCode(0);
-    transpile_cmd.has_side_effects = true;
+    // Imports are tracked by the dep file; the route list covers added/removed routes.
+    transpile_cmd.addArg("--roots");
+    transpile_cmd.addFileArg(b.addWriteFiles().add("routes", routeRoots(b, opts.site_path)));
 
     const uses_local_bindings = opts.client.bindings.href == null;
     const use_stable_assets = is_dev_build or optimize == .debug;
@@ -720,6 +722,42 @@ fn cliRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: Resolved) *std.B
     run.setEnvironmentVariable("ZX_MODULE_PATH", opts.zx_module_path);
     run.setEnvironmentVariable("ZIEX_ZIG_PATH", opts.zig_path);
     return run;
+}
+
+/// Newline-separated route files under `site_path`, relative to it. Every route
+/// directory is a configure dependency, so the list stays current under `--watch`.
+fn routeRoots(b: *std.Build, site_path: std.Build.LazyPath) []const u8 {
+    const io = b.graph.io;
+    const owner = site_path.src_path.owner;
+    var rels: std.ArrayList([]const u8) = .empty;
+    for (CliConstant.route_dirnames) |dirname| {
+        const sub = b.pathJoin(&.{ site_path.src_path.sub_path, dirname });
+        var dir = owner.root.openDir(io, sub, .{ .iterate = true }) catch continue;
+        defer dir.close(io);
+        b.dependOnDirectoryContents(owner.path(sub));
+
+        var walker = dir.walk(b.allocator) catch @panic("OOM");
+        defer walker.deinit();
+        while (walker.next(io) catch |err| std.debug.panic("unable to walk {s}: {t}", .{ sub, err })) |entry| switch (entry.kind) {
+            .directory => b.dependOnDirectoryContents(owner.path(b.pathJoin(&.{ sub, entry.path }))),
+            .file, .sym_link => if (CliConstant.isRouteRoot(entry.basename)) {
+                rels.append(b.allocator, b.pathJoin(&.{ dirname, entry.path })) catch @panic("OOM");
+            },
+            else => {},
+        };
+    }
+    std.mem.sort([]const u8, rels.items, {}, struct {
+        fn less(_: void, a: []const u8, c: []const u8) bool {
+            return std.mem.order(u8, a, c) == .lt;
+        }
+    }.less);
+
+    var out: std.ArrayList(u8) = .empty;
+    for (rels.items) |rel| {
+        out.appendSlice(b.allocator, rel) catch @panic("OOM");
+        out.append(b.allocator, '\n') catch @panic("OOM");
+    }
+    return out.items;
 }
 
 fn moduleRequiresLibCRec(module: *std.Build.Module, visited: *std.AutoHashMap(*std.Build.Module, void)) !bool {

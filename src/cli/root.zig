@@ -218,6 +218,10 @@ pub const transpile: Command = .{
             .default_value = "",
             .help = "Persistent transpile cache directory (mtime + Transpile.shape; survives zig-cache invalidation)",
         }),
+        Argument.init(.roots, []const u8, .{
+            .default_value = "",
+            .help = "File listing route files (one per line, relative to the path) to transpile from; default: scan pages/ and routes/",
+        }),
         Argument.init(.@"base-path", []const u8, .{
             .default_value = "",
             .help = "Base path for the application (e.g., /test)",

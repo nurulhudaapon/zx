@@ -5,6 +5,7 @@ const util = @import("shared/util.zig");
 const Manifest = @import("../build/Manifest.zig");
 const context = @import("shared/context.zig");
 const cli_args = @import("root.zig");
+const CliConstant = @import("shared/constant.zig");
 
 const CommandContext = context.CommandContext;
 pub const command = cli_args.transpile;
@@ -29,6 +30,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .map = map,
         .dep_file = nonEmpty(args.@"dep-file"),
         .cache_dir = nonEmpty(args.@"cache-dir"),
+        .roots = nonEmpty(args.roots),
         .base_path = nonEmpty(args.@"base-path"),
         .manifest = nonEmpty(args.manifest),
         .build_injections = nonEmpty(args.@"build-injections"),
@@ -130,12 +132,50 @@ fn createDirSafe(io: std.Io, path: []const u8) !void {
     };
 }
 
+// Unchanged outputs are left untouched: transpile reruns on every build, and
+// rewriting them would retrigger `zig build --watch` (notably on Windows).
 fn writeFile(io: std.Io, path: []const u8, data: []const u8) !void {
+    if (fileEquals(io, path, data)) return;
     try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = data });
 }
 
 fn copyFileSafe(io: std.Io, src: []const u8, dst: []const u8) !void {
+    if (filesEqual(io, src, dst)) return;
     try std.Io.Dir.cwd().copyFile(src, std.Io.Dir.cwd(), dst, io, .{});
+}
+
+fn fileEquals(io: std.Io, path: []const u8, data: []const u8) bool {
+    var file = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    defer file.close(io);
+    if ((file.length(io) catch return false) != data.len) return false;
+    var buf: [4096]u8 = undefined;
+    var off: usize = 0;
+    while (off < data.len) {
+        const n = file.readPositionalAll(io, buf[0..@min(buf.len, data.len - off)], off) catch return false;
+        if (n == 0 or !std.mem.eql(u8, buf[0..n], data[off..][0..n])) return false;
+        off += n;
+    }
+    return true;
+}
+
+fn filesEqual(io: std.Io, a_path: []const u8, b_path: []const u8) bool {
+    var a = std.Io.Dir.cwd().openFile(io, a_path, .{}) catch return false;
+    defer a.close(io);
+    var b = std.Io.Dir.cwd().openFile(io, b_path, .{}) catch return false;
+    defer b.close(io);
+    const len = a.length(io) catch return false;
+    if ((b.length(io) catch return false) != len) return false;
+    var a_buf: [4096]u8 = undefined;
+    var b_buf: [4096]u8 = undefined;
+    var off: u64 = 0;
+    while (off < len) {
+        const want: usize = @intCast(@min(a_buf.len, len - off));
+        const an = a.readPositionalAll(io, a_buf[0..want], off) catch return false;
+        const bn = b.readPositionalAll(io, b_buf[0..want], off) catch return false;
+        if (an == 0 or an != bn or !std.mem.eql(u8, a_buf[0..an], b_buf[0..bn])) return false;
+        off += an;
+    }
+    return true;
 }
 
 fn readFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ![]u8 {
@@ -156,34 +196,21 @@ fn sourceLang(path: []const u8) lang.Parse.Language {
     return .zx;
 }
 
-/// Filesystem-routing Zig roots that may exist as hand-written `.zig`
-/// (no `.zx` twin), e.g. `route.zig` / `proxy.zig`.
-fn isFsRouteZigRoot(basename: []const u8) bool {
-    const roots = [_][]const u8{
-        "page.zig",
-        "layout.zig",
-        "error.zig",
-        "route.zig",
-        "proxy.zig",
-        "notfound.zig",
-    };
-    for (roots) |root| {
-        if (std.mem.eql(u8, basename, root)) return true;
+/// The `.zx`/`.mdzx`/`.md` source behind `path`: `path` itself, or the twin of a
+/// `.zig` path (`foo.zig` → `foo.zx`). Caller owns the result.
+fn zxSourceFor(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ?[]u8 {
+    if (zxExtLen(path) != null) {
+        if (!fileExists(io, path)) return null;
+        return allocator.dupe(u8, path) catch null;
     }
-    return false;
-}
-
-/// True when `zig_path` (…/foo.zig) has a sibling `foo.zx` / `foo.mdzx` / `foo.md`
-/// that owns the output - do not copy the `.zig` from source in that case.
-fn hasZxTwin(io: std.Io, zig_path: []const u8) bool {
-    if (!std.mem.endsWith(u8, zig_path, ".zig")) return false;
-    const stem = zig_path[0 .. zig_path.len - ".zig".len];
-    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    if (!std.mem.endsWith(u8, path, ".zig")) return null;
+    const stem = path[0 .. path.len - ".zig".len];
     for ([_][]const u8{ ".zx", ".mdzx", ".md" }) |ext| {
-        const twin = std.fmt.bufPrint(&buf, "{s}{s}", .{ stem, ext }) catch continue;
-        if (std.Io.Dir.cwd().access(io, twin, .{})) |_| return true else |_| {}
+        const twin = std.mem.concat(allocator, u8, &.{ stem, ext }) catch return null;
+        if (fileExists(io, twin)) return twin;
+        allocator.free(twin);
     }
-    return false;
+    return null;
 }
 
 /// Whether `outdir_rel` still has a corresponding source under `source_root`.
@@ -234,7 +261,7 @@ fn pruneStaleOutdir(
     while (try walker.next(io)) |entry| {
         switch (entry.kind) {
             .file => {
-                if (std.mem.eql(u8, entry.path, "app.zig")) continue;
+                if (std.mem.eql(u8, entry.path, "app.zig") or std.mem.eql(u8, entry.path, tree_fingerprint_name)) continue;
 
                 if (std.mem.endsWith(u8, entry.path, ".zxcache")) {
                     const zig_rel = entry.path[0 .. entry.path.len - ".zxcache".len];
@@ -362,42 +389,6 @@ fn writeDepFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8, targ
 
 const tree_fingerprint_name = ".zx-tree";
 
-fn collectSourceRelPaths(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    source_root: []const u8,
-) ![][]const u8 {
-    var dir = try std.Io.Dir.cwd().openDir(io, source_root, .{ .iterate = true });
-    defer dir.close(io);
-
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    var rels = std.array_list.Managed([]const u8).init(allocator);
-    errdefer {
-        for (rels.items) |r| allocator.free(r);
-        rels.deinit();
-    }
-
-    while (try walker.next(io)) |entry| {
-        var actual_kind = entry.kind;
-        if (entry.kind == .sym_link) {
-            const entry_stat = dir.statFile(io, entry.path, .{}) catch continue;
-            actual_kind = entry_stat.kind;
-        }
-        if (actual_kind != .file) continue;
-        if (zxExtLen(entry.path) == null) continue;
-        try rels.append(try allocator.dupe(u8, entry.path));
-    }
-
-    std.mem.sort([]const u8, rels.items, {}, struct {
-        fn less(_: void, a: []const u8, b: []const u8) bool {
-            return std.mem.order(u8, a, b) == .lt;
-        }
-    }.less);
-    return try rels.toOwnedSlice();
-}
-
 fn formatTreeFingerprint(allocator: std.mem.Allocator, rels: []const []const u8) ![]u8 {
     var buf = std.ArrayList(u8).empty;
     errdefer buf.deinit(allocator);
@@ -512,6 +503,7 @@ fn copyCompanionsForCached(
     allocator: std.mem.Allocator,
     input_files: *std.array_list.Managed([]const u8),
     companions_visited: *std.StringHashMap(void),
+    zx_sources: ?*std.array_list.Managed([]const u8),
     zig_path: []const u8,
     source_dir: []const u8,
     out_dir: []const u8,
@@ -527,7 +519,7 @@ fn copyCompanionsForCached(
     defer ast.deinit(allocator);
 
     try collectEmbedFiles(io, allocator, input_files, &ast, source_dir, out_dir);
-    try collectAndCopyCompanions(io, allocator, input_files, companions_visited, &ast, source_dir, out_dir, verbose);
+    try collectAndCopyCompanions(io, allocator, input_files, companions_visited, zx_sources, &ast, source_dir, out_dir, verbose);
 }
 
 /// Copy relative `@import("…")` targets that exist on disk (`.zig`, `.zon`, …),
@@ -537,6 +529,7 @@ fn collectAndCopyCompanions(
     allocator: std.mem.Allocator,
     input_files: *std.array_list.Managed([]const u8),
     companions_visited: *std.StringHashMap(void),
+    zx_sources: ?*std.array_list.Managed([]const u8),
     ast: *const std.zig.Ast,
     source_dir: []const u8,
     out_dir: []const u8,
@@ -561,13 +554,17 @@ fn collectAndCopyCompanions(
 
         const src = std.fs.path.join(allocator, &.{ source_dir, import_path }) catch continue;
         defer allocator.free(src);
+        // `.zx` sources (incl. the twin behind a `.zig` import) are transpiled, not copied.
+        if (zxSourceFor(io, allocator, src)) |zx_src| {
+            if (zx_sources) |out| out.append(zx_src) catch allocator.free(zx_src) else allocator.free(zx_src);
+            continue;
+        }
         std.Io.Dir.cwd().access(io, src, .{}) catch continue;
-        if (hasZxTwin(io, src)) continue;
 
         const dst = std.fs.path.join(allocator, &.{ out_dir, import_path }) catch continue;
         defer allocator.free(dst);
 
-        copyCompanionRecursive(io, allocator, input_files, companions_visited, src, dst, verbose) catch |err| {
+        copyCompanionRecursive(io, allocator, input_files, companions_visited, zx_sources, src, dst, verbose) catch |err| {
             std.debug.print("Warning: Could not copy companion {s}: {}\n", .{ src, err });
         };
     }
@@ -580,6 +577,7 @@ fn copyCompanionRecursive(
     allocator: std.mem.Allocator,
     input_files: *std.array_list.Managed([]const u8),
     companions_visited: *std.StringHashMap(void),
+    zx_sources: ?*std.array_list.Managed([]const u8),
     source_path: []const u8,
     output_path: []const u8,
     verbose: bool,
@@ -612,7 +610,7 @@ fn copyCompanionRecursive(
     const source_dir = std.fs.path.dirname(source_path) orelse ".";
     const out_dir = std.fs.path.dirname(output_path) orelse ".";
     try collectEmbedFiles(io, allocator, input_files, &ast, source_dir, out_dir);
-    try collectAndCopyCompanions(io, allocator, input_files, companions_visited, &ast, source_dir, out_dir, verbose);
+    try collectAndCopyCompanions(io, allocator, input_files, companions_visited, zx_sources, &ast, source_dir, out_dir, verbose);
 }
 
 /// Walk the transpiled Zig AST (`ast`, already produced by `lang.Ast.parse`)
@@ -702,7 +700,7 @@ fn transpileFileRecursive(
         for (imports.items) |p| allocator.free(p);
         imports.deinit();
     }
-    try transpileFile(io, allocator, global_components, opts, source_path, output_path, &imports, input_files, companions_visited, pub_imports);
+    try transpileFile(io, allocator, global_components, opts, source_path, output_path, &imports, input_files, companions_visited, null, pub_imports);
 
     const source_dir = std.fs.path.dirname(source_path) orelse ".";
     const out_dir = std.fs.path.dirname(output_path) orelse opts.outdir;
@@ -1560,6 +1558,7 @@ fn transpileFile(
     imports_out: ?*std.array_list.Managed([]const u8),
     input_files: *std.array_list.Managed([]const u8),
     companions_visited: *std.StringHashMap(void),
+    zx_sources: ?*std.array_list.Managed([]const u8),
     pub_imports: ?*std.array_list.Managed(PubImport),
 ) !void {
     const source = try readFile(io, allocator, source_path);
@@ -1604,7 +1603,7 @@ fn transpileFile(
     {
         const ast_out_dir = std.fs.path.dirname(output_path) orelse opts.outdir;
         try collectEmbedFiles(io, allocator, input_files, &result.zig_ast, ast_source_dir, ast_out_dir);
-        try collectAndCopyCompanions(io, allocator, input_files, companions_visited, &result.zig_ast, ast_source_dir, ast_out_dir, opts.verbose);
+        try collectAndCopyCompanions(io, allocator, input_files, companions_visited, zx_sources, &result.zig_ast, ast_source_dir, ast_out_dir, opts.verbose);
     }
 
     // Extract route from source path
@@ -1680,6 +1679,75 @@ fn transpileFile(
     if (opts.verbose) std.debug.print("Transpiled: {s} -> {s}\n", .{ source_path, output_path });
 }
 
+/// Sources to start from, relative to `opts.path` and sorted: the `--roots` list,
+/// else the route files under `pages/` and `routes/`, else (no routing dirs)
+/// every `.zx`/`.mdzx`/`.md` in the tree.
+fn collectRoots(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOptions) ![][]const u8 {
+    var rels = std.array_list.Managed([]const u8).init(allocator);
+    errdefer {
+        for (rels.items) |r| allocator.free(r);
+        rels.deinit();
+    }
+
+    if (opts.roots) |roots_path| {
+        const body = try readFile(io, allocator, roots_path);
+        defer allocator.free(body);
+        var lines = std.mem.tokenizeAny(u8, body, "\r\n");
+        while (lines.next()) |line| try rels.append(try allocator.dupe(u8, line));
+    } else {
+        var has_route_dirs = false;
+        for (CliConstant.route_dirnames) |dirname| {
+            const sub = try std.fs.path.join(allocator, &.{ opts.path, dirname });
+            defer allocator.free(sub);
+            if (!fileExists(io, sub)) continue;
+            has_route_dirs = true;
+            try appendSources(io, allocator, &rels, sub, dirname, opts.outdir, CliConstant.isRouteRoot);
+        }
+        if (!has_route_dirs) try appendSources(io, allocator, &rels, opts.path, "", opts.outdir, isZxSource);
+    }
+
+    std.mem.sort([]const u8, rels.items, {}, struct {
+        fn less(_: void, a: []const u8, b: []const u8) bool {
+            return std.mem.order(u8, a, b) == .lt;
+        }
+    }.less);
+    return try rels.toOwnedSlice();
+}
+
+fn isZxSource(basename: []const u8) bool {
+    return zxExtLen(basename) != null;
+}
+
+/// Append files under `dir_path` whose basename passes `filter`, as `prefix/<rel>`.
+fn appendSources(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    out: *std.array_list.Managed([]const u8),
+    dir_path: []const u8,
+    prefix: []const u8,
+    outdir: []const u8,
+    comptime filter: fn ([]const u8) bool,
+) !void {
+    var dir = try std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true });
+    defer dir.close(io);
+
+    const outdir_rel = try getOutputDirRelativePath(allocator, dir_path, outdir);
+    defer if (outdir_rel) |rel| allocator.free(rel);
+
+    var walker = try dir.walk(allocator);
+    defer walker.deinit();
+    while (try walker.next(io)) |entry| {
+        if (outdir_rel) |rel| if (std.mem.startsWith(u8, entry.path, rel) and
+            (entry.path.len == rel.len or entry.path[rel.len] == std.fs.path.sep)) continue;
+        if (!filter(entry.basename)) continue;
+        const kind = if (entry.kind == .sym_link) (dir.statFile(io, entry.path, .{}) catch continue).kind else entry.kind;
+        if (kind != .file) continue;
+        try out.append(try std.fs.path.join(allocator, &.{ prefix, entry.path }));
+    }
+}
+
+/// Transpile the route roots and every `.zx`/`.mdzx`/`.md` they reach through
+/// `@import`; anything else in the tree is left alone.
 fn transpileDirectory(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -1692,151 +1760,168 @@ fn transpileDirectory(
     var task = progress.start("Transpiling .zx files", 0);
     defer task.end();
 
-    // Detect added/removed sources before per-file cache hits; invalidate
-    // `.zxcache` when the tree membership changes (renames, new pages, etc.).
+    const roots = try collectRoots(io, allocator, opts);
+    defer {
+        for (roots) |r| allocator.free(r);
+        allocator.free(roots);
+    }
+
+    // Invalidate `.zxcache` when the route set changes (renames, new pages, etc.).
     if (opts.cache_dir) |cache_dir| {
-        const rels = collectSourceRelPaths(io, allocator, opts.path) catch null;
-        if (rels) |owned| {
-            defer {
-                for (owned) |r| allocator.free(r);
-                allocator.free(owned);
-            }
-            if (sourceTreeFingerprintChanged(io, allocator, cache_dir, owned) catch true) {
-                if (opts.verbose) std.debug.print("Source tree changed; invalidating transpile caches\n", .{});
-                invalidateZxCaches(io, allocator, cache_dir, opts.verbose) catch |err| {
-                    std.debug.print("Warning: Failed to invalidate transpile caches: {}\n", .{err});
-                };
-            }
+        if (sourceTreeFingerprintChanged(io, allocator, cache_dir, roots) catch true) {
+            if (opts.verbose) std.debug.print("Source tree changed; invalidating transpile caches\n", .{});
+            invalidateZxCaches(io, allocator, cache_dir, opts.verbose) catch |err| {
+                std.debug.print("Warning: Failed to invalidate transpile caches: {}\n", .{err});
+            };
         }
     }
 
-    var dir = try std.Io.Dir.cwd().openDir(io, opts.path, .{ .iterate = true });
-    defer dir.close(io);
+    var pending = std.array_list.Managed([]const u8).init(allocator);
+    defer {
+        for (pending.items) |p| allocator.free(p);
+        pending.deinit();
+    }
+    var seen = std.StringHashMap(void).init(allocator);
+    defer {
+        var it = seen.keyIterator();
+        while (it.next()) |k| allocator.free(k.*);
+        seen.deinit();
+    }
 
-    const output_dir_relative = try getOutputDirRelativePath(allocator, opts.path, opts.outdir);
-    defer if (output_dir_relative) |rel| allocator.free(rel);
+    // Reversed so popping visits roots in sorted order.
+    var i = roots.len;
+    while (i > 0) {
+        i -= 1;
+        try pending.append(try std.fs.path.join(allocator, &.{ opts.path, roots[i] }));
+    }
 
-    const sep = std.fs.path.sep_str;
+    const abs_root = try std.fs.path.resolve(allocator, &.{opts.path});
+    defer allocator.free(abs_root);
 
-    var walker = try dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next(io)) |entry| {
-        task.completeOne();
-        var actual_kind = entry.kind;
-        if (entry.kind == .sym_link) {
-            const entry_stat = dir.statFile(io, entry.path, .{}) catch continue;
-            actual_kind = entry_stat.kind;
-        }
-
-        if (actual_kind != .file) continue;
-
-        if (output_dir_relative) |rel| {
-            if (std.mem.startsWith(u8, entry.path, rel)) {
-                if (entry.path.len == rel.len) {
-                    continue;
-                }
-                if (std.mem.startsWith(u8, entry.path[rel.len..], sep)) {
-                    continue;
-                }
-            }
-        }
-
-        const is_zx = std.mem.endsWith(u8, entry.path, ".zx");
-        const is_mdzx = std.mem.endsWith(u8, entry.path, ".mdzx");
-        const is_md = std.mem.endsWith(u8, entry.path, ".md") and !is_mdzx;
-
-        const input_path = try std.fs.path.join(allocator, &.{ opts.path, entry.path });
+    while (pending.pop()) |input_path| {
         defer allocator.free(input_path);
+        task.completeOne();
 
-        if (is_zx or is_mdzx or is_md) {
-            const ext_len = zxExtLen(entry.path).?;
-            const output_rel_path = try std.mem.concat(allocator, u8, &.{
-                entry.path[0 .. entry.path.len - ext_len],
-                ".zig",
-            });
-            defer allocator.free(output_rel_path);
+        const abs_input = std.fs.path.resolve(allocator, &.{input_path}) catch continue;
+        if (seen.contains(abs_input)) {
+            allocator.free(abs_input);
+            continue;
+        }
+        try seen.put(abs_input, {});
 
-            const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
-            defer allocator.free(output_path);
+        // Only sources inside the app dir map into the outdir.
+        const rel = try relativePath(allocator, abs_root, abs_input);
+        defer allocator.free(rel);
+        if (std.mem.eql(u8, rel, "..") or std.mem.startsWith(u8, rel, ".." ++ std.fs.path.sep_str)) continue;
 
-            // Track this input for the dep file (absolute path for Make format).
-            // Embedded-file deps are collected by `transpileFile` via the AST.
-            const abs_input = std.fs.path.resolve(allocator, &.{input_path}) catch
-                try allocator.dupe(u8, input_path);
-            try input_files.append(abs_input);
+        try transpileSource(io, allocator, global_components, input_files, companions_visited, &pending, opts, input_path, abs_input, rel);
+    }
 
-            const cache_base = opts.cache_dir orelse opts.outdir;
-            const cache_out_path = try std.fs.path.join(allocator, &.{ cache_base, output_rel_path });
-            defer allocator.free(cache_out_path);
+    if (opts.cache_dir) |cache_dir| {
+        writeSourceTreeFingerprint(io, allocator, cache_dir, roots) catch |err| {
+            std.debug.print("Warning: Failed to write source tree fingerprint: {}\n", .{err});
+        };
+    }
+}
 
-            // Cache file alongside the .zig output (not .zig extension so compiler ignores it)
-            const cache_path = try std.mem.concat(allocator, u8, &.{ cache_out_path, ".zxcache" });
-            defer allocator.free(cache_path);
+/// Transpile (or replay from cache) one source at `rel` under `opts.path`,
+/// queueing the `.zx` sources it imports onto `pending`.
+fn transpileSource(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    global_components: *std.array_list.Managed(ClientComponentSerializable),
+    input_files: *std.array_list.Managed([]const u8),
+    companions_visited: *std.StringHashMap(void),
+    pending: *std.array_list.Managed([]const u8),
+    opts: TranspileOptions,
+    input_path: []const u8,
+    abs_input: []const u8,
+    rel: []const u8,
+) !void {
+    const ext_len = zxExtLen(rel) orelse {
+        if (zxSourceFor(io, allocator, input_path)) |zx_src| return pending.append(zx_src);
 
-            // Check if output is up-to-date (mtime + matching Transpile.shape in .zxcache)
-            const should_skip = blk: {
-                const input_stat = std.Io.Dir.cwd().statFile(io, input_path, .{}) catch break :blk false;
-                const cache_stat = std.Io.Dir.cwd().statFile(io, cache_out_path, .{}) catch break :blk false;
-                std.Io.Dir.cwd().access(io, cache_path, .{}) catch break :blk false;
-                if (cache_stat.mtime.nanoseconds < input_stat.mtime.nanoseconds) break :blk false;
-                // Shape mismatch / legacy `.zxcache` (bare component array) → retranspile
-                readComponentCache(io, allocator, cache_path, global_components) catch break :blk false;
-                break :blk true;
-            };
+        // Hand-written route `.zig` - copy and follow its import/embed graph.
+        const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, rel });
+        defer allocator.free(output_path);
+        copyCompanionRecursive(io, allocator, input_files, companions_visited, pending, input_path, output_path, opts.verbose) catch |err| {
+            std.debug.print("Warning: Failed to copy route root {s}: {}\n", .{ input_path, err });
+        };
+        return;
+    };
 
-            const cache_is_output = std.mem.eql(u8, cache_out_path, output_path);
+    const output_rel_path = try std.mem.concat(allocator, u8, &.{ rel[0 .. rel.len - ext_len], ".zig" });
+    defer allocator.free(output_rel_path);
 
-            if (should_skip) {
-                if (opts.cache_dir != null and !cache_is_output) {
-                    if (std.fs.path.dirname(output_path)) |parent_dir| {
-                        std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
-                    }
-                    std.Io.Dir.cwd().copyFile(cache_out_path, std.Io.Dir.cwd(), output_path, io, .{}) catch |err| {
-                        std.debug.print("Warning: Failed to copy cached file {s} to {s}: {}\n", .{ cache_out_path, output_path, err });
-                    };
-                }
-                // Transpilation was skipped - replay companion copies from the
-                // cached `.zig` (`@embedFile` + relative `@import`s).
-                {
-                    const embed_src_dir = std.fs.path.dirname(input_path) orelse ".";
-                    const embed_out_dir = std.fs.path.dirname(output_path) orelse opts.outdir;
-                    copyCompanionsForCached(io, allocator, input_files, companions_visited, cache_out_path, embed_src_dir, embed_out_dir, opts.verbose) catch |err| {
-                        std.debug.print("Warning: Failed to copy companions for cached {s}: {}\n", .{ input_path, err });
-                    };
-                }
-                if (opts.verbose) std.debug.print("Skipped (up-to-date): {s}\n", .{input_path});
-            } else {
-                const components_before = global_components.items.len;
-                transpileFile(io, allocator, global_components, opts, input_path, output_path, null, input_files, companions_visited, null) catch |err| {
-                    global_components.items.len = components_before;
-                    std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
-                    continue;
-                };
+    const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
+    defer allocator.free(output_path);
 
-                if (opts.cache_dir != null and !cache_is_output) {
-                    if (std.fs.path.dirname(cache_out_path)) |parent_dir| {
-                        std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
-                    }
-                    std.Io.Dir.cwd().copyFile(output_path, std.Io.Dir.cwd(), cache_out_path, io, .{}) catch |err| {
-                        std.debug.print("Warning: Failed to update cache file {s}: {}\n", .{ cache_out_path, err });
-                    };
-                }
+    // Track this input for the dep file (absolute path for Make format).
+    // Embedded-file deps are collected by `transpileFile` via the AST.
+    try input_files.append(try allocator.dupe(u8, abs_input));
 
-                writeComponentCache(io, allocator, cache_path, global_components.items[components_before..]) catch |err| {
-                    std.debug.print("Warning: Failed to write component cache for {s}: {}\n", .{ input_path, err });
-                };
+    const cache_base = opts.cache_dir orelse opts.outdir;
+    const cache_out_path = try std.fs.path.join(allocator, &.{ cache_base, output_rel_path });
+    defer allocator.free(cache_out_path);
+
+    // Cache file alongside the .zig output (not .zig extension so compiler ignores it)
+    const cache_path = try std.mem.concat(allocator, u8, &.{ cache_out_path, ".zxcache" });
+    defer allocator.free(cache_path);
+
+    // Check if output is up-to-date (mtime + matching Transpile.shape in .zxcache)
+    const should_skip = blk: {
+        const input_stat = std.Io.Dir.cwd().statFile(io, input_path, .{}) catch break :blk false;
+        const cache_stat = std.Io.Dir.cwd().statFile(io, cache_out_path, .{}) catch break :blk false;
+        std.Io.Dir.cwd().access(io, cache_path, .{}) catch break :blk false;
+        if (cache_stat.mtime.nanoseconds < input_stat.mtime.nanoseconds) break :blk false;
+        // Shape mismatch / legacy `.zxcache` (bare component array) → retranspile
+        readComponentCache(io, allocator, cache_path, global_components) catch break :blk false;
+        break :blk true;
+    };
+
+    const cache_is_output = std.mem.eql(u8, cache_out_path, output_path);
+
+    if (should_skip) {
+        if (opts.cache_dir != null and !cache_is_output) {
+            if (std.fs.path.dirname(output_path)) |parent_dir| {
+                std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
             }
-        } else if (isFsRouteZigRoot(getBasename(entry.path)) and !hasZxTwin(io, input_path)) {
-            // Hand-written filesystem-routing roots (`route.zig`, `proxy.zig`, …)
-            // with no `.zx` twin - copy and follow their import/embed graph.
-            const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, entry.path });
-            defer allocator.free(output_path);
-            copyCompanionRecursive(io, allocator, input_files, companions_visited, input_path, output_path, opts.verbose) catch |err| {
-                std.debug.print("Warning: Failed to copy route root {s}: {}\n", .{ input_path, err });
+            std.Io.Dir.cwd().copyFile(cache_out_path, std.Io.Dir.cwd(), output_path, io, .{}) catch |err| {
+                std.debug.print("Warning: Failed to copy cached file {s} to {s}: {}\n", .{ cache_out_path, output_path, err });
             };
         }
+        // Transpilation was skipped - replay companion copies and `.zx` imports
+        // from the cached `.zig` (`@embedFile` + relative `@import`s).
+        {
+            const embed_src_dir = std.fs.path.dirname(input_path) orelse ".";
+            const embed_out_dir = std.fs.path.dirname(output_path) orelse opts.outdir;
+            copyCompanionsForCached(io, allocator, input_files, companions_visited, pending, cache_out_path, embed_src_dir, embed_out_dir, opts.verbose) catch |err| {
+                std.debug.print("Warning: Failed to copy companions for cached {s}: {}\n", .{ input_path, err });
+            };
+        }
+        if (opts.verbose) std.debug.print("Skipped (up-to-date): {s}\n", .{input_path});
+        return;
     }
+
+    const components_before = global_components.items.len;
+    transpileFile(io, allocator, global_components, opts, input_path, output_path, null, input_files, companions_visited, pending, null) catch |err| {
+        global_components.items.len = components_before;
+        std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
+        return;
+    };
+
+    if (opts.cache_dir != null and !cache_is_output) {
+        if (std.fs.path.dirname(cache_out_path)) |parent_dir| {
+            std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
+        }
+        std.Io.Dir.cwd().copyFile(output_path, std.Io.Dir.cwd(), cache_out_path, io, .{}) catch |err| {
+            std.debug.print("Warning: Failed to update cache file {s}: {}\n", .{ cache_out_path, err });
+        };
+    }
+
+    writeComponentCache(io, allocator, cache_path, global_components.items[components_before..]) catch |err| {
+        std.debug.print("Warning: Failed to write component cache for {s}: {}\n", .{ input_path, err });
+    };
 }
 
 const TranspileOptions = struct {
@@ -1846,6 +1931,7 @@ const TranspileOptions = struct {
     map: lang.Ast.ParseOptions.MapMode = .none,
     dep_file: ?[]const u8 = null,
     cache_dir: ?[]const u8 = null,
+    roots: ?[]const u8 = null,
     base_path: ?[]const u8 = null,
     manifest: ?[]const u8 = null,
     build_injections: ?[]const u8 = null,
@@ -1973,21 +2059,6 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
         pruneStaleOutdir(io, allocator, opts.path, opts.outdir, opts.verbose) catch |err| {
             std.debug.print("Warning: Failed to prune stale transpile outputs: {}\n", .{err});
         };
-    }
-
-    if (stat.kind == .directory) {
-        if (opts.cache_dir) |cache_dir| {
-            const rels = collectSourceRelPaths(io, allocator, opts.path) catch null;
-            if (rels) |owned| {
-                defer {
-                    for (owned) |r| allocator.free(r);
-                    allocator.free(owned);
-                }
-                writeSourceTreeFingerprint(io, allocator, cache_dir, owned) catch |err| {
-                    std.debug.print("Warning: Failed to write source tree fingerprint: {}\n", .{err});
-                };
-            }
-        }
     }
 
     if (opts.dep_file) |dep_file_path| {
