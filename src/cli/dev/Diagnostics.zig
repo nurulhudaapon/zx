@@ -496,6 +496,58 @@ pub fn getLineFromFile(allocator: std.mem.Allocator, file_path: []const u8, line
     return null;
 }
 
+pub fn formatFromReader(allocator: std.mem.Allocator, reader: *std.Io.Reader, options: RemapOptions) !?[]u8 {
+    var diagnostics = std.ArrayList(Builder.Diagnostic).empty;
+    defer {
+        for (diagnostics.items) |d| {
+            allocator.free(d.file);
+            allocator.free(d.message);
+            if (d.source_line) |sl| allocator.free(sl);
+            if (d.caret_line) |cl| allocator.free(cl);
+        }
+        diagnostics.deinit(allocator);
+    }
+
+    var line_writer = std.Io.Writer.Allocating.init(allocator);
+    defer line_writer.deinit();
+
+    while (reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
+        const line = line_writer.written();
+        _ = reader.takeByte() catch {};
+
+        if (Builder.parseDiagnostic(allocator, line)) |diag| {
+            try diagnostics.append(allocator, diag);
+        } else if (diagnostics.items.len > 0) {
+            var last_diag = &diagnostics.items[diagnostics.items.len - 1];
+            if (last_diag.source_line == null) {
+                if (line.len > 0) {
+                    last_diag.source_line = try allocator.dupe(u8, line);
+                    line_writer.clearRetainingCapacity();
+                    continue;
+                }
+            } else if (last_diag.caret_line == null) {
+                if (std.mem.indexOfAny(u8, line, "^~") != null) {
+                    last_diag.caret_line = try allocator.dupe(u8, line);
+                    line_writer.clearRetainingCapacity();
+                    continue;
+                }
+            }
+        }
+
+        line_writer.clearRetainingCapacity();
+    } else |err| {
+        if (err != error.EndOfStream) return err;
+    }
+
+    if (diagnostics.items.len == 0) return null;
+
+    remap(allocator, diagnostics.items, options);
+    const deduped = dedupe(allocator, diagnostics.items);
+    diagnostics.shrinkRetainingCapacity(deduped.len);
+
+    return try formatOxlint(allocator, deduped);
+}
+
 pub fn formatOxlint(allocator: std.mem.Allocator, diagnostics: []const Builder.Diagnostic) ![]u8 {
     var buf = std.Io.Writer.Allocating.init(allocator);
     defer buf.deinit();

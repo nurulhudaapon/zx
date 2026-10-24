@@ -12,6 +12,11 @@ pub const Define = struct {
     value: []const u8,
 };
 
+pub const Alias = struct {
+    key: []const u8,
+    path: std.Build.LazyPath,
+};
+
 /// Entry point file paths. At least one is required.
 entrypoints: []const std.Build.LazyPath,
 
@@ -32,6 +37,9 @@ minify: ?bool = null,
 
 /// External packages - not bundled (can use * wildcards)
 external: []const []const u8 = &.{},
+
+/// Substitute a package with a local file. Each entry is `PACKAGE` -> `PATH`.
+alias: []const Alias = &.{},
 
 /// Public path prefix for asset URLs
 public_path: ?[]const u8 = null,

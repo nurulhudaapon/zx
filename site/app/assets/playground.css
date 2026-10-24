@@ -110,7 +110,8 @@
     transition: height 0.2s, flex-basis 0.2s;
 }
 
-.pg-terminal.collapsed .pg-terminal-body {
+.pg-terminal.collapsed .pg-terminal-body,
+.pg-terminal.collapsed .pg-shell {
     display: none;
 }
 
@@ -1116,6 +1117,42 @@ body {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+}
+
+.pg-panel-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid transparent;
+    padding: 0.35rem 0.1rem;
+    margin-right: 0.45rem;
+    font: inherit;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.pg-panel-tab:hover {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.pg-panel-tab--active {
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom-color: var(--zx-primary);
+}
+
+.pg-terminal-body.is-hidden,
+.pg-shell.is-hidden {
+    display: none;
+}
+
+.pg-shell {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0.35rem 0 0 0.6rem;
+    background: #0b0e13;
 }
 
 .pg-terminal-title-dot {

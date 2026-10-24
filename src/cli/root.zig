@@ -384,7 +384,7 @@ pub const commands: []const Command = &.{
 };
 
 const os_commands: []const Command = switch (builtin.os.tag) {
-    .wasi, .freestanding => &.{ version, transpile, fmt, lsp },
+    .wasi, .freestanding => &.{ version, dev, transpile, fmt, lsp },
     else => commands,
 };
 

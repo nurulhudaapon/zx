@@ -50,6 +50,8 @@ async function run(
         path,
         "--outdir",
         outdir,
+        "--map",
+        "inline",
     ];
     if (opts.buildInjections) {
         args.push("--build-injections", opts.buildInjections);
@@ -131,10 +133,60 @@ onmessage = (event) => {
         });
         return;
     }
+    if (event.data.exec) {
+        const { args, files, env, stdin } = event.data.exec;
+        runExec(args, files, env ?? {}, stdin ?? "");
+        return;
+    }
     if (event.data.filename && event.data.content) {
         runSingle(event.data.filename, event.data.content, event.data.subcommand);
     }
 };
+
+// Runs an arbitrary zx CLI command against a file tree and returns the resulting tree
+async function runExec(args: string[], files: Record<string, Uint8Array>, env: Record<string, string>, stdin: string) {
+    if (currentlyRunning) {
+        postMessage({ exec: { output: "zx worker is busy\n", exitCode: 1, files } });
+        return;
+    }
+    currentlyRunning = true;
+
+    const cwdPreopen = new PreopenDirectory(".", convertTree(nestPaths(files)).contents);
+    // One stream for both fds keeps stdout/stderr interleaving intact
+    let output = "";
+    const stdoutDec = new TextDecoder("utf-8", { fatal: false });
+    const stderrDec = new TextDecoder("utf-8", { fatal: false });
+    const fds = [
+        new OpenFile(new File(new TextEncoder().encode(stdin))),
+        new ConsoleStdout((buffer) => {
+            output += stdoutDec.decode(buffer, { stream: true });
+        }),
+        new ConsoleStdout((buffer) => {
+            output += stderrDec.decode(buffer, { stream: true });
+        }),
+        cwdPreopen,
+    ];
+    const envList = Object.entries(env).map(([k, v]) => `${k}=${v}`);
+    const wasi = new WASI(["zx", ...args], envList, fds, { debug: false });
+
+    let exitCode = 1;
+    try {
+        if (!compiledModule) {
+            const response = await fetchWithCache(`/assets/playground/zx-${VERSION}.wasm`);
+            compiledModule = await WebAssembly.compileStreaming(response);
+        }
+        const instance = await WebAssembly.instantiate(compiledModule, {
+            "wasi_snapshot_preview1": wasi.wasiImport,
+        });
+        // @ts-ignore
+        exitCode = wasi.start(instance);
+    } catch (err) {
+        output += `${err}\n`;
+    }
+    output += stdoutDec.decode() + stderrDec.decode();
+    currentlyRunning = false;
+    postMessage({ exec: { output, exitCode, files: flattenDirectory(cwdPreopen.dir) } });
+}
 
 async function runSingle(filename: string, content: string, subcommand?: string) {
     if (currentlyRunning) {
@@ -147,7 +199,9 @@ async function runSingle(filename: string, content: string, subcommand?: string)
     const args =
         cmd === "fmt"
             ? ["zx.wasm", "fmt", "--stdout", filename]
-            : ["zx.wasm", cmd, filename];
+            : cmd === "transpile"
+                ? ["zx.wasm", "transpile", "--map", "inline", filename]
+                : ["zx.wasm", cmd, filename];
 
     const rootDir = convertTree(nestPaths({ [filename]: content }));
     const cwdPreopen = new PreopenDirectory(".", rootDir.contents);

@@ -69,6 +69,11 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
         run.addArg("--entry");
         run.addFileArg(ep);
     }
+    for (build_item.config.alias) |a| {
+        run.addArg("--alias");
+        run.addArg(a.key);
+        run.addFileArg(a.path);
+    }
 
     return .{ .dir = outdir, .run = run };
 }

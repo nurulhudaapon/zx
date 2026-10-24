@@ -160,20 +160,22 @@ pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
             <div class="pg-hsplitter" id="pg-hsplitter"></div>
             <div class="pg-terminal collapsed" id="pg-terminal">
                 <div class="pg-terminal-header" id="pg-terminal-header">
-                    <div class="pg-terminal-title">
+                    <div class="pg-terminal-title" role="tablist" aria-label="Panel">
                         <span class="pg-terminal-title-dot"></span>
-                        Console
+                        <button type="button" class="pg-panel-tab pg-panel-tab--active" data-panel="output" role="tab" aria-selected="true" id="pg-panel-tab-output">Output</button>
+                        <button type="button" class="pg-panel-tab" data-panel="terminal" role="tab" aria-selected="false" id="pg-panel-tab-terminal">Terminal</button>
                     </div>
                     <div class="pg-terminal-actions">
-                        <button class="pg-terminal-action-btn" aria-label="Toggle console" id="pg-terminal-toggle" title="Show/Hide">▲</button>
-                        <button class="pg-terminal-action-btn" aria-label="Clear console" id="pg-terminal-clear" title="Clear">⌫</button>
+                        <button class="pg-terminal-action-btn" aria-label="Toggle panel" id="pg-terminal-toggle" title="Show/Hide">▲</button>
+                        <button class="pg-terminal-action-btn" aria-label="Clear" id="pg-terminal-clear" title="Clear">⌫</button>
                     </div>
                 </div>
-                <div class="pg-terminal-body" id="pg-terminal-body">
+                <div class="pg-terminal-body" id="pg-terminal-body" role="tabpanel" aria-labelledby="pg-panel-tab-output">
                     <div class="pg-terminal-empty" id="pg-terminal-empty">
                         Build progress & program output will appear here
                     </div>
                 </div>
+                <div class="pg-shell is-hidden" id="pg-shell" role="tabpanel" aria-labelledby="pg-panel-tab-terminal"></div>
             </div>
         </div>
     );

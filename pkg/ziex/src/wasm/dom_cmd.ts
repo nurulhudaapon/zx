@@ -32,11 +32,7 @@ const BOOL_PROPS = new Set([
     "indeterminate",
 ]);
 
-/**
- * Work that must run only after the element is in the document.
- * Attrs are applied before AppendChild/HydrateInsert in the same flush, so we
- * queue during the op loop and run once at the end (sync — no microtask tax).
- */
+/** Work that must run only after the element is in the document. */
 type AfterConnectKind = "focus";
 type AfterConnectJob = {
     el: HTMLElement;

@@ -33,7 +33,7 @@ const use_debug_allocator = builtin.optimize == .debug and switch (builtin.os.ta
 };
 
 const os_modules = switch (builtin.os.tag) {
-    .wasi, .freestanding => .{ version, transpile, fmt, lsp },
+    .wasi, .freestanding => .{ version, dev, transpile, fmt, lsp },
     else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, env, lsp, bundle, update, upgrade },
 };
 

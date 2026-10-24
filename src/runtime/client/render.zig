@@ -258,7 +258,7 @@ fn onFormActionResponse(
 /// async round-trip otherwise (so pending / reset / on_settle can complete).
 ///
 /// Important: do not re-render (disable controls) until after JS builds
-/// `FormData` — disabled fields are omitted from multipart bodies.
+/// `FormData` - disabled fields are omitted from multipart bodies.
 fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
     if (!is_wasm) return;
     const form_ctx: *FormActionCtx = @ptrCast(@alignCast(ctx));
@@ -352,12 +352,12 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
 
             if (elem.tag == .custom) {
                 if (elem.custom_tag) |name| {
-                    dom_cmd.createElementNamed(@intFromEnum(elem.tag), name, vnode.id);
+                    dom_cmd.createElementNamed(@backingInt(elem.tag), name, vnode.id);
                 } else {
-                    dom_cmd.createElement(@intFromEnum(zx.ElementTag.div), vnode.id);
+                    dom_cmd.createElement(@backingInt(zx.ElementTag.div), vnode.id);
                 }
             } else {
-                dom_cmd.createElement(@intFromEnum(elem.tag), vnode.id);
+                dom_cmd.createElement(@backingInt(elem.tag), vnode.id);
             }
             if (elem.attributes) |attrs| {
                 var has_action_handler = false;
@@ -492,7 +492,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
         .component_fn => |comp_fn| blk: {
             // Client islands: plain <div id="..." data-name="..."> placeholder.
             const island = comp_fn.island orelse unreachable;
-            dom_cmd.createElement(@intFromEnum(zx.ElementTag.div), vnode.id);
+            dom_cmd.createElement(@backingInt(zx.ElementTag.div), vnode.id);
             dom_cmd.setAttr(vnode.id, "id", island.id);
             dom_cmd.setAttr(vnode.id, "data-name", comp_fn.name);
             break :blk vnode.id;

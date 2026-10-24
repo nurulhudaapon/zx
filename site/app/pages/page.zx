@@ -23,7 +23,7 @@ const features = [_]Feature{
         .{ .icon_fn = icons.BookIcon, .label = "Server Actions", .href = "/learn#server-actions" },
         .{ .icon_fn = icons.BookIcon, .label = "Client Actions", .href = "/learn#client-actions" },
     } },
-    .{ .id = "control-flow", .label = "Control Flow", .icon_fn = icons.Flow, .title = "Control Flow", .description = "Use Zig if, for, while, and switch directly in your markup—no template DSL.", .links = &.{
+    .{ .id = "control-flow", .label = "Control Flow", .icon_fn = icons.Flow, .title = "Control Flow", .description = "Use Zig's if, for, while, and switch directly in your markup, with no template-specific syntax.", .links = &.{
         .{ .icon_fn = icons.BookIcon, .label = "Conditionals", .href = "/learn#conditional-rendering" },
         .{ .icon_fn = icons.BookIcon, .label = "Lists", .href = "/learn#rendering-lists" },
     } },

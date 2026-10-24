@@ -1,6 +1,6 @@
-import { WASI, PreopenDirectory, Fd, File, OpenFile, Directory, Inode } from "@bjorn3/browser_wasi_shim";
+import { WASI, PreopenDirectory, Fd, File, OpenFile, Directory, Inode, ConsoleStdout, wasi as wasi_defs } from "@bjorn3/browser_wasi_shim";
 import { getLatestZigArchive, getZxArchive, stderrOutput, fetchWithCache } from "../utils";
-import { nestPaths } from "../csr";
+import { nestPaths, flattenDirectory } from "../csr";
 
 declare const ZIG_VERSION: string;
 
@@ -372,7 +372,92 @@ async function run(files: { [filename: string]: string }, mode: CompileMode) {
     currentlyRunning = false;
 }
 
+// Commands that link an executable get the prebuilt compiler_rt instead of compiling it in-browser
+const LINKING_COMMANDS = new Set(["build-exe", "test"]);
+
+function usesPrebuiltCompilerRt(args: string[]): boolean {
+    if (!LINKING_COMMANDS.has(args[0])) return false;
+    const i = args.indexOf("-target");
+    return i === -1 || (args[i + 1] ?? "").startsWith("wasm32");
+}
+
+// zig.wasm only resolves absolute paths for /lib and /cache, so scratch files live under cwd
+const SCRATCH_DIR = ".zig-cache/playground";
+
+// Runs the zig CLI as-is against a file tree; `emit` names a SCRATCH_DIR output to hand back
+async function runExec(args: string[], files: Record<string, Uint8Array>, emit?: string) {
+    if (currentlyRunning) {
+        postMessage({ exec: { output: "zig worker is busy\n", exitCode: 1, files } });
+        return;
+    }
+    currentlyRunning = true;
+
+    let output = "";
+    let exitCode = 1;
+    let emitted: Uint8Array | null = null;
+    const cwd = new PreopenDirectory(".", convertTree(nestPaths(files)).contents);
+    try {
+        const [cache, libDirectory, libCompilerRtRes] = await Promise.all([
+            ensureZigCache(),
+            getLatestZigArchive(),
+            fetchWithCache(`/assets/playground/libcompiler_rt-${ZIG_VERSION}.a`),
+        ]);
+        const scratch = new Directory(new Map([
+            ["libcompiler_rt.a", new File(new Uint8Array(await libCompilerRtRes.arrayBuffer()))],
+        ]));
+        let zigCache = cwd.dir.contents.get(".zig-cache");
+        if (!(zigCache instanceof Directory)) {
+            zigCache = new Directory(new Map());
+            cwd.dir.contents.set(".zig-cache", zigCache);
+        }
+        (zigCache as Directory).contents.set("playground", scratch);
+
+        const argv = usesPrebuiltCompilerRt(args)
+            ? ["zig", ...args, `${SCRATCH_DIR}/libcompiler_rt.a`, "-fno-compiler-rt"]
+            : ["zig", ...args];
+
+        const dec = new TextDecoder("utf-8", { fatal: false });
+        const sink = () => {
+            const out = new ConsoleStdout((buffer) => {
+                output += dec.decode(buffer, { stream: true });
+            });
+            out.fd_pwrite = () => ({ ret: wasi_defs.ERRNO_SPIPE, nwritten: 0 });
+            return out;
+        };
+        const fds: Fd[] = [
+            new OpenFile(new File([])),
+            sink(),
+            sink(),
+            cwd,
+            new PreopenDirectory("/lib", libDirectory.contents),
+            new PreopenDirectory("/cache", cache),
+        ];
+        const wasi = new WASI(argv, [], fds, { debug: false });
+        const instance = await WebAssembly.instantiate(await ensureZigModule(), {
+            wasi_snapshot_preview1: wasi.wasiImport,
+        });
+        // @ts-ignore
+        exitCode = wasi.start(instance);
+        output += dec.decode();
+        if (emit) {
+            const file = scratch.contents.get(emit);
+            if (file instanceof File) emitted = file.data.slice();
+        }
+        (zigCache as Directory).contents.delete("playground");
+    } catch (err) {
+        output += `${err}\n`;
+    }
+    await persistZigCache().catch(() => {});
+    currentlyRunning = false;
+    postMessage({ exec: { output, exitCode, files: flattenDirectory(cwd.dir), emitted } });
+}
+
 onmessage = (event) => {
+    if (event.data?.exec) {
+        const { args, files, emit } = event.data.exec;
+        runExec(args, files, emit);
+        return;
+    }
     if (event.data?.clearCache) {
         cacheContents = new Map();
         cachesReady = Promise.resolve();

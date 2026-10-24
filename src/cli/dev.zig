@@ -147,7 +147,10 @@ fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
     }
 }
 
-pub fn run(ctx: CommandContext, args: anytype) !void {
+// Wasm has no processes or sockets, so the host drives the dev loop
+pub const run = if (builtin.cpu.arch.isWasm()) @import("dev/Host.zig").run else runNative;
+
+fn runNative(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
     const io = app.io;
     const env_map = app.environ_map;
@@ -572,7 +575,7 @@ fn printFirstLine(output: *RunnerOutput) void {
     }
 }
 
-fn printAppLogsBanner(restart_s: ?f64) void {
+pub fn printAppLogsBanner(restart_s: ?f64) void {
     std.debug.print("{s}╭─{s}[{s}App Logs{s}]", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
     if (restart_s) |s| std.debug.print(" {s}↻ {d:.2}s{s}", .{ Colors.gray, s, Colors.reset });
     std.debug.print("\n", .{});

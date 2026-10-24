@@ -2,7 +2,7 @@ const std = @import("std");
 const ziex = @import("ziex");
 
 const build_zon = @import("build.zig.zon");
-const ziex_version = 10; // Increment this when site js changes
+const ziex_version = 11; // Increment this when site js changes
 
 const ServerBackend = enum {
     std,
@@ -129,7 +129,7 @@ pub fn build(b: *std.Build) !void {
             const zig_tar_gz = run_tar.addOutputFileArg("zig.tar.gz");
             run_tar.addArg("-C");
             run_tar.addDirectoryArg(zig_dep.path("."));
-            run_tar.addArgs(&.{ "lib/std", "lib/ubsan_rt.zig", "lib/compiler_rt.zig", "lib/compiler_rt", "lib/c.zig", "lib/fuzzer.zig", "lib/zig.h" });
+            run_tar.addArgs(&.{ "lib/std", "lib/ubsan_rt.zig", "lib/compiler_rt.zig", "lib/compiler_rt", "lib/c.zig", "lib/fuzzer.zig", "lib/zig.h", "lib/compiler/test_runner.zig" });
 
             _ = playground_assets.addCopyFile(zig_exe.getEmittedBin(), b.fmt("zig-{s}.wasm", .{playground_zig_version}));
             _ = playground_assets.addCopyFile(lib_compiler_rt.getEmittedBin(), b.fmt("libcompiler_rt-{s}.a", .{playground_zig_version}));
@@ -156,6 +156,7 @@ pub fn build(b: *std.Build) !void {
             _ = lib_stage.addCopyFile(zigc_lib.path("c.zig"), "lib/c.zig");
             _ = lib_stage.addCopyFile(zigc_lib.path("fuzzer.zig"), "lib/fuzzer.zig");
             _ = lib_stage.addCopyFile(zigc_lib.path("zig.h"), "lib/zig.h");
+            _ = lib_stage.addCopyFile(zigc_lib.path("compiler/test_runner.zig"), "lib/compiler/test_runner.zig");
 
             const run_tar = b.addSystemCommand(&.{ "tar", "-czf" });
             run_tar.setName("pack zig stdlib (playground)");
@@ -272,7 +273,7 @@ pub fn build(b: *std.Build) !void {
         const template_css = b.addInstallFile(b.path("../templates/_base/app/assets/style.css"), "static/assets/style.css");
         b.default_step.dependOn(&template_css.step);
 
-        // /bench — CSR js-framework-benchmark from bench/ziex
+        // /bench: CSR js-framework-benchmark from bench/ziex
         const bench_csr_mod = zx.addComponent(.{
             .root_source_file = b.path("../bench/ziex/app/pages/js-framework-benchmark/csr/page.zx"),
         });
@@ -371,6 +372,11 @@ pub fn build(b: *std.Build) !void {
                     b.path("app/pages/playground/scripts/workers/zig.ts"),
                     b.path("app/pages/playground/scripts/workers/zx.ts"),
                     b.path("app/pages/playground/scripts/workers/zls.ts"),
+                    b.path("app/pages/playground/scripts/shell.ts"),
+                },
+                // just-bash's browser build still imports node:zlib for gzip
+                .alias = &.{
+                    .{ .key = "node:zlib", .path = b.path("app/pages/playground/scripts/stubs/zlib.ts") },
                 },
                 .format = .esm,
                 .splitting = false,

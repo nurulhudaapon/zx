@@ -14,7 +14,7 @@ const ActionHandle = @This();
 
 /// Put on `action={…}` (and similar). Framework stamps id via `handler`.
 handler: EventHandler,
-/// Snapshot at construction — true while a submission for this handle is in flight.
+/// Snapshot at construction - true while a submission for this handle is in flight.
 pending: bool,
 
 pub const Outcome = EventHandler.ActionOutcome;

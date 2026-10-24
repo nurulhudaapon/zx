@@ -12,6 +12,7 @@ pub fn main(init: std.process.Init) !void {
     var dep_file_path: ?[]const u8 = null;
     var name: []const u8 = "esbuild";
     var entrypoints: std.ArrayList([]const u8) = .empty;
+    var aliases: std.ArrayList([]const u8) = .empty;
 
     var args = try init.minimal.args.iterateAllocator(allocator);
     defer args.deinit();
@@ -28,6 +29,12 @@ pub fn main(init: std.process.Init) !void {
             name = args.next() orelse return error.MissingName;
         } else if (std.mem.eql(u8, arg, "--entry")) {
             try entrypoints.append(allocator, args.next() orelse return error.MissingEntry);
+        } else if (std.mem.eql(u8, arg, "--alias")) {
+            const key = args.next() orelse return error.MissingAlias;
+            const path = args.next() orelse return error.MissingAlias;
+            // esbuild treats paths without a leading ./ as package names
+            const prefix = if (std.fs.path.isAbsolute(path) or std.mem.startsWith(u8, path, ".")) "" else "./";
+            try aliases.append(allocator, try std.fmt.allocPrint(allocator, "--alias:{s}={s}{s}", .{ key, prefix, path }));
         }
     }
 
@@ -69,7 +76,7 @@ pub fn main(init: std.process.Init) !void {
 
     const meta_path = try std.fmt.allocPrint(allocator, "{s}/.esbuild-meta.json", .{outdir});
 
-    const argv = try buildEsbuildArgv(allocator, esbuild_path, entrypoints.items, opts, outdir, meta_path);
+    const argv = try buildEsbuildArgv(allocator, esbuild_path, entrypoints.items, aliases.items, opts, outdir, meta_path);
     defer allocator.free(argv);
 
     var child = std.process.spawn(init.io, .{
@@ -115,6 +122,7 @@ fn buildEsbuildArgv(
     allocator: std.mem.Allocator,
     esbuild_bin: []const u8,
     entrypoints: []const []const u8,
+    aliases: []const []const u8,
     opts: Options,
     outdir: []const u8,
     meta_path: []const u8,
@@ -170,6 +178,7 @@ fn buildEsbuildArgv(
     for (opts.define) |d| {
         try argv.append(allocator, try std.fmt.allocPrint(allocator, "--define:{s}={s}", .{ d.key, d.value }));
     }
+    try argv.appendSlice(allocator, aliases);
 
     return try argv.toOwnedSlice(allocator);
 }

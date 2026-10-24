@@ -1,4 +1,5 @@
-import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerminal, appendStatusStep, completeStatusStep } from "./terminal.ts";
+import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerminal, appendStatusStep, completeStatusStep, onOutput, setShellHooks, showPanelTab } from "./terminal.ts";
+import type { DevBuildResult, Shell, ShellHost, ZigExecResult, ZxExecResult } from "./shell.ts";
 import { EditorState, Prec } from "@codemirror/state"
 import { keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view"
 import { EditorView, basicSetup } from "codemirror"
@@ -702,7 +703,6 @@ function ensureBaselinePlaygroundFiles(filesDecoded: { [filename: string]: strin
         playgroundMode = "app";
         activeTemplateId = defaultTemplateId("app");
         // Shared snippets often ship a minimal shell (page/layout/route only).
-        // Only fill app/main.zig — do not pull the full default app tree.
         const appMain =
             getTemplate("app")?.files["app/main.zig"] ??
             getTemplate(activeTemplateId)?.files["app/main.zig"];
@@ -1176,7 +1176,10 @@ function restoreBuildArtifact(stored: StoredBuild): PlaygroundBuildArtifacts | U
 
 let persistFilesTimer: number | null = null;
 
+const filesChangedListeners = new Set<() => void>();
+
 function schedulePersistFiles() {
+    for (const listener of filesChangedListeners) listener();
     if (!persistFilesEnabled) return;
     if (persistFilesTimer != null) window.clearTimeout(persistFilesTimer);
     persistFilesTimer = window.setTimeout(() => {
@@ -1656,21 +1659,20 @@ function showHydratedPreview(html: string, clientWasm: Uint8Array) {
     iframe.srcdoc = doc;
 }
 
-function runCompiled(compiled: PlaygroundBuildArtifacts | Uint8Array, opts: { preservePreview?: boolean } = {}) {
+function runCompiled(compiled: PlaygroundBuildArtifacts | Uint8Array, opts: { preservePreview?: boolean } = {}): Promise<void> {
     appendStatusStep("run", "Running\u2026");
     updatePreviewStatus("", "Running\u2026", "run");
 
     if (compiled instanceof Uint8Array) {
         lastAppArtifacts = null;
-        void runPlaygroundWasm(compiled, opts);
-        return;
+        return runPlaygroundWasm(compiled, opts);
     }
 
     lastAppArtifacts = compiled;
     const input = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
     const loc = normalizePreviewLocation(input?.value || previewLocation.display);
     setPreviewLocation(loc, "replace");
-    void runAppArtifacts(compiled, loc, opts);
+    return runAppArtifacts(compiled, loc, opts);
 }
 
 function runPlaygroundWasm(compiled: Uint8Array, opts: { preservePreview?: boolean } = {}): Promise<void> {
@@ -1840,7 +1842,7 @@ function getCurrentFilesMap(): { [filename: string]: string } {
 
 async function runTranspileAndBuild(
     visible: boolean,
-    opts: { preservePreview?: boolean } = {},
+    opts: { preservePreview?: boolean; onError?: (stderr: string, files: { [name: string]: string }) => void } = {},
 ): Promise<PlaygroundBuildArtifacts | Uint8Array | null> {
     let filesMap = getCurrentFilesMap();
     const zxEntries = Object.entries(filesMap).filter(([n]) => n.endsWith(".zx"));
@@ -1849,6 +1851,7 @@ async function runTranspileAndBuild(
 
     const emptyZxFiles = zxEntries.filter(([_, content]) => !content.trim());
     if (emptyZxFiles.length > 0) {
+        opts.onError?.("One or more .zx files are empty. Please add code or remove the empty file(s).", filesMap);
         if (visible) {
             completeStatusStep("transpile", "error");
             appendTerminalLine("One or more .zx files are empty. Please add code or remove the empty file(s).", "pg-terminal-error");
@@ -1892,6 +1895,7 @@ async function runTranspileAndBuild(
                 cachePut(transpileCache, zxHash, { value: { ...transpiledFiles }, duration, isPrefetch: !visible });
                 if (visible) completeStatusStep("transpile", "done");
             } catch (err: any) {
+                opts.onError?.(err.stderr || "Transpile failed", filesMap);
                 if (visible) {
                     completeStatusStep("transpile", "error");
                     appendTerminalLine(err.stderr || "Transpile failed", "pg-terminal-error");
@@ -1935,6 +1939,7 @@ async function runTranspileAndBuild(
     }
 
     if (playgroundMode === "app" && !filesMap["app/app.zig"]) {
+        opts.onError?.("Transpile did not produce app/app.zig", filesMap);
         if (visible) {
             completeStatusStep("build", "error");
             appendTerminalLine("Transpile did not produce app/app.zig", "pg-terminal-error");
@@ -1987,6 +1992,7 @@ async function runTranspileAndBuild(
         if (visible) completeStatusStep("build", "done");
         return compiled;
     } catch (err: any) {
+        opts.onError?.(err.stderr || "Compilation failed.", filesMap);
         if (visible) {
             completeStatusStep("build", "error");
             if (err.stderr) {
@@ -2033,11 +2039,135 @@ async function runCurrentFiles(opts: { preservePreview?: boolean } = {}) {
 
     const compiled = await runTranspileAndBuild(true, opts);
     if (compiled == null) return;
-    runCompiled(compiled, opts);
+    await runCompiled(compiled, opts);
 }
 
 outputsRun.addEventListener('click', async () => {
+    showPanelTab("output");
     await runCurrentFiles();
+});
+
+function projectFiles(): { [filename: string]: string } {
+    if (activeFileIndex !== -1 && editorView && !files[activeFileIndex].ephemeral) {
+        fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+    }
+    const map: { [filename: string]: string } = {};
+    for (const f of fileManager.getAllFiles()) map[f.name] = f.content;
+    return map;
+}
+
+function writeProjectFile(name: string, content: string) {
+    const index = files.findIndex((f) => f.name === name && !f.ephemeral);
+    if (!fileManager.hasFile(name)) {
+        fileManager.addFile(name, content);
+        files.push({ name, state: createEditorState(name, content), hidden: isHiddenPlaygroundFile(name) });
+        updateTabs();
+    } else {
+        fileManager.updateContent(name, content);
+        if (index === activeFileIndex && editorView) {
+            const current = editorView.state.doc.toString();
+            if (current !== content) {
+                editorView.dispatch({ changes: { from: 0, to: current.length, insert: content } });
+            }
+            files[index].state = editorView.state;
+        } else if (index !== -1) {
+            files[index].state = createEditorState(name, content);
+        }
+    }
+    schedulePersistFiles();
+}
+
+function removeProjectFile(name: string): boolean {
+    const index = files.findIndex((f) => f.name === name && !f.ephemeral);
+    if (index === -1) {
+        fileManager.removeFile(name);
+        return true;
+    }
+    if (files[index].locked) return false;
+    removeFile(index);
+    return true;
+}
+
+function execWorkerAsync<T>(worker: Worker, payload: unknown): Promise<T> {
+    return new Promise((resolve) => {
+        function handler(ev: MessageEvent) {
+            if (!ev.data?.exec) return;
+            worker.removeEventListener("message", handler);
+            resolve(ev.data.exec);
+        }
+        worker.addEventListener("message", handler);
+        worker.postMessage({ exec: payload });
+    });
+}
+
+function runProgramAsync(wasm: Uint8Array, args: string[], onOutput: (text: string) => void, signal?: AbortSignal): Promise<number> {
+    return new Promise((resolve) => {
+        const worker = new Worker(`/assets/playground/workers/runner.js?v=${VERSION}`);
+        const finish = (code: number) => {
+            worker.terminate();
+            signal?.removeEventListener("abort", onAbort);
+            resolve(code);
+        };
+        const onAbort = () => finish(130);
+        signal?.addEventListener("abort", onAbort);
+        worker.onerror = (ev) => {
+            onOutput(`${ev.message}\n`);
+            finish(1);
+        };
+        worker.onmessage = (ev: MessageEvent) => {
+            if (typeof ev.data?.out === "string") onOutput(ev.data.out);
+            if (typeof ev.data?.exit === "number") finish(ev.data.exit);
+        };
+        worker.postMessage({ program: { wasm, args } });
+    });
+}
+
+async function devBuild(): Promise<DevBuildResult> {
+    let failure = null as { stderr: string; files: { [name: string]: string } } | null;
+    const compiled = await runTranspileAndBuild(false, {
+        preservePreview: true,
+        onError: (stderr, files) => {
+            failure = { stderr, files };
+        },
+    });
+    if (compiled) return { ok: true, compiled };
+    return { ok: false, stderr: failure?.stderr ?? "Build failed", files: failure?.files ?? {} };
+}
+
+const shellHost: ShellHost = {
+    files: projectFiles,
+    writeFile: writeProjectFile,
+    removeFile: removeProjectFile,
+    build: () => runTranspileAndBuild(true, { preservePreview: true }),
+    run: () => runCurrentFiles(),
+    devBuild,
+    preview: (compiled) => runCompiled(compiled, { preservePreview: true }),
+    onFilesChanged(listener) {
+        filesChangedListeners.add(listener);
+        return () => filesChangedListeners.delete(listener);
+    },
+    zx: (args, files, opts = {}) => execWorkerAsync<ZxExecResult>(zxWorker, { args, files, ...opts }),
+    zig: (args, files, emit) => execWorkerAsync<ZigExecResult>(zigWorker, { args, files, emit }),
+    runProgram: runProgramAsync,
+    onOutput,
+};
+
+let shellPromise: Promise<Shell> | null = null;
+setShellHooks({
+    open(container) {
+        if (!shellPromise) {
+            const url = `/assets/playground/shell.js?v=${VERSION}`;
+            shellPromise = import(url).then((m) => m.mountShell(container, shellHost));
+            shellPromise.catch((err) => {
+                shellPromise = null;
+                container.textContent = `Failed to start terminal: ${err}`;
+            });
+        }
+        void shellPromise.then((shell) => shell.focus());
+    },
+    clear() {
+        void shellPromise?.then((shell) => shell.clear());
+    },
 });
 
 function maybePrefetchBuild() {

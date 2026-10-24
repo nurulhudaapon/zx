@@ -27,6 +27,8 @@
     "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.7",
     "codemirror": "^6.0.2",
+    "ghostty-web": "^0.4.0",
+    "just-bash": "^3.6.0",
     "prettier": "3.9.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",

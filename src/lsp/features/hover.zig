@@ -176,8 +176,6 @@ fn hoverForShorthandIdentifier(
 
 /// Build Markdown documentation for an element tag name, or null if unknown.
 fn elementMarkdown(arena: std.mem.Allocator, name: []const u8) !?[]const u8 {
-    // ZX components / custom elements are not HTML — don't show MDN docs for
-    // case-insensitive collisions like `<Button>` → `<button>`.
     if (elements.isCustomOrComponent(name)) return null;
     const doc = docs.element(name) orelse return null;
 

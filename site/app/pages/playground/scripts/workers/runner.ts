@@ -260,7 +260,39 @@ async function run(wasmData: unknown, kind: "playground" | "app", opts: {
     });
 }
 
+// Runs a plain WASI program (zig run / zig test), streaming its output
+async function runProgram(wasm: Uint8Array, args: string[]) {
+    const dec = new TextDecoder("utf-8", { fatal: false });
+    const sink = () => new ConsoleStdout((buffer) => {
+        postMessage({ out: dec.decode(buffer, { stream: true }) });
+    });
+    const wasi = new WASI(args, [], [
+        new OpenFile(new File([])),
+        sink(),
+        sink(),
+        new PreopenDirectory(".", new Map()),
+    ]);
+    let exitCode = 0;
+    try {
+        const module = await WebAssembly.compile(wasm);
+        const instance = await WebAssembly.instantiate(module, { wasi_snapshot_preview1: wasi.wasiImport });
+        // @ts-ignore
+        exitCode = wasi.start(instance) ?? 0;
+    } catch (err) {
+        if (err instanceof WASIProcExit) exitCode = err.code;
+        else {
+            postMessage({ out: `${err instanceof Error ? `${err.name}: ${err.message}` : err}\n` });
+            exitCode = 1;
+        }
+    }
+    postMessage({ exit: exitCode });
+}
+
 onmessage = (event) => {
+    if (event.data?.program) {
+        void runProgram(event.data.program.wasm, event.data.program.args);
+        return;
+    }
     try {
         if (event.data?.run == null) return;
         const payload = event.data.run;

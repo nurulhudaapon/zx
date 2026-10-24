@@ -228,7 +228,7 @@ fn appendTagCompletions(
             .documentation = .{
                 .markup_content = .{
                     .kind = .markdown,
-                    .value = "**`<fragment>`** — ZX fragment element (renders children with no wrapper).",
+                    .value = "**`<fragment>`** - Ziex fragment element (renders children with no wrapper).",
                 },
             },
         });

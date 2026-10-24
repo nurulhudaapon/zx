@@ -1,8 +1,8 @@
 /// Dev-mode build watcher.
 ///
 /// Backends:
-/// - `Builder.Bsp` — `zig build --listen=-` (Build Server Protocol)
-/// - `Builder.Cli` — scrape `zig build --watch` stderr (legacy, CLI backend)
+/// - `Builder.Bsp` - `zig build --listen=-` (Build Server Protocol)
+/// - `Builder.Cli` - scrape `zig build --watch` stderr (legacy, CLI backend)
 const Builder = @This();
 
 const std = @import("std");

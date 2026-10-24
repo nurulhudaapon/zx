@@ -1,3 +1,54 @@
+export type OutputEvent =
+    | { kind: "line"; text: string; className?: string }
+    | { kind: "step"; id: string; label: string }
+    | { kind: "step-done"; id: string; state: 'done' | 'error' | 'cached' | 'prefetched'; time: string };
+
+const outputListeners = new Set<(ev: OutputEvent) => void>();
+
+// Mirrors everything written to the Output panel (used by the shell while running zx build)
+export function onOutput(listener: (ev: OutputEvent) => void): () => void {
+    outputListeners.add(listener);
+    return () => outputListeners.delete(listener);
+}
+
+function emitOutput(ev: OutputEvent) {
+    for (const listener of outputListeners) listener(ev);
+}
+
+export type PanelTab = "output" | "terminal";
+
+const PANEL_TAB_STORAGE_KEY = "playground_panel_tab_v1";
+let activePanelTab: PanelTab = "output";
+let shellHooks: { open(container: HTMLElement): void; clear(): void } | null = null;
+
+try {
+    if (localStorage.getItem(PANEL_TAB_STORAGE_KEY) === "terminal") activePanelTab = "terminal";
+} catch { /* ignore */ }
+
+export function setShellHooks(hooks: { open(container: HTMLElement): void; clear(): void }) {
+    shellHooks = hooks;
+}
+
+function isTerminalCollapsed(): boolean {
+    return document.getElementById("pg-terminal")?.classList.contains("collapsed") ?? true;
+}
+
+export function showPanelTab(tab: PanelTab) {
+    activePanelTab = tab;
+    try {
+        localStorage.setItem(PANEL_TAB_STORAGE_KEY, tab);
+    } catch { /* ignore */ }
+    document.querySelectorAll<HTMLElement>(".pg-panel-tab").forEach((el) => {
+        const active = el.dataset.panel === tab;
+        el.classList.toggle("pg-panel-tab--active", active);
+        el.setAttribute("aria-selected", String(active));
+    });
+    document.getElementById("pg-terminal-body")?.classList.toggle("is-hidden", tab !== "output");
+    const shell = document.getElementById("pg-shell");
+    shell?.classList.toggle("is-hidden", tab !== "terminal");
+    if (tab === "terminal" && shell && !isTerminalCollapsed()) shellHooks?.open(shell);
+}
+
 export function setTerminalCollapsed(collapsed: boolean) {
     const terminal = document.getElementById("pg-terminal");
     const preview = document.getElementById("pg-preview");
@@ -11,6 +62,8 @@ export function setTerminalCollapsed(collapsed: boolean) {
         terminal.classList.remove("collapsed");
         if (preview) preview.classList.remove("terminal-collapsed");
         if (toggleBtn) toggleBtn.innerHTML = "▼";
+        const shell = document.getElementById("pg-shell");
+        if (activePanelTab === "terminal" && shell) shellHooks?.open(shell);
     }
 }
 
@@ -20,6 +73,7 @@ export function revealOutputWindow() {
 }
 
 export function appendTerminalLine(text: string, className?: string) {
+    emitOutput({ kind: "line", text, className });
     const termBody = document.getElementById("pg-terminal-body");
     if (!termBody) return;
 
@@ -54,6 +108,7 @@ export function clearTerminal() {
 
 /** Append a new animated pipeline step row to the terminal. */
 export function appendStatusStep(stepId: string, label: string): void {
+    emitOutput({ kind: "step", id: stepId, label });
     const termBody = document.getElementById("pg-terminal-body");
     if (!termBody) return;
 
@@ -101,12 +156,22 @@ export function completeStatusStep(stepId: string, state: 'done' | 'error' | 'ca
             const elapsed = performance.now() - parseFloat(line.dataset.start);
             timeEl.textContent = `${(elapsed / 1000).toFixed(2)}s`;
         }
+        emitOutput({ kind: "step-done", id: stepId, state, time: timeEl.textContent ?? "" });
     }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
     // Collapse terminal by default on load
     setTerminalCollapsed(true);
+    showPanelTab(activePanelTab);
+
+    document.querySelectorAll<HTMLElement>(".pg-panel-tab").forEach((el) => {
+        el.addEventListener("click", (e) => {
+            e.stopPropagation();
+            setTerminalCollapsed(false);
+            showPanelTab(el.dataset.panel as PanelTab);
+        });
+    });
 
     // Toggle button logic
     document.getElementById("pg-terminal-toggle")?.addEventListener("click", (e) => {
@@ -117,7 +182,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Clear button logic
     document.getElementById("pg-terminal-clear")?.addEventListener("click", (e) => {
-        clearTerminal();
+        if (activePanelTab === "terminal") shellHooks?.clear();
+        else clearTerminal();
         e.stopPropagation();
     });
 
