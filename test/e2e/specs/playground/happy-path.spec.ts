@@ -10,7 +10,7 @@ test.describe('Ziex Playground', () => {
     await expect(page.getByRole('button', { name: 'Run' })).toBeVisible();
     if (!skipOnRemoteStatic) {
       await expect(page.getByRole('button', { name: 'Format file' })).toBeVisible();
-      await expect(page.getByText('Console')).toBeVisible();
+      await expect(page.getByRole('tab', { name: 'Output' })).toBeVisible();
     }
     await expect(page.getByRole('button', { name: /Share/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Playground\.zx/ })).toBeVisible();
@@ -98,8 +98,8 @@ test.describe('Ziex Playground', () => {
   test('Console Panel', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Console panel controls may not match static deploy UI yet');
     await page.goto(`/playground`);
-    await page.getByRole('button', { name: /Toggle console/ }).click();
-    await page.getByRole('button', { name: /Clear console/ }).click();
+    await page.getByRole('button', { name: 'Toggle panel', exact: true }).click();
+    await page.getByRole('button', { name: 'Clear', exact: true }).click();
   });
 
   test('Error Handling', async ({ page }) => {
